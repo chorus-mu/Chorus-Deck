@@ -133,7 +133,8 @@ async function ytmPost(
     clientVersion: string;
     userAgent: string;
     context: any;
-  }
+  },
+  host: 'music' | 'youtube' = 'music'
 ): Promise<any> {
   if (typeof window === 'undefined' || !window.api) {
     throw new Error('IPC not available (Tauri bridge is not installed)');
@@ -153,7 +154,7 @@ async function ytmPost(
         clientNameId: clientOverride?.clientNameId,
         clientVersion: clientOverride?.clientVersion,
         userAgent: clientOverride?.userAgent,
-        host: 'music'
+        host
       }
     });
     if (!data) {
@@ -180,9 +181,10 @@ async function validateStreamUrl(
   }
 
   try {
-    return await window.api.invoke<StreamUrlProbe>('ytm:validate-stream', {
+    const probe = await window.api.invoke<StreamUrlProbe>('ytm:validate-stream', {
       args: { url, userAgent }
     });
+    return probe || { playable: true, status: 200, reason: null };
   } catch (error: any) {
     console.warn('[ytmusic] stream URL probe failed, trusting the URL:', error);
     return { playable: true, status: 0, reason: null };
@@ -1115,70 +1117,19 @@ const WEB_REMIX: YTStreamClient = {
 
 const STREAM_FALLBACK_CLIENTS: YTStreamClient[] = [
   {
-    clientName: 'VISIONOS',
-    clientVersion: '0.1',
-    clientId: 101,
-    userAgent:
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
-    osName: 'visionOS',
-    osVersion: '1.3.21O771',
-    deviceMake: 'Apple',
-    deviceModel: 'RealityDevice14,1',
-    friendlyName: 'visionOS',
-    loginSupported: false,
-    loginRequired: false,
-    useSignatureTimestamp: false,
-    useWebPoTokens: false,
-    isEmbedded: false
-  },
-  {
-    clientName: 'ANDROID_VR',
-    clientVersion: '1.65.10',
-    clientId: 28,
-    userAgent:
-      'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
+    clientName: 'ANDROID',
+    clientVersion: '21.02.35',
+    clientId: 3,
+    userAgent: 'com.google.android.youtube/21.02.35 (Linux; U; Android 11) gzip',
     osName: 'Android',
-    osVersion: '12L',
-    deviceMake: 'Oculus',
-    deviceModel: 'Quest 3',
-    androidSdkVersion: 32,
-    friendlyName: 'Android VR 1.65',
+    osVersion: '11',
+    deviceMake: 'Google',
+    deviceModel: 'Pixel 5',
+    androidSdkVersion: 30,
+    friendlyName: 'Android 21.02',
     loginSupported: false,
     loginRequired: false,
-    useSignatureTimestamp: false,
-    useWebPoTokens: false,
-    isEmbedded: false
-  },
-  {
-    clientName: 'TVHTML5',
-    clientVersion: '7.20260213.00.00',
-    clientId: 7,
-    userAgent:
-      'Mozilla/5.0(SMART-TV; Linux; Tizen 4.0.0.2) AppleWebkit/605.1.15 (KHTML, like Gecko) SamsungBrowser/9.2 TV Safari/605.1.15',
-    loginSupported: true,
-    loginRequired: true,
     useSignatureTimestamp: true,
-    useWebPoTokens: true,
-    isEmbedded: false
-  },
-  {
-    clientName: 'ANDROID_VR',
-    clientVersion: '1.43.32',
-    clientId: 28,
-    userAgent:
-      'com.google.android.apps.youtube.vr.oculus/1.43.32 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/107.0.5284.2)',
-    osName: 'Android',
-    osVersion: '12',
-    deviceMake: 'Oculus',
-    deviceModel: 'Quest 3',
-    androidSdkVersion: 32,
-    buildId: 'SQ3A.220605.009.A1',
-    cronetVersion: '107.0.5284.2',
-    packageName: 'com.google.android.apps.youtube.vr.oculus',
-    friendlyName: 'Android VR 1.43',
-    loginSupported: false,
-    loginRequired: false,
-    useSignatureTimestamp: false,
     useWebPoTokens: false,
     isEmbedded: false
   },
@@ -1212,6 +1163,74 @@ const STREAM_FALLBACK_CLIENTS: YTStreamClient[] = [
     loginRequired: false,
     useSignatureTimestamp: false,
     useWebPoTokens: false,
+    isEmbedded: false
+  },
+  {
+    clientName: 'ANDROID_VR',
+    clientVersion: '1.43.32',
+    clientId: 28,
+    userAgent:
+      'com.google.android.apps.youtube.vr.oculus/1.43.32 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/107.0.5284.2)',
+    osName: 'Android',
+    osVersion: '12',
+    deviceMake: 'Oculus',
+    deviceModel: 'Quest 3',
+    androidSdkVersion: 32,
+    buildId: 'SQ3A.220605.009.A1',
+    cronetVersion: '107.0.5284.2',
+    packageName: 'com.google.android.apps.youtube.vr.oculus',
+    friendlyName: 'Android VR 1.43',
+    loginSupported: false,
+    loginRequired: false,
+    useSignatureTimestamp: false,
+    useWebPoTokens: false,
+    isEmbedded: false
+  },
+  {
+    clientName: 'ANDROID_VR',
+    clientVersion: '1.65.10',
+    clientId: 28,
+    userAgent:
+      'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
+    osName: 'Android',
+    osVersion: '12L',
+    deviceMake: 'Oculus',
+    deviceModel: 'Quest 3',
+    androidSdkVersion: 32,
+    friendlyName: 'Android VR 1.65',
+    loginSupported: false,
+    loginRequired: false,
+    useSignatureTimestamp: false,
+    useWebPoTokens: false,
+    isEmbedded: false
+  },
+  {
+    clientName: 'VISIONOS',
+    clientVersion: '0.1',
+    clientId: 101,
+    userAgent:
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+    osName: 'visionOS',
+    osVersion: '1.3.21O771',
+    deviceMake: 'Apple',
+    deviceModel: 'RealityDevice14,1',
+    friendlyName: 'visionOS',
+    loginSupported: false,
+    loginRequired: false,
+    useSignatureTimestamp: false,
+    useWebPoTokens: false,
+    isEmbedded: false
+  },
+  {
+    clientName: 'TVHTML5',
+    clientVersion: '7.20260213.00.00',
+    clientId: 7,
+    userAgent:
+      'Mozilla/5.0(SMART-TV; Linux; Tizen 4.0.0.2) AppleWebkit/605.1.15 (KHTML, like Gecko) SamsungBrowser/9.2 TV Safari/605.1.15',
+    loginSupported: true,
+    loginRequired: true,
+    useSignatureTimestamp: true,
+    useWebPoTokens: true,
     isEmbedded: false
   },
   {
@@ -1253,25 +1272,52 @@ const clientContext = (client: YTStreamClient) => {
   return { client: context, user: {} };
 };
 
-const pickBestAudioFormat = (adaptiveFormats: any[]): any | null => {
-  if (!Array.isArray(adaptiveFormats) || adaptiveFormats.length === 0) return null;
+const pickBestAudioFormat = (
+  adaptiveFormats: any[] = [],
+  progressiveFormats: any[] = []
+): any | null => {
+  const allFormats = [
+    ...(Array.isArray(adaptiveFormats) ? adaptiveFormats : []),
+    ...(Array.isArray(progressiveFormats) ? progressiveFormats : [])
+  ];
+  if (allFormats.length === 0) return null;
 
-  const audioOnly = adaptiveFormats.filter(
-    (f) => f?.width == null && f?.audioTrack?.isAutoDubbed == null
+  const audioOnlyWithUrl = (Array.isArray(adaptiveFormats) ? adaptiveFormats : []).filter(
+    (f) =>
+      typeof f?.url === 'string' &&
+      f.url.startsWith('http') &&
+      f?.width == null &&
+      f?.audioTrack?.isAutoDubbed == null
   );
-
-  if (audioOnly.length === 0) return null;
-
-  const mp4 = audioOnly.filter((f) => f?.mimeType?.startsWith('audio/mp4'));
-  if (mp4.length === 0) {
-    return null;
+  const mp4Audio = audioOnlyWithUrl.filter((f) => f?.mimeType?.startsWith('audio/mp4'));
+  if (mp4Audio.length > 0) {
+    return mp4Audio.reduce((best, current) => {
+      const bestBitrate = best?.averageBitrate ?? best?.bitrate ?? 0;
+      const currentBitrate = current?.averageBitrate ?? current?.bitrate ?? 0;
+      return currentBitrate > bestBitrate ? current : best;
+    }, mp4Audio[0]);
+  }
+  const progWithUrl = (Array.isArray(progressiveFormats) ? progressiveFormats : []).filter(
+    (f) => typeof f?.url === 'string' && f.url.startsWith('http')
+  );
+  const itag18 = progWithUrl.find((f) => f.itag === 18);
+  if (itag18) {
+    return itag18;
   }
 
-  return mp4.reduce((best, current) => {
-    const bestBitrate = best?.averageBitrate ?? best?.bitrate ?? 0;
-    const currentBitrate = current?.averageBitrate ?? current?.bitrate ?? 0;
-    return currentBitrate > bestBitrate ? current : best;
-  }, mp4[0]);
+  // 3. Any format with direct URL containing audio
+  const otherWithUrl = allFormats.filter(
+    (f) =>
+      typeof f?.url === 'string' &&
+      f.url.startsWith('http') &&
+      (f?.mimeType?.startsWith('audio/') || f?.mimeType?.includes('video/mp4'))
+  );
+  if (otherWithUrl.length > 0) {
+    return otherWithUrl[0];
+  }
+
+  // Fallback to first format if none had direct URL
+  return allFormats[0] || null;
 };
 
 interface StreamAttempt {
@@ -1302,7 +1348,11 @@ function extractAlbumFromPlayerData(data: any): string | undefined {
   return undefined;
 }
 
-export async function getYTMStream(videoId: string, cookie?: string): Promise<YTMStream | null> {
+export async function getYTMStream(
+  videoId: string,
+  cookie?: string,
+  songHint?: { title?: string; artist?: string }
+): Promise<YTMStream | null> {
   if (!videoId || !/^[\w-]{6,20}$/.test(videoId)) {
     throw new Error('Invalid YouTube video id');
   }
@@ -1312,31 +1362,36 @@ export async function getYTMStream(videoId: string, cookie?: string): Promise<YT
 
   let sawPrivateTrack = false;
 
-  const skipMainClient = WEB_REMIX.useWebPoTokens;
-  if (skipMainClient) {
-    attempts.push({
-      clientName: WEB_REMIX.clientName,
-      clientId: WEB_REMIX.clientId,
-      outcome: 'SKIP',
-      reason: 'poTokenUnavailable'
-    });
-  }
+  const tryClient = async (
+    client: YTStreamClient,
+    targetId: string = videoId,
+    host: 'youtube' = 'youtube'
+  ): Promise<YTMStream | null> => {
+    const playerBody: Record<string, any> = {
+      videoId: targetId,
+      contentCheckOk: true,
+      racyCheckOk: true
+    };
+    if (client.useSignatureTimestamp || client.clientName === 'ANDROID') {
+      playerBody.playbackContext = {
+        contentPlaybackContext: {
+          html5Preference: 'HTML5_PREF_WANTS',
+          signatureTimestamp: 20514
+        }
+      };
+    }
 
-  const tryClient = async (client: YTStreamClient): Promise<YTMStream | null> => {
     const data = await ytmPost(
       'player',
-      {
-        videoId,
-        contentCheckOk: true,
-        racyCheckOk: true
-      },
+      playerBody,
       cookie,
       {
         clientNameId: client.clientId,
         clientVersion: client.clientVersion,
         userAgent: client.userAgent,
         context: clientContext(client)
-      }
+      },
+      host
     );
 
     const status = data?.playabilityStatus?.status;
@@ -1359,7 +1414,10 @@ export async function getYTMStream(videoId: string, cookie?: string): Promise<YT
       return null;
     }
 
-    const format = pickBestAudioFormat(data?.streamingData?.adaptiveFormats ?? []);
+    const format = pickBestAudioFormat(
+      data?.streamingData?.adaptiveFormats ?? [],
+      data?.streamingData?.formats ?? []
+    );
 
     if (!format) {
       attempts.push({
@@ -1387,12 +1445,18 @@ export async function getYTMStream(videoId: string, cookie?: string): Promise<YT
       return null;
     }
 
+    const durationSeconds = data?.videoDetails?.lengthSeconds
+      ? Number(data.videoDetails.lengthSeconds)
+      : undefined;
+    const approxDurationMs =
+      Number(format.approxDurationMs) || (durationSeconds ? durationSeconds * 1000 : 0);
+
     return {
-      videoId,
+      videoId: targetId,
       url,
       mimeType: format.mimeType,
-      bitrate: format.averageBitrate ?? format.bitrate ?? 0,
-      approxDurationMs: Number(format.approxDurationMs) || 0,
+      bitrate: format.averageBitrate ?? format.bitrate ?? 128000,
+      approxDurationMs,
       contentLength: Number(format.contentLength) || undefined,
       expiresInSeconds: data?.streamingData?.expiresInSeconds ?? 21600,
       title: data?.videoDetails?.title,
@@ -1400,16 +1464,18 @@ export async function getYTMStream(videoId: string, cookie?: string): Promise<YT
       album: extractAlbumFromPlayerData(data),
       thumbnail:
         data?.videoDetails?.thumbnail?.thumbnails?.slice(-1)[0]?.url ??
-        `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
-      durationSeconds: data?.videoDetails?.lengthSeconds
-        ? Number(data.videoDetails.lengthSeconds)
-        : undefined,
+        `https://i.ytimg.com/vi/${targetId}/mqdefault.jpg`,
+      durationSeconds,
       clientNameId: client.clientId,
       userAgent: client.userAgent
     };
   };
 
-  const runCascade = async (startIndex: number): Promise<YTMStream | null> => {
+  const runCascade = async (
+    startIndex: number,
+    targetId: string = videoId,
+    host: 'youtube' = 'youtube'
+  ): Promise<YTMStream | null> => {
     for (let i = startIndex; i < STREAM_FALLBACK_CLIENTS.length; i++) {
       const client = STREAM_FALLBACK_CLIENTS[i];
 
@@ -1424,7 +1490,7 @@ export async function getYTMStream(videoId: string, cookie?: string): Promise<YT
       }
 
       try {
-        const stream = await tryClient(client);
+        const stream = await tryClient(client, targetId, host);
         if (!stream) continue;
         const probe = await validateStreamUrl(stream.url, client.userAgent);
 
@@ -1454,22 +1520,96 @@ export async function getYTMStream(videoId: string, cookie?: string): Promise<YT
     return null;
   };
 
-  const stream = await runCascade(0);
+  let stream = await runCascade(0, videoId, 'youtube');
+
+  if (!stream && sawPrivateTrack && PRIVATE_TRACK_STREAM_START_INDEX >= 0) {
+    stream = await runCascade(PRIVATE_TRACK_STREAM_START_INDEX, videoId, 'youtube');
+  }
 
   if (stream) {
     return stream;
   }
 
-  if (sawPrivateTrack && PRIVATE_TRACK_STREAM_START_INDEX >= 0) {
-    const retry = await runCascade(PRIVATE_TRACK_STREAM_START_INDEX);
-    if (retry) return retry;
+  if (songHint?.title) {
+    try {
+      const query = `${songHint.title} ${songHint.artist || ''}`.trim();
+      console.info(`[YTM stream] Original videoId ${videoId} unplayable, searching YouTube fallback: "${query}"`);
+      const searchData = await ytmPost('search', { query }, cookie, undefined, 'youtube');
+
+      const parseDurationSeconds = (text?: string): number => {
+        if (!text || typeof text !== 'string') return 0;
+        const parts = text.split(':').map((p) => parseInt(p.trim(), 10));
+        if (parts.some((n) => isNaN(n))) return 0;
+        if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+        if (parts.length === 2) return parts[0] * 60 + parts[1];
+        if (parts.length === 1) return parts[0];
+        return 0;
+      };
+
+      interface FallbackCandidate {
+        videoId: string;
+        title: string;
+        durationSec: number;
+      }
+      const candidateList: FallbackCandidate[] = [];
+      const seen = new Set<string>();
+
+      const extractVideos = (node: any, depth = 0) => {
+        if (!node || typeof node !== 'object' || depth > 25) return;
+        if (node.videoRenderer && typeof node.videoRenderer.videoId === 'string') {
+          const vr = node.videoRenderer;
+          const id = vr.videoId;
+          if (id !== videoId && !seen.has(id)) {
+            seen.add(id);
+            const lenText =
+              vr.lengthText?.simpleText ||
+              vr.lengthText?.runs?.[0]?.text ||
+              '';
+            const dur = parseDurationSeconds(lenText);
+            const title =
+              vr.title?.runs?.[0]?.text ||
+              vr.title?.simpleText ||
+              '';
+            candidateList.push({ videoId: id, title, durationSec: dur });
+          }
+        }
+        for (const k of Object.keys(node)) {
+          extractVideos(node[k], depth + 1);
+        }
+      };
+      extractVideos(searchData);
+
+      // Exclude Shorts/clips: songs are virtually always >= 90s
+      const validCandidates = candidateList.filter((c) => {
+        if (c.durationSec > 0 && c.durationSec < 90) {
+          console.info(
+            `[YTM stream] Rejecting short/clip candidate: ${c.videoId} (${c.durationSec}s) "${c.title}"`
+          );
+          return false;
+        }
+        return true;
+      });
+
+      for (const candidate of validCandidates.slice(0, 10)) {
+        console.info(
+          `[YTM stream] Evaluating YouTube candidate: ${candidate.videoId} (${candidate.durationSec}s) "${candidate.title}"`
+        );
+        const candidateStream = await runCascade(0, candidate.videoId, 'youtube');
+        if (candidateStream) {
+          console.info(`[YTM stream] Using working fallback YouTube stream: ${candidate.videoId}`);
+          return candidateStream;
+        }
+      }
+    } catch (searchErr) {
+      console.warn('[YTM stream] Fallback YouTube search failed:', searchErr);
+    }
   }
 
   console.warn('[YTM stream] cascade exhausted:', attempts);
 
   const isLoginRequired = attempts.some((a) => a.status === 'LOGIN_REQUIRED');
   if (isLoginRequired) {
-    throw new Error('YouTube Music sign-in is required for this track');
+    throw new Error('YouTube sign-in is required for this track');
   }
 
   throw new Error(`Unable to resolve a YouTube stream. Attempts: ${JSON.stringify(attempts)}`);

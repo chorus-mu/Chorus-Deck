@@ -160,7 +160,9 @@
         </n-tooltip>
       </div>
 
-      <advanced-controls-popover @click.stop />
+      <div class="advanced-controls-wrapper inline-flex" @click.stop>
+        <advanced-controls-popover />
+      </div>
 
       <n-tooltip trigger="hover" :z-index="9999999">
         <template #trigger>

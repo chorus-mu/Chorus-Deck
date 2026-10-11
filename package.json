@@ -11,10 +11,16 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "vue-tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "dev": "vite dev",
+    "web": "vite dev",
+    "tauri:web": "vite dev",
+    "dev:web": "vite dev",
+    "build:web": "vite build",
+    "desktop": "tauri dev",
+    "tauri:desktop": "tauri dev",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "dev:web": "vite dev",
-    "build:web": "vite build"
+    "build:desktop": "tauri build"
   },
   "lint-staged": {
     "*.{ts,tsx,vue,js}": [

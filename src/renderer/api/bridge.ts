@@ -13,6 +13,7 @@ import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { LocalMusicMeta } from '@/types/localMusic';
 import { getImgUrl } from '@/utils';
 import { extractCleanSongMeta } from '@/utils/songMeta';
+import { webAudio } from './webAudioEngine';
 
 const GENERIC_INVOKE_CHANNELS = [
   'change-language',
@@ -101,14 +102,16 @@ async function handleWebYtmRequest(rawArgs: unknown): Promise<any> {
     const clientNameId = wrapped.clientNameId || 67;
     const clientVersion = wrapped.clientVersion || '1.20241121.01.00';
     const key = 'AIzaSyC9XL3ZjWddXya6X74dJoCTL-KZBW_4qT8';
-    const url = `/__ytm_proxy/youtubei/v1/${endpoint}?key=${key}&prettyPrint=false`;
+    const isYoutube = wrapped.host === 'youtube';
+    const proxyPrefix = isYoutube ? '/__yt_proxy' : '/__ytm_proxy';
+    const url = `${proxyPrefix}/youtubei/v1/${endpoint}?key=${key}&prettyPrint=false`;
 
     if (typeof body === 'object' && body !== null && !('context' in body)) {
       body = {
         ...body,
         context: {
           client: {
-            clientName: 'WEB_REMIX',
+            clientName: isYoutube ? 'WEB' : 'WEB_REMIX',
             clientVersion,
             hl: 'en',
             gl: 'US'
@@ -122,6 +125,10 @@ async function handleWebYtmRequest(rawArgs: unknown): Promise<any> {
       'X-YouTube-Client-Name': String(clientNameId),
       'X-YouTube-Client-Version': String(clientVersion)
     };
+
+    if (wrapped.userAgent) {
+      headers['User-Agent'] = wrapped.userAgent;
+    }
 
     if (wrapped.cookie) {
       headers['Cookie'] = wrapped.cookie;
@@ -150,6 +157,87 @@ async function rawInvoke<T>(channel: string, args?: unknown): Promise<T> {
   if (!isTauriAvailable()) {
     if (channel === 'ytm:request') {
       return handleWebYtmRequest(args) as unknown as T;
+    }
+    if (channel === 'ytm:validate-stream') {
+      try {
+        const probeArgs = (args as any)?.args || args;
+        const targetUrl = probeArgs?.url;
+        const ua = probeArgs?.userAgent || '';
+        if (!targetUrl) {
+          return { playable: false, status: 400, reason: 'Missing url' } as unknown as T;
+        }
+        const resp = await fetch(
+          `/__stream_probe?url=${encodeURIComponent(targetUrl)}&ua=${encodeURIComponent(ua)}`
+        );
+        if (resp.ok) {
+          return (await resp.json()) as unknown as T;
+        }
+        return { playable: false, status: resp.status, reason: `Probe HTTP ${resp.status}` } as unknown as T;
+      } catch (err: any) {
+        return { playable: false, status: 0, reason: err?.message || 'Probe failed' } as unknown as T;
+      }
+    }
+    if (channel === 'get-platform') {
+      return 'web' as unknown as T;
+    }
+    if (channel === 'get-store-value') {
+      const key = (args as any)?.key || (typeof args === 'string' ? args : '');
+      try {
+        const val = localStorage.getItem(`tauri_store_${key}`);
+        return (val !== null ? JSON.parse(val) : null) as unknown as T;
+      } catch {
+        return null as unknown as T;
+      }
+    }
+    if (channel === 'set-store-value') {
+      const key = (args as any)?.key;
+      const value = (args as any)?.value;
+      if (key) {
+        try {
+          localStorage.setItem(`tauri_store_${key}`, JSON.stringify(value));
+        } catch {}
+      }
+      return null as unknown as T;
+    }
+    if (channel === 'audio-play') {
+      const { url, cookie, durationMs, container, userAgent } = (args as any) || {};
+      return webAudio.play(url, cookie, durationMs, container, userAgent) as unknown as T;
+    }
+    if (channel === 'audio-pause') {
+      webAudio.pause();
+      return null as unknown as T;
+    }
+    if (channel === 'audio-resume') {
+      return webAudio.resume() as unknown as T;
+    }
+    if (channel === 'audio-stop') {
+      webAudio.stop();
+      return null as unknown as T;
+    }
+    if (channel === 'audio-set-volume') {
+      webAudio.setVolume((args as any)?.volume ?? 1);
+      return null as unknown as T;
+    }
+    if (channel === 'audio-seek') {
+      webAudio.seek((args as any)?.timeSecs ?? 0);
+      return null as unknown as T;
+    }
+    if (channel === 'audio-get-time') {
+      return webAudio.getTime() as unknown as T;
+    }
+    if (channel === 'audio-get-duration') {
+      return webAudio.getDuration() as unknown as T;
+    }
+    if (channel === 'audio-set-playback-rate') {
+      webAudio.setPlaybackRate((args as any)?.rate ?? 1);
+      return null as unknown as T;
+    }
+    if (
+      channel === 'audio-set-eq-bypass' ||
+      channel === 'audio-set-eq-band' ||
+      channel === 'audio-clear-cache'
+    ) {
+      return null as unknown as T;
     }
     console.debug(`[bridge] web fallback for rawInvoke ${channel}`, args);
     return null as unknown as T;
@@ -239,9 +327,26 @@ export const bridge = {
   setContentZoom: (zoom: number) => rawInvoke<void>('set-content-zoom', { zoom }),
   getContentZoom: () => rawInvoke<number>('get-content-zoom'),
 
-  getStoreValue: (key: string) => rawInvoke<unknown>('get-store-value', { key }),
-  setStoreValue: (key: string, value: unknown) =>
-    rawInvoke<void>('set-store-value', { key, value }),
+  getStoreValue: (key: string) => {
+    if (!isTauriAvailable()) {
+      try {
+        const val = localStorage.getItem(`tauri_store_${key}`);
+        return Promise.resolve(val !== null ? JSON.parse(val) : null);
+      } catch {
+        return Promise.resolve(null);
+      }
+    }
+    return rawInvoke<unknown>('get-store-value', { key });
+  },
+  setStoreValue: (key: string, value: unknown) => {
+    if (!isTauriAvailable()) {
+      try {
+        localStorage.setItem(`tauri_store_${key}`, JSON.stringify(value));
+      } catch {}
+      return Promise.resolve();
+    }
+    return rawInvoke<void>('set-store-value', { key, value });
+  },
 
   invoke: <T = unknown>(channel: string, ...args: unknown[]): Promise<T> => {
     assertAllowed(channel, GENERIC_INVOKE_CHANNELS);
@@ -373,7 +478,12 @@ export const bridge = {
   saveFile: (title?: string, defaultName?: string) => rawInvoke<string | null>('save-file', { title, defaultName }),
   openDirectory: (path: string) => rawInvoke<void>('open-directory', { path }),
   getDownloadsPath: () => rawInvoke<string>('get-downloads-path'),
-  getPlatform: () => rawInvoke<string>('get-platform'),
+  getPlatform: () => {
+    if (!isTauriAvailable()) {
+      return Promise.resolve('web');
+    }
+    return rawInvoke<string>('get-platform');
+  },
   checkFileExists: (path: string) => rawInvoke<boolean>('check-file-exists', { path }),
   showNotification: (title: string, body: string) =>
     rawInvoke<void>('show-notification', { title, body }),
@@ -407,10 +517,16 @@ export const bridge = {
   trayLyricUpdate: (data: unknown) => rawInvoke<void>('tray-lyric-update', { data }),
 
   onPlaybackProgress: (cb: (timeSecs: number) => void) => {
-    listenChannel<number>('playback-progress', cb);
+    if (!isTauriAvailable()) {
+      return webAudio.onProgress(cb);
+    }
+    return listenChannel<number>('playback-progress', cb);
   },
   onPlaybackEnded: (cb: () => void) => {
-    listenChannel<void>('playback-ended', cb);
+    if (!isTauriAvailable()) {
+      return webAudio.onEnded(cb);
+    }
+    return listenChannel<void>('playback-ended', cb);
   },
 
   audioPlay: (
@@ -419,19 +535,83 @@ export const bridge = {
     durationMs?: number,
     container?: string,
     userAgent?: string
-  ) => rawInvoke<void>('audio-play', { url, cookie, durationMs, container, userAgent }),
-  audioPause: () => rawInvoke<void>('audio-pause'),
-  audioResume: () => rawInvoke<void>('audio-resume'),
-  audioStop: () => rawInvoke<void>('audio-stop'),
-  audioSetVolume: (volume: number) => rawInvoke<void>('audio-set-volume', { volume }),
-  audioSeek: (timeSecs: number) => rawInvoke<void>('audio-seek', { timeSecs }),
-  audioGetTime: () => rawInvoke<number>('audio-get-time'),
-  audioGetDuration: () => rawInvoke<number | null>('audio-get-duration'),
-  audioSetEqBypass: (bypass: boolean) => rawInvoke<void>('audio-set-eq-bypass', { bypass }),
-  audioSetEqBand: (frequency: number, gain: number) =>
-    rawInvoke<void>('audio-set-eq-band', { frequency, gain }),
-  audioSetPlaybackRate: (rate: number) => rawInvoke<void>('audio-set-playback-rate', { rate }),
-  audioClearCache: () => rawInvoke<void>('audio-clear-cache'),
+  ) => {
+    if (!isTauriAvailable()) {
+      return webAudio.play(url, cookie, durationMs, container, userAgent);
+    }
+    return rawInvoke<void>('audio-play', { url, cookie, durationMs, container, userAgent });
+  },
+  audioPause: () => {
+    if (!isTauriAvailable()) {
+      webAudio.pause();
+      return Promise.resolve();
+    }
+    return rawInvoke<void>('audio-pause');
+  },
+  audioResume: () => {
+    if (!isTauriAvailable()) {
+      return webAudio.resume();
+    }
+    return rawInvoke<void>('audio-resume');
+  },
+  audioStop: () => {
+    if (!isTauriAvailable()) {
+      webAudio.stop();
+      return Promise.resolve();
+    }
+    return rawInvoke<void>('audio-stop');
+  },
+  audioSetVolume: (volume: number) => {
+    if (!isTauriAvailable()) {
+      webAudio.setVolume(volume);
+      return Promise.resolve();
+    }
+    return rawInvoke<void>('audio-set-volume', { volume });
+  },
+  audioSeek: (timeSecs: number) => {
+    if (!isTauriAvailable()) {
+      webAudio.seek(timeSecs);
+      return Promise.resolve();
+    }
+    return rawInvoke<void>('audio-seek', { timeSecs });
+  },
+  audioGetTime: () => {
+    if (!isTauriAvailable()) {
+      return Promise.resolve(webAudio.getTime());
+    }
+    return rawInvoke<number>('audio-get-time');
+  },
+  audioGetDuration: () => {
+    if (!isTauriAvailable()) {
+      return Promise.resolve(webAudio.getDuration());
+    }
+    return rawInvoke<number | null>('audio-get-duration');
+  },
+  audioSetEqBypass: (bypass: boolean) => {
+    if (!isTauriAvailable()) {
+      return Promise.resolve();
+    }
+    return rawInvoke<void>('audio-set-eq-bypass', { bypass });
+  },
+  audioSetEqBand: (frequency: number, gain: number) => {
+    if (!isTauriAvailable()) {
+      return Promise.resolve();
+    }
+    return rawInvoke<void>('audio-set-eq-band', { frequency, gain });
+  },
+  audioSetPlaybackRate: (rate: number) => {
+    if (!isTauriAvailable()) {
+      webAudio.setPlaybackRate(rate);
+      return Promise.resolve();
+    }
+    return rawInvoke<void>('audio-set-playback-rate', { rate });
+  },
+  audioClearCache: () => {
+    if (!isTauriAvailable()) {
+      return Promise.resolve();
+    }
+    return rawInvoke<void>('audio-clear-cache');
+  },
 
   spotifyLogin: (clientId: string) => rawInvoke<string>('integrations:spotify-login', { clientId }),
   spotifyExchangeToken: (code: string, clientId: string, clientSecret: string) =>

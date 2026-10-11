@@ -30,10 +30,14 @@ export const resolveYTMusicStream = async (song: SongResult): Promise<ResolvedYT
     throw new Error('Track does not carry a valid YouTube video id');
   }
 
-  const stream = await getYTMStream(videoId);
+  const artistName = (song.ar || song.artists)?.[0]?.name || (song as any).artist || '';
+  const stream = await getYTMStream(videoId, undefined, {
+    title: song.name,
+    artist: artistName
+  });
 
   if (!stream?.url) {
-    throw new Error('YouTube Music did not return a playable stream');
+    throw new Error('YouTube did not return a playable stream');
   }
 
   const durationMs =

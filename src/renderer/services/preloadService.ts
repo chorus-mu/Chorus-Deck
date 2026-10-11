@@ -97,9 +97,16 @@ class PreloadService {
         reject(new Error(`URL Authentication failed: ${song.name}`));
       };
 
+      const isTauri = typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+      const ua = (song as any)?.userAgent;
+      const effectiveUrl =
+        !isTauri && url.includes('googlevideo.com')
+          ? `/__audio_stream?url=${encodeURIComponent(url)}${ua ? `&ua=${encodeURIComponent(ua)}` : ''}`
+          : url;
+
       testAudio.addEventListener('loadedmetadata', onLoaded);
       testAudio.addEventListener('error', onError);
-      testAudio.src = url;
+      testAudio.src = effectiveUrl;
       testAudio.load();
 
       timeoutId = setTimeout(() => {
