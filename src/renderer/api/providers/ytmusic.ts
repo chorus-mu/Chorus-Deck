@@ -13,15 +13,22 @@ const parseDurationToMs = (dur?: string): number => {
   return ms;
 };
 
-export const toSongResult = (s: YTMSong): SongResult => ({
-  id: s.id,
-  name: s.title,
-  artists: s.artists.map((a) => ({ name: a.name, id: a.id })),
-  album: s.album,
-  picUrl: s.thumbnail,
-  dt: parseDurationToMs(s.duration),
-  source: 'ytmusic'
-});
+export const toSongResult = (s: YTMSong): SongResult => {
+  const thumb =
+    s.thumbnail ||
+    (s.id && String(s.id).length === 11 && !String(s.id).includes('/')
+      ? `https://i.ytimg.com/vi/${s.id}/hqdefault.jpg`
+      : '');
+  return {
+    id: s.id,
+    name: s.title,
+    artists: s.artists.map((a) => ({ name: a.name, id: a.id })),
+    album: s.album,
+    picUrl: thumb,
+    dt: parseDurationToMs(s.duration),
+    source: 'ytmusic'
+  };
+};
 
 export const ytmProvider: SearchProvider = {
   id: 'ytmusic',
@@ -37,14 +44,21 @@ export const ytmProvider: SearchProvider = {
     const mapPlaylist = (
       p: YTMPlaylist,
       type: 'playlist' | 'album' | 'artist'
-    ): PlaylistResult => ({
-      id: p.id,
-      name: p.title,
-      picUrl: p.thumbnail,
-      desc: p.subtitle || '',
-      type,
-      source: 'ytmusic'
-    });
+    ): PlaylistResult => {
+      const thumb =
+        p.thumbnail ||
+        (p.id && String(p.id).length === 11 && !String(p.id).includes('/')
+          ? `https://i.ytimg.com/vi/${p.id}/hqdefault.jpg`
+          : '');
+      return {
+        id: p.id,
+        name: p.title,
+        picUrl: thumb,
+        desc: p.subtitle || '',
+        type,
+        source: 'ytmusic'
+      };
+    };
 
     let topResult: SongResult | PlaylistResult | undefined = undefined;
     if (data.topResult) {

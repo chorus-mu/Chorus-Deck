@@ -132,6 +132,28 @@ watch(
 );
 
 watch(
+  [
+    () => localSetData.value?.dynamicIslandEnabled,
+    () => localSetData.value?.dynamicIslandVisibility
+  ],
+  ([enabled, visibility]) => {
+    try {
+      if (typeof window !== 'undefined') {
+        if (enabled !== undefined) {
+          localStorage.setItem('dynamicIslandEnabled', JSON.stringify(enabled));
+        }
+        if (visibility !== undefined) {
+          localStorage.setItem('dynamicIslandVisibility', JSON.stringify(visibility));
+        }
+      }
+      import('@tauri-apps/api/event').then(({ emit }) => {
+        emit('dynamic-island-settings', { enabled, visibility });
+      });
+    } catch {}
+  }
+);
+
+watch(
   () => settingsStore.setData,
   (newValue) => {
     if (JSON.stringify(localSetData.value) !== JSON.stringify(newValue)) {

@@ -39,6 +39,27 @@ export const useSettingsStore = defineStore('settings', () => {
 
     setData.value = mergedData;
 
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('chorus_settings_data', JSON.stringify(mergedData));
+        if (mergedData.dynamicIslandEnabled !== undefined) {
+          localStorage.setItem('dynamicIslandEnabled', JSON.stringify(mergedData.dynamicIslandEnabled));
+        }
+        if (mergedData.dynamicIslandVisibility !== undefined) {
+          localStorage.setItem('dynamicIslandVisibility', JSON.stringify(mergedData.dynamicIslandVisibility));
+        }
+      }
+    } catch {}
+
+    try {
+      const { emit } = await import('@tauri-apps/api/event');
+      await emit('dynamic-island-settings', {
+        enabled: mergedData.dynamicIslandEnabled,
+        visibility: mergedData.dynamicIslandVisibility
+      });
+      await emit('settings-changed', mergedData);
+    } catch {}
+
     // Use Tauri invoke via the api bridge
     try {
       await window.api.setStoreValue('set', mergedData);
@@ -147,9 +168,10 @@ export const useSettingsStore = defineStore('settings', () => {
   };
 
   const setSystemFonts = (fonts: string[]) => {
+    const list = Array.isArray(fonts) ? fonts : [];
     systemFonts.value = [
       { label: 'System default', value: 'system-ui' },
-      ...fonts.map((font) => ({
+      ...list.map((font) => ({
         label: font,
         value: font
       }))
@@ -303,6 +325,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setShowDownloadDrawer,
     setLanguage,
     initializeSettings,
+    getInitialSettings,
     initializeTheme,
     initializeSystemFonts,
     setCustomApiPlugin

@@ -13,18 +13,126 @@ const windowData = window as any;
 
 let playerStore: ReturnType<typeof usePlayerStore> | null = null;
 
+export const normalizeArtistList = (artists: any[] | undefined, albumName?: string): Artist[] => {
+  if (!artists || !Array.isArray(artists)) return [];
+  const rawList: { name: string; id?: string }[] = [];
+  for (const item of artists) {
+    if (!item) continue;
+    if (typeof item === 'string') {
+      const parts = item.split(/\s*[/]\s*/).map((s) => s.trim()).filter(Boolean);
+      for (const p of parts) {
+        if (/^\d{4}$/.test(p) || /(plays|views)/i.test(p)) continue;
+        const clean = p.replace(/\s*[•·]\s*\d{4}\b.*$/g, '').replace(/\s*[\(\[]\s*\d{4}\s*[\)\]]$/g, '').trim();
+        if (clean && !/^\d{4}$/.test(clean)) {
+          rawList.push({ name: clean });
+        }
+      }
+    } else if (item.name) {
+      if (typeof item.name === 'string') {
+        const rawName = item.name.trim();
+        if (/^\d{4}$/.test(rawName) || /(plays|views)/i.test(rawName)) continue;
+        if (rawName.includes(' / ')) {
+          const parts = rawName.split(/\s*[/]\s*/).map((s: string) => s.trim()).filter(Boolean);
+          for (const p of parts) {
+            if (/^\d{4}$/.test(p) || /(plays|views)/i.test(p)) continue;
+            const clean = p.replace(/\s*[•·]\s*\d{4}\b.*$/g, '').replace(/\s*[\(\[]\s*\d{4}\s*[\)\]]$/g, '').trim();
+            if (clean && !/^\d{4}$/.test(clean)) {
+              rawList.push({ name: clean, id: item.id });
+            }
+          }
+        } else {
+          const clean = rawName.replace(/\s*[•·]\s*\d{4}\b.*$/g, '').replace(/\s*[\(\[]\s*\d{4}\s*[\)\]]$/g, '').trim();
+          if (clean && !/^\d{4}$/.test(clean)) {
+            rawList.push({ ...item, name: clean });
+          }
+        }
+      }
+    }
+  }
+
+  // Pre-scan: if any item has an album browseId, use it as albumName
+  if (!albumName) {
+    for (const entry of rawList) {
+      if (entry.id && (entry.id.startsWith('MPREb') || entry.id.startsWith('OLAK5uy_'))) {
+        albumName = entry.name;
+        break;
+      }
+    }
+  }
+
+  const result: Artist[] = [];
+  const seen = new Set<string>();
+
+  for (let i = 0; i < rawList.length; i++) {
+    let name = rawList[i].name.trim();
+    if (!name) continue;
+
+    const id = rawList[i].id;
+    if (id && (id.startsWith('MPREb') || id.startsWith('OLAK5uy_'))) {
+      if (!albumName) albumName = name;
+      continue;
+    }
+
+    // If single entry contains "Artist - Album/Release", extract just the artist
+    if (rawList.length === 1 && /\s+[-–—]\s+/.test(name)) {
+      const parts = name.split(/\s+[-–—]\s+/);
+      if (parts[0] && parts[0].trim()) {
+        name = parts[0].trim();
+      }
+    }
+
+    const lower = name.toLowerCase();
+    if (seen.has(lower)) continue;
+
+    if (albumName && lower === albumName.toLowerCase().trim()) continue;
+
+    let isAlbumSubtitle = false;
+    for (const accepted of result) {
+      const acceptedLower = accepted.name.toLowerCase();
+      if (
+        lower.startsWith(acceptedLower + ' - ') ||
+        lower.startsWith(acceptedLower + ' – ') ||
+        lower.startsWith(acceptedLower + ' — ')
+      ) {
+        isAlbumSubtitle = true;
+        break;
+      }
+    }
+    if (isAlbumSubtitle) continue;
+
+    seen.add(lower);
+    result.push({ ...rawList[i], name });
+  }
+
+  return result;
+};
+
 export const initMusicHook = (store: ReturnType<typeof usePlayerStore>) => {
   playerStore = store;
 
   playMusic = computed(() => getPlayerStore().playMusic as SongResult);
-  artistList = computed(
-    () => (getPlayerStore().playMusic.ar || getPlayerStore().playMusic?.artists) as Artist[]
-  );
+  artistList = computed(() => {
+    const song = getPlayerStore().playMusic;
+    const raw = (song?.ar || song?.artists) as Artist[];
+    const album = song?.al?.name || (song as any)?.album;
+    let albumStr = typeof album === 'string' ? album : album?.name;
+    if (!albumStr && raw && Array.isArray(raw)) {
+      for (const item of raw) {
+        const id = (item as any)?.id;
+        if (id && (id.startsWith('MPREb') || id.startsWith('OLAK5uy_'))) {
+          albumStr = item.name;
+          break;
+        }
+      }
+    }
+    return normalizeArtistList(raw, albumStr);
+  });
 
   setupKeyboardListeners();
   setupMusicWatchers();
   setupCorrectionTimeWatcher();
   setupPlayStateWatcher();
+  setupAudioListeners();
   void initPlatform();
 };
 
@@ -312,6 +420,16 @@ const setupAudioListeners = () => {
         nowTime.value = currentTime;
         allTime.value = audioService.getDuration() || 0;
 
+        if (
+          allTime.value > 5 &&
+          nowTime.value >= allTime.value - 0.4 &&
+          audioService.isActuallyPlaying()
+        ) {
+          console.log('[MusicHook] Playback reached duration in progress interval, advancing to next song');
+          audioService.triggerPlaybackEnded();
+          return;
+        }
+
         const newIndex = getLrcIndex(nowTime.value);
         if (newIndex !== nowIndex.value) {
           nowIndex.value = newIndex;
@@ -490,13 +608,8 @@ const setupAudioListeners = () => {
   };
 
   audioService.on('end', async () => {
-    console.log('Audio playback end event triggered');
+    console.log('[MusicHook] Audio playback end event triggered');
     clearInterval();
-
-    if (getPlayerStore().repeatMode === 2) {
-      replayMusic();
-      return;
-    }
 
     const { useQueueStore } = await import('@/store/modules/queue');
     useQueueStore().nextPlayOnEnd();

@@ -469,24 +469,56 @@ export const useQueueStore = defineStore(
           return;
         }
 
-        const nowQueueIndex = (queueIndex.value + 1) % queueItems.value.length;
+        // Align baseIndex with currently playing song if possible to avoid index drift
+        const currentSongId = playerCore.playMusic?.id;
+        let baseIndex = queueIndex.value;
+        if (currentSongId !== undefined && currentSongId !== null) {
+          const matchIdx = queueItems.value.findIndex(
+            (item) => String(item.id) === String(currentSongId)
+          );
+          if (matchIdx !== -1) {
+            baseIndex = matchIdx;
+          }
+        }
+
+        // If repeat one is active and playback naturally finished
+        if (autoEnd && repeatMode.value === 2) {
+          // Replay current song
+          const currentSong = queueItems.value[baseIndex] || queueItems.value[0];
+          if (currentSong) {
+            const { playTrack } = await import('@/services/playbackController');
+            await playTrack({ ...currentSong }, true);
+            return;
+          }
+        }
+
+        if (autoEnd && repeatMode.value === 0 && !shuffleEnabled.value) {
+          if (baseIndex >= queueItems.value.length - 1) {
+            console.log('[nextPlay] Reached end of queue in repeat-off mode, stopping playback');
+            playerCore.setIsPlay(false);
+            return;
+          }
+        }
+
+        const nowQueueIndex = (baseIndex + 1) % queueItems.value.length;
         const nextSong = { ...queueItems.value[nowQueueIndex] };
 
         console.log(
-          `[nextPlay] ${nextSong.name}, index: ${queueIndex.value} -> ${nowQueueIndex}`
+          `[nextPlay] ${nextSong.name}, baseIndex: ${baseIndex} -> ${nowQueueIndex}`
         );
+
+        queueIndex.value = nowQueueIndex;
 
         const { playTrack } = await import('@/services/playbackController');
         const success = await playTrack(nextSong, true);
 
-        if (playerCore.playMusic.id !== nextSong.id) {
+        if (String(playerCore.playMusic?.id) !== String(nextSong.id)) {
           console.log('[nextPlay] Replaced by new operation, exit silently');
           return;
         }
 
         if (success) {
           consecutiveFailCount.value = 0;
-          queueIndex.value = nowQueueIndex;
           console.log(`[nextPlay] Play successfully, index: ${nowQueueIndex}`);
           sleepTimerStore.handleSongChange();
         } else {
@@ -510,11 +542,33 @@ export const useQueueStore = defineStore(
       }
     };
 
-    const nextPlay = useThrottleFn(_nextPlay, 500);
+    const nextPlay = useThrottleFn(_nextPlay, 300);
 
-    const nextPlayOnEnd = () => {
-      _nextPlay(true);
+    let isAdvancingOnEnd = false;
+    let lastEndTimestamp = 0;
+
+    const nextPlayOnEnd = async () => {
+      const now = Date.now();
+      if (now - lastEndTimestamp < 400) {
+        console.log('[nextPlayOnEnd] Duplicate end event within 400ms, ignoring');
+        return;
+      }
+      lastEndTimestamp = now;
+      if (isAdvancingOnEnd) {
+        console.log('[nextPlayOnEnd] Already advancing, ignoring duplicate');
+        return;
+      }
+      isAdvancingOnEnd = true;
+      try {
+        await _nextPlay(true);
+      } finally {
+        setTimeout(() => {
+          isAdvancingOnEnd = false;
+        }, 400);
+      }
     };
+
+    let lastPrevClickTimestamp = 0;
 
     const _prevPlay = async () => {
       try {
@@ -524,27 +578,43 @@ export const useQueueStore = defineStore(
 
         cancelRetryTimer();
 
+        // Check if we should seek to start of current song or go to previous song
+        let shouldRestartCurrentSong = false;
         try {
           const currentTime = await window.api.audioGetTime();
-          if (currentTime > 3) {
-            audioService.seek(0);
-            return;
+          const now = Date.now();
+          // If song has played for more than 3 seconds and user hasn't clicked prev in the last 1.2s, restart track
+          if (currentTime > 3 && now - lastPrevClickTimestamp > 1200) {
+            shouldRestartCurrentSong = true;
           }
+          lastPrevClickTimestamp = now;
         } catch (error) {
           console.warn('Unable to read current playback position:', error);
         }
 
-        if (queueIndex.value === 0 && !shuffleEnabled.value) {
+        if (shouldRestartCurrentSong) {
           audioService.seek(0);
           return;
         }
 
+        // Align baseIndex with currently playing song
+        const currentSongId = playerCore.playMusic?.id;
+        let baseIndex = queueIndex.value;
+        if (currentSongId !== undefined && currentSongId !== null) {
+          const matchIdx = queueItems.value.findIndex(
+            (item) => String(item.id) === String(currentSongId)
+          );
+          if (matchIdx !== -1) {
+            baseIndex = matchIdx;
+          }
+        }
+
         const nowQueueIndex =
-          (queueIndex.value - 1 + queueItems.value.length) % queueItems.value.length;
+          (baseIndex - 1 + queueItems.value.length) % queueItems.value.length;
         const prevSong = { ...queueItems.value[nowQueueIndex] };
 
         console.log(
-          `[prevPlay] ${prevSong.name}, index: ${queueIndex.value} -> ${nowQueueIndex}`
+          `[prevPlay] ${prevSong.name}, baseIndex: ${baseIndex} -> ${nowQueueIndex}`
         );
 
         const { playTrack } = await import('@/services/playbackController');
@@ -553,7 +623,8 @@ export const useQueueStore = defineStore(
         if (success) {
           queueIndex.value = nowQueueIndex;
           console.log(`[prevPlay] Play successfully, index: ${nowQueueIndex}`);
-        } else if (playerCore.playMusic.id === prevSong.id) {
+          preloadNextSongs(nowQueueIndex);
+        } else if (String(playerCore.playMusic?.id) === String(prevSong.id)) {
           playerCore.setIsPlay(false);
           getMessage().error('Play Failed, Play Next Song');
         }
@@ -562,7 +633,7 @@ export const useQueueStore = defineStore(
       }
     };
 
-    const prevPlay = useThrottleFn(_prevPlay, 500);
+    const prevPlay = useThrottleFn(_prevPlay, 250);
 
     const setQueueVisible = (value: boolean) => {
       queueVisible.value = value;
@@ -617,12 +688,24 @@ export const useQueueStore = defineStore(
 
         if (song.isFirstPlay) song.isFirstPlay = false;
 
-        const songIndex = queueItems.value.findIndex(
-          (item: SongResult) => item.id === song.id && item.source === song.source
+        let songIndex = queueItems.value.findIndex(
+          (item: SongResult) => String(item.id) === String(song.id)
         );
-        if (songIndex !== -1 && songIndex !== queueIndex.value) {
-          console.log('Song index does not match, update to:', songIndex);
+        if (songIndex !== -1) {
           queueIndex.value = songIndex;
+        } else {
+          if (queueItems.value.length === 0) {
+            setQueue([song]);
+            queueIndex.value = 0;
+            songIndex = 0;
+          } else {
+            const insertIndex = Math.min(queueIndex.value + 1, queueItems.value.length);
+            const updatedQueue = [...queueItems.value];
+            updatedQueue.splice(insertIndex, 0, song);
+            setQueue(updatedQueue, true, true);
+            queueIndex.value = insertIndex;
+            songIndex = insertIndex;
+          }
         }
 
         const { playTrack } = await import('@/services/playbackController');
@@ -630,9 +713,7 @@ export const useQueueStore = defineStore(
 
         if (success) {
           playerCore.isPlay = true;
-          if (songIndex !== -1) {
-            preloadNextSongs(queueIndex.value);
-          }
+          preloadNextSongs(queueIndex.value);
         }
         return success;
       } catch (error) {

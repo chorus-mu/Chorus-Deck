@@ -125,8 +125,9 @@
                   ></i>
                   <img
                     :src="results.topResult.picUrl"
-                    :alt="results.topResult.name"
-                    @error="onImgError($event, 'placeholder')"
+                    alt=""
+                    referrerpolicy="no-referrer"
+                    @error="handleImgError($event, results.topResult, 'artists' in results.topResult ? 'song' : ((results.topResult as any).type || 'song'))"
                     class="relative z-10 w-full h-full object-cover"
                     loading="lazy"
                   />
@@ -180,8 +181,9 @@
                     ></i>
                     <img
                       :src="song.picUrl"
-                      :alt="song.name"
-                      @error="onImgError($event, 'placeholder')"
+                      alt=""
+                      referrerpolicy="no-referrer"
+                      @error="handleImgError($event, song, 'song')"
                       class="relative z-10 w-full h-full object-cover"
                       loading="lazy"
                     />
@@ -199,7 +201,6 @@
                     </p>
                     <p class="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-1 mt-0.5">
                       {{ (song.artists || []).map((a) => a.name).join(', ') }}
-                      <span v-if="song.album"> · {{ song.album }}</span>
                     </p>
                   </div>
                   <span
@@ -232,8 +233,9 @@
                     ></i>
                     <img
                       :src="ar.picUrl"
-                      :alt="ar.name"
-                      @error="onImgError($event, 'placeholder')"
+                      alt=""
+                      referrerpolicy="no-referrer"
+                      @error="handleImgError($event, ar, 'artist')"
                       class="relative z-10 w-full h-full object-cover"
                       loading="lazy"
                     />
@@ -269,8 +271,9 @@
                     ></i>
                     <img
                       :src="al.picUrl"
-                      :alt="al.name"
-                      @error="onImgError($event, 'placeholder')"
+                      alt=""
+                      referrerpolicy="no-referrer"
+                      @error="handleImgError($event, al, 'album')"
                       class="relative z-10 w-full h-full object-cover"
                       loading="lazy"
                     />
@@ -308,8 +311,9 @@
                     ></i>
                     <img
                       :src="pl.picUrl"
-                      :alt="pl.name"
-                      @error="onImgError($event, 'placeholder')"
+                      alt=""
+                      referrerpolicy="no-referrer"
+                      @error="handleImgError($event, pl, 'playlist')"
                       class="relative z-10 w-full h-full object-cover"
                       loading="lazy"
                     />
@@ -351,8 +355,9 @@
                   ></i>
                   <img
                     :src="song.picUrl"
-                    :alt="song.name"
-                    @error="onImgError($event, 'placeholder')"
+                    alt=""
+                    referrerpolicy="no-referrer"
+                    @error="handleImgError($event, song, 'song')"
                     class="relative z-10 w-full h-full object-cover"
                     loading="lazy"
                   />
@@ -370,7 +375,6 @@
                   </p>
                   <p class="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-1 mt-0.5">
                     {{ (song.artists || []).map((a) => a.name).join(', ') }}
-                    <span v-if="song.album"> · {{ song.album }}</span>
                   </p>
                 </div>
                 <span
@@ -408,8 +412,9 @@
                   ></i>
                   <img
                     :src="pl.picUrl"
-                    :alt="pl.name"
-                    @error="onImgError($event, 'placeholder')"
+                    alt=""
+                    referrerpolicy="no-referrer"
+                    @error="handleImgError($event, pl, 'playlist')"
                     class="relative z-10 w-full h-full object-cover"
                     loading="lazy"
                   />
@@ -456,8 +461,9 @@
                   ></i>
                   <img
                     :src="al.picUrl"
-                    :alt="al.name"
-                    @error="onImgError($event, 'placeholder')"
+                    alt=""
+                    referrerpolicy="no-referrer"
+                    @error="handleImgError($event, al, 'album')"
                     class="relative z-10 w-full h-full object-cover"
                     loading="lazy"
                   />
@@ -504,8 +510,9 @@
                   ></i>
                   <img
                     :src="ar.picUrl"
-                    :alt="ar.name"
-                    @error="onImgError($event, 'placeholder')"
+                    alt=""
+                    referrerpolicy="no-referrer"
+                    @error="handleImgError($event, ar, 'artist')"
                     class="relative z-10 w-full h-full object-cover"
                     loading="lazy"
                   />
@@ -546,8 +553,9 @@
                   ></i>
                   <img
                     :src="video.picUrl"
-                    :alt="video.name"
-                    @error="onImgError($event, 'placeholder')"
+                    alt=""
+                    referrerpolicy="no-referrer"
+                    @error="handleImgError($event, video, 'song')"
                     class="relative z-10 w-full h-full object-cover"
                     loading="lazy"
                   />
@@ -654,6 +662,7 @@ import type { SearchFilter, SearchResults } from '@/api/provider';
 import { getProvider } from '@/api/providers';
 import { getYTMMoods, type YTMMood, type YTMMoodCategory } from '@/api/ytmusic';
 import logoImg from '@/assets/logo.png';
+import { handleImgError } from '@/services/coverService';
 import { useQueueStore } from '@/store/modules/queue';
 import type { SongResult } from '@/types/music';
 import { secondToMinute } from '@/utils';
@@ -719,10 +728,6 @@ function getTabCount(key: string): number {
 
 function getPlaceholder(title: string): string {
   return logoImg;
-}
-
-function onImgError(event: Event, title: string) {
-  (event.target as HTMLImageElement).src = getPlaceholder(title);
 }
 
 let suggestAbortController: AbortController | null = null;

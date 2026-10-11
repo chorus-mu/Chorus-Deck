@@ -35,7 +35,7 @@ import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { usePlayerCoreStore } from '@/store/modules/playerCore';
 import { useSettingsStore } from '@/store/modules/settings';
-import { getImgUrl, isLyricWindow } from '@/utils';
+import { getImgUrl, isLyricWindow, isOverlayWindow } from '@/utils';
 import { isCompact } from '@/utils';
 import { useAppShortcuts } from '@/utils/appShortcuts';
 import { locale } from '@/utils/i18n';
@@ -119,7 +119,7 @@ watch(
   }
 );
 
-if (!isLyricWindow.value) {
+if (!isOverlayWindow.value) {
   settingsStore.initializeSettings();
   settingsStore.initializeTheme();
   settingsStore.initializeSystemFonts();
@@ -136,15 +136,46 @@ onUnmounted(() => {
   destroyMusicHook();
 });
 
+let splashDismissed = false;
+const dismissSplashScreen = () => {
+  if (splashDismissed) return;
+  splashDismissed = true;
+  const splash = document.getElementById('app-splash-loader');
+  if (splash) {
+    splash.classList.add('dismissed');
+    setTimeout(() => {
+      if (splash.parentNode) splash.remove();
+    }, 650);
+  }
+};
+
+const triggerSmoothSplashDismiss = () => {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        dismissSplashScreen();
+      }, 160);
+    });
+  });
+};
+
+router.isReady().then(() => {
+  triggerSmoothSplashDismiss();
+});
+
 onMounted(async () => {
   window.addEventListener('offline', handleOffline);
   playerStore.setIsPlay(false);
-  if (isLyricWindow.value) {
+
+  if (isOverlayWindow.value) {
+    dismissSplashScreen();
     return;
   }
 
-  if (!navigator.onLine) {
-    router.push('/local-music');
+  try {
+
+  if (navigator.onLine === false && router.currentRoute.value.path === '/') {
+    router.replace('/local-music');
   }
 
   initMusicHook(playerStore);
@@ -156,7 +187,6 @@ onMounted(async () => {
 
   const applyThemeFromColor = (argb: number) => {
     const m3Theme = themeFromSourceColor(argb);
-
     const primaryLight = hexFromArgb(m3Theme.palettes.primary.tone(40));
     const primaryDark = hexFromArgb(m3Theme.palettes.primary.tone(80));
 
@@ -345,6 +375,12 @@ onMounted(async () => {
     localMusicStore.scanFolders().catch((error) => {
       console.error('[App] Automatic scanning of local music failed at startup:', error);
     });
+  }
+
+  } catch (err) {
+    console.error('[App] Startup initialization error:', err);
+  } finally {
+    triggerSmoothSplashDismiss();
   }
 });
 </script>

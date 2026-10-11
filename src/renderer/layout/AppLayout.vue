@@ -38,7 +38,21 @@
           <div class="shell-surface shell-sidebar">
             <app-sidebar :menus="menuStore.menus" />
           </div>
-          <div class="shell-surface shell-main">
+          <div class="shell-surface shell-main relative">
+            <div
+              v-if="!isDesktop()"
+              class="absolute top-4 right-6 z-20"
+            >
+              <button
+                class="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-colors shadow-sm"
+                @click="openDownloadPage"
+                title="Download desktop version"
+              >
+                <i class="ri-download-cloud-2-line text-sm text-primary"></i>
+                <span>Download desktop version</span>
+              </button>
+            </div>
+
             <div class="main-viewport">
               <router-view v-slot="{ Component }">
                 <div class="main-page" :class="{ 'no-scroll': route.meta.noScroll }">
@@ -68,8 +82,6 @@ import { useRoute } from 'vue-router';
 
 import UpdateModal from '@/components/common/UpdateModal.vue';
 import SleepTimerTop from '@/components/player/SleepTimerTop.vue';
-import homeRouter from '@/router/home';
-import otherRouter from '@/router/other';
 import { useMenuStore } from '@/store/modules/menu';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
@@ -79,20 +91,19 @@ import CompactLayout from './CompactLayout.vue';
 import AppSidebar from './components/AppSidebar.vue';
 import TitleBar from './components/TitleBar.vue';
 
-const keepAliveInclude = computed(() => {
-  const allRoutes = [...homeRouter, ...otherRouter];
-
-  return allRoutes
-    .filter((item) => {
-      return item.meta?.keepAlive;
-    })
-    .map((item) => {
-      return typeof item.name === 'string'
-        ? item.name.charAt(0).toUpperCase() + item.name.slice(1)
-        : '';
-    })
-    .filter(Boolean);
-});
+const keepAliveInclude = [
+  'Home',
+  'Search',
+  'Toplist',
+  'History',
+  'LocalMusic',
+  'Downloads',
+  'PlaylistDetail',
+  'AlbumDetail',
+  'MoodDetail',
+  'Setting',
+  'PlaylistIndex'
+];
 
 const PlayBar = defineAsyncComponent(() => import('@/components/player/PlayBar.vue'));
 const CompactPlayBar = defineAsyncComponent(() => import('@/components/player/CompactPlayBar.vue'));
@@ -114,6 +125,12 @@ const shouldShowCompactMenu = computed(() => {
 provide('shouldShowCompactMenu', shouldShowCompactMenu);
 
 const isPhone = computed(() => settingsStore.isCompact);
+
+const openDownloadPage = () => {
+  if (!isDesktop()) {
+    window.open('https://github.com/Chorus-Deck/Chorus-Deck/releases', '_blank');
+  }
+};
 
 onMounted(() => {
   settingsStore.initializeSettings();

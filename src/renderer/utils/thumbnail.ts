@@ -1,45 +1,48 @@
 export const getImgUrl = (url: string | undefined, size: string = '') => {
   if (!url) return '';
 
-  if (url.startsWith('//')) {
-    url = `https:${url}`;
+  let clean = url.trim();
+  if (clean.startsWith('//')) {
+    clean = `https:${clean}`;
+  } else if (clean.startsWith('http://')) {
+    clean = clean.replace('http://', 'https://');
   }
 
-  if (url.startsWith('data:') || url.startsWith('local://')) return url;
+  if (clean.startsWith('data:') || clean.startsWith('local://')) return clean;
 
-  if (url.includes('thumbnail')) {
-    return url.replace(/thumbnail=\d+y\d+(?!.*thumbnail)/, `thumbnail=${size}`);
+  if (clean.includes('thumbnail')) {
+    return clean.replace(/thumbnail=\d+y\d+(?!.*thumbnail)/, `thumbnail=${size}`);
   }
 
-  if (url.includes('googleusercontent.com') || url.includes('yt3.ggpht.com')) {
+  if (clean.includes('googleusercontent.com') || clean.includes('yt3.ggpht.com')) {
     const match = size.match(/^(\d+)y(\d+)$/);
-    if (match) {
-      const dim = Math.min(parseInt(match[1]), 544);
-      let newUrl = url;
-      if (newUrl.match(/[=\/]w\d+-h\d+/)) {
-        newUrl = newUrl.replace(/([=\/])w\d+-h\d+/, `$1w${dim}-h${dim}`);
-      } else if (newUrl.match(/[=\/]s\d+/)) {
-        newUrl = newUrl.replace(/([=\/])s\d+/, `$1s${dim}`);
-      } else {
-        const base = newUrl.split('=')[0];
-        newUrl = `${base}=w${dim}-h${dim}-l90-rj`;
-      }
-      return newUrl.replace(/-p([^a-zA-Z0-9]|$)/, '$1');
+    const dim = match ? Math.min(parseInt(match[1]), 800) : 544;
+    if (clean.includes('=')) {
+      const base = clean.split('=')[0];
+      return `${base}=w${dim}-h${dim}-l90-rj`;
     }
-  }
-  if (url.includes('i.ytimg.com')) {
-    const cleanUrl = url.split('?')[0];
-    return cleanUrl.replace(/\/(sddefault|maxresdefault|hqdefault|default)\.(jpg|webp)/, '/mqdefault.jpg');
-  }
-
-  if (url.includes('music.126.net')) {
-    const base = url.split('?')[0];
-    return `${base}?param=${size}`;
+    if (/\/(w\d+-h\d+|s\d+)\//.test(clean)) {
+      return clean.replace(/\/(w\d+-h\d+|s\d+)\//, `/w${dim}-h${dim}/`);
+    }
+    return `${clean}=w${dim}-h${dim}-l90-rj`;
   }
 
-  if (url.includes('?')) return url;
+  if (clean.includes('i.ytimg.com')) {
+    const base = clean.split('?')[0];
+    const match = size.match(/^(\d+)y(\d+)$/);
+    const dim = match ? parseInt(match[1]) : 544;
+    if (dim > 300) {
+      return base.replace(/\/(mqdefault|default)\.jpg/, '/hqdefault.jpg');
+    }
+    return base;
+  }
 
-  return `${url}?param=${size}`;
+  if (clean.includes('music.126.net')) {
+    const base = clean.split('?')[0];
+    return size ? `${base}?param=${size}` : base;
+  }
+
+  return clean;
 };
 
 const PLAYER_SIZE = '1600y1600';

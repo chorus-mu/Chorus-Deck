@@ -1,10 +1,9 @@
 <template>
   <div class="ytm-home h-full w-full">
     <n-scrollbar class="h-full" ref="scrollRef">
-      <div class="home-content w-full pb-32 pt-6">
-        <!-- ── Header ──────────────────────────────────────────────── -->
+      <div class="home-content w-full pb-32 pt-2">
         <div
-          class="home-header flex items-center justify-between mb-8 pt-2 px-[var(--content-padding-x)]"
+          class="home-header flex items-center justify-between mb-5 px-[var(--content-padding-x)]"
         >
           <div>
             <h1 class="text-3xl font-bold tracking-tight text-neutral-900 dark:text-white">
@@ -57,7 +56,7 @@
           <p class="text-neutral-500 dark:text-neutral-400 mb-4">{{ error }}</p>
           <button
             class="px-6 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors"
-            @click="loadHome"
+            @click="() => loadHome()"
           >
             Try again
           </button>
@@ -106,13 +105,14 @@
                   >
                     <img
                       :src="item.thumbnail || getPlaceholder(item.title)"
-                      :alt="item.title"
+                      alt=""
                       :class="[
                         'w-full h-full transition-transform duration-700 group-hover:scale-110',
                         isVideoThumb(item.thumbnail) ? 'object-contain' : 'object-cover'
                       ]"
                       loading="lazy"
                       referrerpolicy="no-referrer"
+                      @error="handleImgError($event, item, (item as any).type === 'artist' ? 'artist' : (item as any).type === 'album' ? 'album' : 'song')"
                     />
                     <div
                       class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-all duration-300"
@@ -151,6 +151,7 @@ import { NScrollbar } from 'naive-ui';
 import { computed, onMounted, type Ref, ref } from 'vue';
 
 import {
+  getYTMCharts,
   getYTMHome,
   isYTMSong,
   type YTMPlaylist,
@@ -160,6 +161,7 @@ import {
 import { useQueueStore } from '@/store/modules/queue';
 import type { SongResult } from '@/types/music';
 import logoImg from '@/assets/logo.png';
+import { handleImgError } from '@/services/coverService';
 
 defineOptions({ name: 'Home' });
 
@@ -190,16 +192,16 @@ const userName = computed(() => {
 
 const headerSubtitle = computed(() => {
   const subs = [
-    'Your personalized YouTube Music feed',
-    'Fresh picks from YouTube Music',
-    "What's trending on YouTube Music"
+    'Your personalized feed',
+    'Fresh picks for you',
+    "What's trending today"
   ];
   return subs[new Date().getDay() % subs.length];
 });
 
 function getSubtitle(item: YTMSong | YTMPlaylist): string {
   if (isYTMSong(item)) {
-    return item.artists.map((a) => a.name).join(', ') || item.album || '';
+    return item.artists.map((a) => a.name).join(', ') || '';
   }
   return item.subtitle || '';
 }
@@ -224,8 +226,9 @@ function playSong(item: YTMSong | YTMPlaylist) {
     id: item.id,
     name: item.title,
     picUrl: item.thumbnail,
+    album: item.album,
     source: 'ytmusic',
-    artists: item.artists.map((a) => ({ name: a.name }))
+    artists: item.artists.map((a) => ({ name: a.name, id: a.id }))
   };
   playlistStore.setQueue([track], false, false);
   window.dispatchEvent(new CustomEvent('ytm:play', { detail: track }));
@@ -237,17 +240,59 @@ function scrollSection(idx: number, dir: 1 | -1) {
   el.scrollBy({ left: dir * 800, behavior: 'smooth' });
 }
 
-async function loadHome() {
-  loading.value = true;
+async function loadHome(forceRefresh: boolean = false) {
+  // If not forcing refresh, populate from cache first for instant startup
+  if (!forceRefresh && sections.value.length === 0) {
+    try {
+      const cached = localStorage.getItem('ytm_home_sections_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          sections.value = parsed;
+        }
+      }
+    } catch {
+      /* ignore cache read error */
+    }
+  }
+
+  if (sections.value.length === 0) {
+    loading.value = true;
+  }
   error.value = null;
-  sections.value = [];
+
   try {
     const page = await getYTMHome();
-    const networkSections = page.sections.filter((s) => s.items.length > 0);
-    sections.value = [...sections.value, ...networkSections];
+    let networkSections = page.sections.filter((s) => s.items.length > 0);
+    if (networkSections.length === 0) {
+      try {
+        const charts = await getYTMCharts();
+        networkSections = charts.sections.filter((s) => s.items.length > 0);
+      } catch (chartErr) {
+        console.warn('[Home] Charts fallback failed:', chartErr);
+      }
+    }
+    if (networkSections.length > 0) {
+      sections.value = networkSections;
+      try {
+        localStorage.setItem('ytm_home_sections_cache', JSON.stringify(networkSections));
+      } catch {
+        /* storage quota or privacy mode */
+      }
+    }
   } catch (e: any) {
-    if (sections.value.length === 0) {
-      error.value = e.message || 'Could not load YouTube Music home';
+    try {
+      const charts = await getYTMCharts();
+      const chartSections = charts.sections.filter((s) => s.items.length > 0);
+      if (chartSections.length > 0) {
+        sections.value = chartSections;
+      } else if (sections.value.length === 0) {
+        error.value = e.message || 'Could not load YouTube Music home';
+      }
+    } catch {
+      if (sections.value.length === 0) {
+        error.value = e.message || 'Could not load YouTube Music home';
+      }
     }
   } finally {
     loading.value = false;
@@ -256,7 +301,7 @@ async function loadHome() {
 
 function refresh() {
   sections.value = [];
-  loadHome();
+  loadHome(true);
 }
 
 onMounted(() => {

@@ -1,5 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router';
 
+import Home from '@/views/home/index.vue';
+
 const layoutRouter: RouteRecordRaw[] = [
   {
     path: '/',
@@ -10,7 +12,7 @@ const layoutRouter: RouteRecordRaw[] = [
       keepAlive: true,
       isCompact: true
     },
-    component: () => import('@/views/home/index.vue')
+    component: Home
   },
   {
     path: '/search',

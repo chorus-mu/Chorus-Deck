@@ -7,34 +7,315 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
+    <meta name="referrer" content="no-referrer" />
 
-    <!-- SEO Metadata -->
     <title>Chorus Deck</title>
     <meta name="description" content="Chorus Deck" />
     <meta name="keywords" content="Chorus Deck, Music Player" />
 
-    <!-- Author Information -->
     <meta name="author" content="Chorus Deck" />
     <meta name="author-url" content="https://github.com/Chorus-Deck" />
 
     <meta name="apple-compact-web-app-capable" content="yes" />
     <meta name="apple-compact-web-app-status-bar-style" content="black" />
 
-    <!-- Resource Preload -->
     <link rel="preload" href="./assets/css/base.css" as="style" />
 
-    <!-- Stylesheets -->
     <link rel="stylesheet" href="./assets/css/base.css" />
 
-    <!-- Animation Configuration -->
     <style>
       :root {
         --animate-delay: 0.5s;
       }
+      html:not(.is-overlay-window),
+      html:not(.is-overlay-window) body {
+        background-color: #e9ecef;
+      }
+
+      html.dark:not(.is-overlay-window),
+      html.dark:not(.is-overlay-window) body {
+        background-color: #0c0d0e;
+      }
+
+      #app {
+        width: 100%;
+        height: 100%;
+        background-color: inherit;
+      }
+
+      .app-container {
+        background-color: inherit;
+      }
+
+      #app-splash-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 999999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #ffffff;
+        color: #111111;
+        transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1), transform 0.55s cubic-bezier(0.22, 1, 0.36, 1), filter 0.55s ease;
+        user-select: none;
+        pointer-events: auto;
+        will-change: opacity, transform, filter;
+      }
+
+      html.dark #app-splash-loader {
+        background-color: #0c0d0e;
+        color: #ffffff;
+      }
+
+      #app-splash-loader.dismissed {
+        opacity: 0 !important;
+        transform: scale(1.04);
+        filter: blur(4px);
+        pointer-events: none !important;
+      }
+
+      html.is-overlay-window,
+      html.is-overlay-window body,
+      html.is-overlay-window #app,
+      html.is-overlay-window .app-container {
+        background: transparent !important;
+        background-color: transparent !important;
+      }
+
+      html.is-overlay-window #app-splash-loader {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+
+      html:has(.dynamic-island-container),
+      body:has(.dynamic-island-container),
+      html:has(.dynamic-island-container) body,
+      html:has(.dynamic-island-container) #app,
+      html:has(.dynamic-island-container) .app-container,
+      html:has(.lyric-window),
+      body:has(.lyric-window),
+      html:has(.lyric-window) body,
+      html:has(.lyric-window) #app,
+      html:has(.lyric-window) .app-container {
+        background: transparent !important;
+        background-color: transparent !important;
+      }
+
+      html:has(.dynamic-island-container) #app-splash-loader,
+      html:has(.lyric-window) #app-splash-loader {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+
+      .splash-logo-container {
+        position: relative;
+        width: 88px;
+        height: 88px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .splash-logo-img {
+        width: 76px;
+        height: 76px;
+        object-fit: contain;
+        animation: splashPulse 2.4s ease-in-out infinite;
+        will-change: transform, opacity;
+      }
+
+      .splash-logo-dark {
+        display: none !important;
+      }
+
+      .splash-logo-light {
+        display: block !important;
+      }
+
+      html.dark .splash-logo-dark {
+        display: block !important;
+      }
+
+      html.dark .splash-logo-light {
+        display: none !important;
+      }
+
+      .splash-skeleton-bars {
+        margin-top: 28px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        width: 140px;
+      }
+
+      .splash-bar {
+        height: 6px;
+        border-radius: 9999px;
+        background: linear-gradient(
+          90deg,
+          rgba(0, 0, 0, 0.06) 0%,
+          rgba(0, 0, 0, 0.14) 50%,
+          rgba(0, 0, 0, 0.06) 100%
+        );
+        background-size: 200% 100%;
+        animation: splashShimmer 1.8s ease-in-out infinite;
+      }
+
+      html.dark .splash-bar {
+        background: linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.06) 0%,
+          rgba(255, 255, 255, 0.16) 50%,
+          rgba(255, 255, 255, 0.06) 100%
+        );
+        background-size: 200% 100%;
+      }
+
+      .splash-bar-1 {
+        width: 120px;
+      }
+
+      .splash-bar-2 {
+        width: 70px;
+        height: 4px;
+        opacity: 0.7;
+      }
+
+      @keyframes splashPulse {
+        0%, 100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.02);
+          opacity: 0.92;
+        }
+      }
+
+      @keyframes splashShimmer {
+        0% {
+          background-position: 200% 0;
+        }
+        100% {
+          background-position: -200% 0;
+        }
+      }
     </style>
+    <script>
+      (function() {
+        try {
+          var hash = window.location.hash || '';
+          var href = window.location.href || '';
+          var isOverlay = hash.indexOf('dynamic-island') !== -1 ||
+                          hash.indexOf('lyric') !== -1 ||
+                          href.indexOf('dynamic-island') !== -1 ||
+                          href.indexOf('lyric') !== -1;
+          if (isOverlay) {
+            document.documentElement.classList.add('is-overlay-window');
+            var styleEl = document.createElement('style');
+            styleEl.textContent = 'html,body,#app,.app-container{background:transparent !important;background-color:transparent !important;}#app-splash-loader{display:none !important;visibility:hidden !important;opacity:0 !important;}';
+            document.head.appendChild(styleEl);
+            return;
+          }
+          var theme = localStorage.getItem('theme');
+          if (!theme) {
+            var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            theme = prefersDark ? 'dark' : 'light';
+          }
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch(e) {}
+      })();
+    </script>
   </head>
 
   <body>
+    <script>
+      (function() {
+        try {
+          var hash = window.location.hash || '';
+          var href = window.location.href || '';
+          if (hash.indexOf('dynamic-island') !== -1 || hash.indexOf('lyric') !== -1 ||
+              href.indexOf('dynamic-island') !== -1 || href.indexOf('lyric') !== -1) {
+            document.documentElement.classList.add('is-overlay-window');
+            if (document.body) {
+              document.body.classList.add('is-overlay-window');
+              document.body.style.backgroundColor = 'transparent';
+            }
+          }
+        } catch(e) {}
+      })();
+    </script>
+    <div id="app-splash-loader">
+      <script>
+        (function() {
+          var hash = window.location.hash || '';
+          var href = window.location.href || '';
+          if (hash.indexOf('dynamic-island') !== -1 || hash.indexOf('lyric') !== -1 ||
+              href.indexOf('dynamic-island') !== -1 || href.indexOf('lyric') !== -1) {
+            var loader = document.getElementById('app-splash-loader');
+            if (loader) {
+              loader.style.display = 'none';
+              loader.remove();
+            }
+          }
+        })();
+      </script>
+      <div class="splash-logo-container">
+        <img
+          id="splash-logo-light"
+          class="splash-logo-img splash-logo-light"
+          src="./logo-light.png"
+          alt="Chorus Deck"
+        />
+        <img
+          id="splash-logo-dark"
+          class="splash-logo-img splash-logo-dark"
+          src="./logo-dark.png"
+          alt="Chorus Deck"
+        />
+      </div>
+      <div class="splash-skeleton-bars">
+        <div class="splash-bar splash-bar-1"></div>
+        <div class="splash-bar splash-bar-2"></div>
+      </div>
+    </div>
+    <script>
+      (function() {
+        try {
+          var hash = window.location.hash || '';
+          var href = window.location.href || '';
+          var loader = document.getElementById('app-splash-loader');
+          if (hash.indexOf('dynamic-island') !== -1 || hash.indexOf('lyric') !== -1 ||
+              href.indexOf('dynamic-island') !== -1 || href.indexOf('lyric') !== -1) {
+            if (loader) {
+              loader.style.display = 'none';
+              loader.remove();
+            }
+          }
+        } catch(e) {}
+
+        function safetyDismiss() {
+          var el = document.getElementById('app-splash-loader');
+          if (el && !el.classList.contains('dismissed')) {
+            el.classList.add('dismissed');
+            setTimeout(function() {
+              if (el && el.parentNode) el.remove();
+            }, 600);
+          }
+        }
+        setTimeout(safetyDismiss, 3500);
+      })();
+    </script>
     <div id="app"></div>
     <script type="module" src="./main.ts"></script>
   </body>

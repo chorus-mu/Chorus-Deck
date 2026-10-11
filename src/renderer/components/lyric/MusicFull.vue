@@ -163,7 +163,7 @@
                   @click="handleArtistClick(item.id)"
                 >
                   {{ item.name }}
-                  {{ index < artistList.length - 1 ? ' / ' : '' }}
+                  {{ index < artistList.length - 1 ? ', ' : '' }}
                 </span>
               </n-ellipsis>
             </div>
@@ -214,7 +214,7 @@
                     @click="handleArtistClick(item.id)"
                   >
                     {{ item.name }}
-                    {{ index < artistList.length - 1 ? ' / ' : '' }}
+                    {{ index < artistList.length - 1 ? ', ' : '' }}
                   </span>
                 </div>
               </div>

@@ -38,8 +38,10 @@
             v-if="artist?.thumbnail"
             :src="getImgUrl(artist.thumbnail, '400y400')"
             class="absolute inset-0 w-full h-full object-cover blur-3xl opacity-0 scale-125 mix-blend-overlay transition-opacity duration-700 ease-out"
+            alt=""
+            referrerpolicy="no-referrer"
             @load="handleImageLoad"
-            @error="handleImageError"
+            @error="handleImageError($event, { title: artist?.title, artist: artist?.title }, 'artist')"
           />
           <div class="absolute inset-0 banner-glass" />
           <div class="absolute bottom-0 left-0 right-0 h-24 gradient-fade" />
@@ -52,10 +54,11 @@
             <img
               v-if="artist?.avatar || artist?.thumbnail"
               :src="getImgUrl(artist?.avatar || artist?.thumbnail, '300y300')"
-              :alt="artist?.title"
+              alt=""
+              referrerpolicy="no-referrer"
               class="w-full h-full object-cover opacity-0 transition-opacity duration-500"
               @load="handleImageLoad"
-              @error="handleImageError"
+              @error="handleImageError($event, { title: artist?.title, artist: artist?.title }, 'artist')"
             />
             <div class="absolute inset-0 flex items-center justify-center -z-10">
               <i class="ri-user-3-line text-4xl text-neutral-400" />
@@ -168,10 +171,11 @@
                   <img
                     v-if="album.coverImgUrl"
                     :src="getImgUrl(album.coverImgUrl, '300y300')"
-                    :alt="album.name"
+                    alt=""
+                    referrerpolicy="no-referrer"
                     class="w-full h-full object-cover opacity-0 group-hover:scale-105 transition-all duration-500 ease-out"
                     @load="handleImageLoad"
-                    @error="handleImageError"
+                    @error="handleImageError($event, { title: album.name, artist: album.subtitle }, 'album')"
                   />
                   <div class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800">
                     <i class="ri-album-line text-3xl text-neutral-400" />
@@ -211,10 +215,11 @@
                   <img
                     v-if="playlist.coverImgUrl"
                     :src="getImgUrl(playlist.coverImgUrl, '300y300')"
-                    :alt="playlist.name"
+                    alt=""
+                    referrerpolicy="no-referrer"
                     class="w-full h-full object-cover opacity-0 group-hover:scale-105 transition-all duration-500 ease-out"
                     @load="handleImageLoad"
-                    @error="handleImageError"
+                    @error="handleImageError($event, { title: playlist.name, artist: playlist.subtitle }, 'playlist')"
                   />
                   <div class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800">
                     <i class="ri-play-list-line text-3xl text-neutral-400" />
@@ -254,10 +259,11 @@
                   <img
                     v-if="similar.coverImgUrl"
                     :src="getImgUrl(similar.coverImgUrl, '300y300')"
-                    :alt="similar.name"
+                    alt=""
+                    referrerpolicy="no-referrer"
                     class="w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ease-out opacity-0"
                     @load="handleImageLoad"
-                    @error="handleImageError"
+                    @error="handleImageError($event, { title: similar.name, artist: similar.name }, 'artist')"
                   />
                   <div class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800">
                     <i class="ri-user-3-line text-3xl text-neutral-400" />
@@ -296,7 +302,6 @@ import { argbFromRgb } from '@material/material-color-utilities';
 import { useMessage } from 'naive-ui';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-
 import { getYTMArtist, type YTMArtistDetail, type YTMPlaylist, type YTMSong } from '@/api/ytmusic';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import SongItem from '@/components/common/SongItem.vue';
@@ -304,6 +309,7 @@ import { playTrack } from '@/services/playbackController';
 import { usePlayerStore } from '@/store/modules/player';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
+import { handleImgError } from '@/services/coverService';
 
 defineOptions({ name: 'ArtistDetail' });
 
@@ -336,11 +342,9 @@ const handleImageLoad = (e: Event) => {
   }
 };
 
-const handleImageError = (e: Event) => {
-  const img = e.target as HTMLImageElement;
-  if (img) {
-    img.style.display = 'none';
-  }
+const handleImageError = (e: Event, item?: any, type: 'song' | 'artist' | 'album' | 'playlist' = 'artist') => {
+  const targetItem = item || { title: artist.value?.title, artist: artist.value?.title };
+  handleImgError(e, targetItem, type);
 };
 
 const bannerStyle = computed(() => {
@@ -404,9 +408,18 @@ const extractColors = async (url: string) => {
 const toSongResult = (song: YTMSong): SongResult => ({
   id: song.id,
   name: song.title,
-  picUrl: song.thumbnail,
+  picUrl:
+    song.thumbnail ||
+    (song.id && String(song.id).length === 11 && !String(song.id).includes('/')
+      ? `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`
+      : ''),
   source: 'ytmusic',
-  artists: song.artists.map((a) => ({ name: a.name })),
+  artists:
+    song.artists && song.artists.length > 0
+      ? song.artists.map((a) => ({ name: a.name }))
+      : artist.value?.title
+        ? [{ name: artist.value.title }]
+        : [],
   album: song.album
 });
 

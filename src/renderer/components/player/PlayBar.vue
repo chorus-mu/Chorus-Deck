@@ -25,10 +25,12 @@
           v-if="playMusic?.picUrl"
           :src="getImgUrl(playMusic?.picUrl, '100y100')"
           class="play-bar-img"
+          alt=""
           referrerpolicy="no-referrer"
+          @error="handleImgError($event, playMusic, 'song')"
           style="object-fit: cover"
         />
-        <img v-else :src="logoImg" class="play-bar-img" style="object-fit: cover" />
+        <img v-else :src="logoImg" class="play-bar-img" alt="" style="object-fit: cover" />
         <div v-if="playMusic?.playLoading" class="loading-overlay">
           <i class="ri-loader-4-line loading-icon"></i>
         </div>
@@ -64,7 +66,7 @@
               class="cursor-pointer hover:text-primary"
               @click.stop="handleArtistClick(artists.id)"
             >
-              {{ artists.name }}{{ artistsindex < artistList.length - 1 ? ' / ' : '' }}
+              {{ artists.name }}{{ artistsindex < artistList.length - 1 ? ', ' : '' }}
             </span>
           </n-ellipsis>
         </div>
@@ -225,6 +227,7 @@ import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl, isCompact, isDesktop, secondToMinute, setAnimationClass } from '@/utils';
 import logoImg from '@/assets/logo.png';
+import { handleImgError } from '@/services/coverService';
 
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
@@ -298,8 +301,12 @@ const handleSliderDragStart = () => {
 
 const handleSliderDragEnd = () => {
   isDragging.value = false;
-  audioService.seek(dragValue.value);
-  nowTime.value = dragValue.value;
+  if (allTime.value > 5 && dragValue.value >= allTime.value - 0.5) {
+    audioService.seek(allTime.value);
+  } else {
+    audioService.seek(dragValue.value);
+    nowTime.value = dragValue.value;
+  }
 };
 
 const formatTooltip = (value: number) => {

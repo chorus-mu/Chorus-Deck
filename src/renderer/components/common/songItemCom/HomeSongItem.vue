@@ -13,11 +13,12 @@
         class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
         preview-disabled
         object-fit="cover"
+        :fallback-src="fallbackCover"
         :img-props="{
           crossorigin: 'anonymous',
           referrerpolicy: 'no-referrer',
           loading: 'lazy',
-          alt: item.name,
+          alt: '',
           style: 'object-fit: cover;'
         }"
       />
@@ -47,10 +48,7 @@
           <span class="cursor-pointer hover:text-primary" @click.stop="onArtistClick(artist.id)">
             {{ artist.name }}
           </span>
-          <span v-if="index < artists.length - 1"> / </span>
-        </template>
-        <template v-if="albumName">
-          <span> • {{ albumName }}</span>
+          <span v-if="index < artists.length - 1">, </span>
         </template>
       </n-ellipsis>
     </div>
@@ -84,10 +82,20 @@
 
 <script lang="ts" setup>
 import { NEllipsis, NImage } from 'naive-ui';
+import { computed } from 'vue';
 
+import logoImg from '@/assets/logo.png';
 import { useSongItem } from '@/hooks/useSongItem';
 import type { SongResult } from '@/types/music';
 import { getImgUrl, isDesktop } from '@/utils';
+
+const fallbackCover = computed(() => {
+  const sid = props.item?.id ? String(props.item.id) : '';
+  if (sid.length === 11 && !sid.includes('/')) {
+    return `https://i.ytimg.com/vi/${sid}/hqdefault.jpg`;
+  }
+  return logoImg;
+});
 
 import SongItemDropdown from './SongItemDropdown.vue';
 

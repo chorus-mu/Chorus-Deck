@@ -24,10 +24,12 @@
         :src="getImgUrl(item.picUrl, '100y100')"
         class="song-item-img"
         preview-disabled
+        :fallback-src="fallbackCover"
         :img-props="{
           crossorigin: 'anonymous',
           referrerpolicy: 'no-referrer',
-          style: 'object-fit: cover;'
+          style: 'object-fit: cover;',
+          alt: ''
         }"
         @load="onImageLoad"
       />
@@ -56,10 +58,7 @@
                 @click.stop="onArtistClick(artist.id)"
                 >{{ artist.name }}</span
               >
-              <span v-if="index < artists.length - 1"> / </span>
-            </template>
-            <template v-if="albumName">
-              <span> • {{ albumName }}</span>
+              <span v-if="index < artists.length - 1">, </span>
             </template>
           </n-ellipsis>
         </div>
@@ -92,6 +91,7 @@
 import { NCheckbox, NEllipsis, NImage } from 'naive-ui';
 import { computed, ref } from 'vue';
 
+import logoImg from '@/assets/logo.png';
 import { usePlayerStore } from '@/store';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
@@ -99,6 +99,14 @@ import { getImgUrl } from '@/utils';
 import BaseSongItem from './BaseSongItem.vue';
 
 const playerStore = usePlayerStore();
+
+const fallbackCover = computed(() => {
+  const sid = props.item?.id ? String(props.item.id) : '';
+  if (sid.length === 11 && !sid.includes('/')) {
+    return `https://i.ytimg.com/vi/${sid}/hqdefault.jpg`;
+  }
+  return logoImg;
+});
 
 const props = withDefaults(
   defineProps<{

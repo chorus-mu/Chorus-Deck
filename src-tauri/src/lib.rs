@@ -49,16 +49,23 @@ pub fn run() {
                         continue;
                     };
 
+                    let pos = player.sink.get_pos().as_secs_f32();
+                    let duration = player.duration.unwrap_or(0.0);
+                    let is_ended = if duration > 5.0 {
+                        pos >= (duration - 0.5) || (player.sink.empty() && pos >= (duration - 1.5))
+                    } else {
+                        player.sink.empty() && pos > 5.0
+                    };
+
                     if player.sink.is_paused() {
                         was_playing = false;
-                    } else if player.sink.empty() {
+                    } else if is_ended {
                         if was_playing {
                             let _ = progress_handle.emit("playback-ended", ());
                             was_playing = false;
                         }
                     } else {
                         was_playing = true;
-                        let pos = player.sink.get_pos().as_secs_f32();
                         let _ = progress_handle.emit("playback-progress", pos);
                     }
                 }

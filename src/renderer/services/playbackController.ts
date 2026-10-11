@@ -104,7 +104,7 @@ const triggerPreload = async (song: SongResult): Promise<void> => {
 
 const updateDocumentTitle = (music: SongResult): void => {
   let title = music.name;
-  const artistNames = (music.ar || music.artists)?.map((a) => a.name).join('/');
+  const artistNames = (music.ar || music.artists)?.map((a) => a.name).join(', ');
   if (artistNames) {
     title += ` - ${artistNames}`;
   }
@@ -122,7 +122,7 @@ export const playTrack = async (
   );
 
   const playerCore = await getPlayerCoreStore();
-  audioService.stop();
+  await audioService.stop();
 
   if (!playbackRequestManager.isRequestValid(requestId)) {
     console.log(`[playbackController] The request expires after it is created: ${requestId}`);
@@ -140,6 +140,7 @@ export const playTrack = async (
   music.playLoading = true;
   playerCore.playMusic = music;
   updateDocumentTitle(music);
+  window.api.sendSong({ ...music, is_playing: shouldPlay });
 
   const originalMusic = { ...music };
 
@@ -186,6 +187,7 @@ export const playTrack = async (
     playerCore.playMusic = updatedPlayMusic;
     playerCore.playMusicUrl = updatedPlayMusic.playMusicUrl as string;
     music.playMusicUrl = updatedPlayMusic.playMusicUrl as string;
+    window.api.sendSong({ ...updatedPlayMusic, is_playing: shouldPlay });
 
     if (originalMusic.urlRejectedAt) {
       playerCore.playMusic.urlRejectedAt = originalMusic.urlRejectedAt;
@@ -199,6 +201,8 @@ export const playTrack = async (
     if (playerCore.playMusic) {
       playerCore.playMusic.playLoading = false;
     }
+    playerCore.setIsPlay(false);
+    window.api.updatePlayState(false);
     playbackRequestManager.failRequest(requestId);
     return false;
   }
@@ -210,7 +214,7 @@ export const playTrack = async (
       console.log(
         `[playbackController] gen=${gen} Expired (after playing audio), currently gen=${generation}`
       );
-      audioService.stop();
+      await audioService.stop();
       return false;
     }
 
@@ -225,6 +229,8 @@ export const playTrack = async (
 
       return true;
     } else {
+      playerCore.setIsPlay(false);
+      window.api.updatePlayState(false);
       playbackRequestManager.failRequest(requestId);
       return false;
     }

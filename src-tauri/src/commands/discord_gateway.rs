@@ -372,11 +372,22 @@ async fn gateway_actor(mut rx: tokio::sync::mpsc::UnboundedReceiver<GatewayCmd>)
                         if let Some(ws) = ws_stream.as_mut() {
                             let large_image_type = presence.large_image_type.as_deref().unwrap_or("thumbnail");
                             let large_url = resolve_image_url(large_image_type, presence.large_image_custom_url.as_deref(), &presence);
-                            let large_image = if let Some(url) = large_url {
-                                register_external_asset(&client, &token, &url).await
+                            let mut large_image = if let Some(ref url) = large_url {
+                                register_external_asset(&client, &token, url).await
                             } else {
-                                register_external_asset(&client, &token, APP_ICON_URL).await
+                                None
                             };
+                            if large_image.is_none() {
+                                if let Some(ref sid) = presence.song_id {
+                                    if sid.len() == 11 && !sid.contains('/') {
+                                        let yt_url = format!("https://i.ytimg.com/vi/{}/hqdefault.jpg", sid);
+                                        large_image = register_external_asset(&client, &token, &yt_url).await;
+                                    }
+                                }
+                            }
+                            if large_image.is_none() {
+                                large_image = register_external_asset(&client, &token, APP_ICON_URL).await;
+                            }
                             
                             let is_playing = presence.is_playing.unwrap_or(false);
                             let small_image_type = presence.small_image_type.as_deref().unwrap_or("artist");
@@ -421,8 +432,11 @@ async fn gateway_actor(mut rx: tokio::sync::mpsc::UnboundedReceiver<GatewayCmd>)
                             
                             let mut assets = json!({});
                             if let Some(li) = large_image { assets["large_image"] = li.into(); }
-                            let mut large_text_str = presence.album.clone();
-                            if large_text_str.is_none() || large_text_str.as_ref().unwrap().is_empty() {
+                            let mut large_text_str = presence.album.clone().filter(|a| {
+                                let trimmed = a.trim();
+                                !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case("unknown album") && !trimmed.eq_ignore_ascii_case("unknown")
+                            });
+                            if large_text_str.is_none() {
                                 large_text_str = presence.title.clone();
                             }
                             if let Some(lt) = to_discord_text(large_text_str, 128, None) {

@@ -11,6 +11,8 @@ import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
 
 import type { LocalMusicMeta } from '@/types/localMusic';
+import { getImgUrl } from '@/utils';
+import { extractCleanSongMeta } from '@/utils/songMeta';
 
 const GENERIC_INVOKE_CHANNELS = [
   'change-language',
@@ -88,7 +90,70 @@ export type DiscordGatewayStatus = {
 
 const listenerRegistry = new Map<string, Set<UnlistenFn>>();
 
+const isTauriAvailable = (): boolean =>
+  typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+
+async function handleWebYtmRequest(rawArgs: unknown): Promise<any> {
+  try {
+    const wrapped = (rawArgs as any)?.args || rawArgs || {};
+    const endpoint = wrapped.endpoint;
+    let body = wrapped.body || {};
+    const clientNameId = wrapped.clientNameId || 67;
+    const clientVersion = wrapped.clientVersion || '1.20241121.01.00';
+    const key = 'AIzaSyC9XL3ZjWddXya6X74dJoCTL-KZBW_4qT8';
+    const url = `/__ytm_proxy/youtubei/v1/${endpoint}?key=${key}&prettyPrint=false`;
+
+    if (typeof body === 'object' && body !== null && !('context' in body)) {
+      body = {
+        ...body,
+        context: {
+          client: {
+            clientName: 'WEB_REMIX',
+            clientVersion,
+            hl: 'en',
+            gl: 'US'
+          }
+        }
+      };
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-YouTube-Client-Name': String(clientNameId),
+      'X-YouTube-Client-Version': String(clientVersion)
+    };
+
+    if (wrapped.cookie) {
+      headers['Cookie'] = wrapped.cookie;
+    }
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.warn(`[bridge] Web YTM proxy HTTP ${res.status}:`, errText);
+      throw new Error(`YTM HTTP ${res.status}: ${errText}`);
+    }
+
+    return await res.json();
+  } catch (err: any) {
+    console.error('[bridge] Web YTM proxy request failed:', err);
+    throw err;
+  }
+}
+
 async function rawInvoke<T>(channel: string, args?: unknown): Promise<T> {
+  if (!isTauriAvailable()) {
+    if (channel === 'ytm:request') {
+      return handleWebYtmRequest(args) as unknown as T;
+    }
+    console.debug(`[bridge] web fallback for rawInvoke ${channel}`, args);
+    return null as unknown as T;
+  }
   console.debug(`[bridge] rawInvoke ${channel}`, args);
   return tauriInvoke<T>(channel, args as Record<string, unknown> | undefined);
 }
@@ -101,6 +166,10 @@ function assertAllowed(channel: string, allowed: readonly string[]): void {
 
 function listenChannel<T>(channel: string, handler: (payload: T) => void): Unlisten {
   assertAllowed(channel, EVENT_CHANNELS);
+
+  if (!isTauriAvailable()) {
+    return () => {};
+  }
 
   const bucket = listenerRegistry.get(channel) ?? new Set<UnlistenFn>();
   let inner: UnlistenFn | null = null;
@@ -148,13 +217,21 @@ export const bridge = {
   },
 
   sendSong: (data: any) => {
+    const meta = extractCleanSongMeta(data);
+    const coverUrl =
+      data?.al?.picUrl || data?.picUrl || data?.coverImgUrl || data?.cover || '';
     const mappedData = {
-      title: data?.name || data?.title || '',
-      artist: data?.ar?.[0]?.name || data?.artists?.[0]?.name || data?.artist || '',
-      album: data?.al?.name || data?.album || '',
-      cover_url: data?.al?.picUrl || data?.picUrl || data?.coverImgUrl || data?.cover || '',
+      title: meta.title || data?.name || data?.title || '',
+      artist:
+        meta.artist && meta.artist !== 'Unknown Artist'
+          ? meta.artist
+          : typeof data?.artist === 'string'
+            ? data.artist
+            : '',
+      album: meta.album && meta.album !== 'Unknown Album' ? meta.album : '',
+      cover_url: getImgUrl(coverUrl, '300y300'),
       duration: data?.dt || data?.duration || 0,
-      is_playing: true
+      is_playing: data?.is_playing !== undefined ? !!data.is_playing : true
     };
     return rawInvoke<void>('update-current-song', { data: mappedData });
   },

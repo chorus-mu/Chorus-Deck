@@ -35,6 +35,8 @@ class AudioService {
   };
 
   private callbacks: { [key: string]: Function[] } = {};
+  private endWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
+  private hasEmittedEndForCurrentSong = false;
 
   constructor() {
     this.bindAudioEvents();
@@ -51,13 +53,37 @@ class AudioService {
   }
 
   private bindAudioEvents() {
+    if (!window?.api?.onPlaybackProgress) return;
     window.api.onPlaybackProgress((timeSecs: number) => {
       this.emit('timeupdate', timeSecs);
+
+      const duration = this.getDuration();
+      if (
+        this._isPlayingNative &&
+        !this.hasEmittedEndForCurrentSong &&
+        duration > 5 &&
+        timeSecs >= duration - 0.4
+      ) {
+        console.log('[audioService] Playback reached end boundary via progress, triggering end');
+        this.triggerPlaybackEnded();
+      }
     });
+
     window.api.onPlaybackEnded(() => {
-      this._isPlayingNative = false;
-      this.emit('end');
+      console.log('[audioService] Native playback-ended event received');
+      this.triggerPlaybackEnded();
     });
+  }
+
+  public triggerPlaybackEnded() {
+    if (this.hasEmittedEndForCurrentSong) return;
+    this.hasEmittedEndForCurrentSong = true;
+    if (this.endWatchdogTimer) {
+      clearTimeout(this.endWatchdogTimer);
+      this.endWatchdogTimer = null;
+    }
+    this._isPlayingNative = false;
+    this.emit('end');
   }
 
   private initMediaSession() {
@@ -282,6 +308,11 @@ class AudioService {
     }
 
     this.forceResetOperationLock();
+    this.hasEmittedEndForCurrentSong = false;
+    if (this.endWatchdogTimer) {
+      clearTimeout(this.endWatchdogTimer);
+      this.endWatchdogTimer = null;
+    }
     this.setOperationLock();
 
     if (!url || !track) {
@@ -315,6 +346,7 @@ class AudioService {
       const tryPlay = async () => {
         this._isLoading = true;
         this.currentTrack = track;
+        this.hasEmittedEndForCurrentSong = false;
 
         try {
           if (isPlay) {
@@ -435,15 +467,20 @@ class AudioService {
     }
   }
 
-  public stop() {
+  public async stop(): Promise<void> {
     this.forceResetOperationLock();
+    this.hasEmittedEndForCurrentSong = false;
+    if (this.endWatchdogTimer) {
+      clearTimeout(this.endWatchdogTimer);
+      this.endWatchdogTimer = null;
+    }
 
     if (this.pendingLoadCleanup) {
       this.pendingLoadCleanup();
       this.pendingLoadCleanup = null;
     }
     try {
-      window.api.audioStop();
+      await window.api.audioStop();
       this._isPlayingNative = false;
       this.updateMediaSessionState(false);
       this.emit('stop');
@@ -459,6 +496,19 @@ class AudioService {
 
   public seek(time: number) {
     this.forceResetOperationLock();
+    this.hasEmittedEndForCurrentSong = false;
+    if (this.endWatchdogTimer) {
+      clearTimeout(this.endWatchdogTimer);
+      this.endWatchdogTimer = null;
+    }
+
+    const duration = this.getDuration();
+    if (duration > 5 && time >= duration - 0.5) {
+      console.log('[audioService] Seeked directly to end of track, triggering playback end');
+      this.triggerPlaybackEnded();
+      return;
+    }
+
     try {
       window.api.audioSeek(time);
       this.emit('seek_start', time);

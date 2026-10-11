@@ -178,7 +178,7 @@ const router = useRouter();
 
 function getSubtitle(item: YTMSong | YTMPlaylist): string {
   if (isYTMSong(item)) {
-    return item.artists.map((a) => a.name).join(', ') || item.album || '';
+    return item.artists.map((a) => a.name).join(', ') || '';
   }
   return item.subtitle || '';
 }
@@ -206,8 +206,9 @@ function playSong(item: YTMSong | YTMPlaylist) {
     id: item.id,
     name: item.title,
     picUrl: item.thumbnail,
+    album: item.album,
     source: 'ytmusic',
-    artists: item.artists.map((a) => ({ name: a.name }))
+    artists: item.artists.map((a) => ({ name: a.name, id: a.id }))
   };
   playlistStore.setQueue([track], false, false);
   window.dispatchEvent(new CustomEvent('ytm:play', { detail: track }));

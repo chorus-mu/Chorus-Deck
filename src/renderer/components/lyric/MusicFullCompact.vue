@@ -55,7 +55,7 @@
             <div class="song-title" v-html="playMusic.name"></div>
             <div class="artist-name">
               <span v-for="(item, index) in artistList" :key="index">
-                {{ item.name }}{{ index < artistList.length - 1 ? ' / ' : '' }}
+                {{ item.name }}{{ index < artistList.length - 1 ? ', ' : '' }}
               </span>
             </div>
           </div>
@@ -165,7 +165,7 @@
                   @click="handleArtistClick(item.id)"
                 >
                   {{ item.name }}
-                  {{ index < artistList.length - 1 ? ' / ' : '' }}
+                  {{ index < artistList.length - 1 ? ', ' : '' }}
                 </span>
               </p>
               <div class="favorite-icon" @click="toggleFavorite">
@@ -269,7 +269,7 @@
                   class="artist-name"
                   @click="handleArtistClick(item.id)"
                 >
-                  {{ item.name }}{{ index < artistList.length - 1 ? ' / ' : '' }}
+                  {{ item.name }}{{ index < artistList.length - 1 ? ', ' : '' }}
                 </span>
               </p>
             </div>
@@ -800,7 +800,7 @@ const progressContainerWidth = ref(0);
 const isMouseDragging = ref(false);
 
 const handleProgressBarClick = (e: MouseEvent) => {
-  if (!sound.value) return;
+  if (!playerStore.playMusic?.id) return;
 
   e.stopPropagation();
   const progressBar = e.currentTarget as HTMLElement;
@@ -844,7 +844,7 @@ const handleMouseDown = (e: MouseEvent) => {
 };
 
 const handleMouseMove = (e: MouseEvent) => {
-  if (!isMouseDragging.value || !sound.value) return;
+  if (!isMouseDragging.value || !playerStore.playMusic?.id) return;
 
   e.preventDefault();
 
@@ -866,7 +866,7 @@ const handleMouseMove = (e: MouseEvent) => {
 };
 
 const handleMouseUp = (e: MouseEvent) => {
-  if (!isMouseDragging.value || !sound.value) return;
+  if (!isMouseDragging.value || !playerStore.playMusic?.id) return;
 
   e.preventDefault();
 
@@ -893,7 +893,7 @@ const handleThumbTouchStart = (e: TouchEvent) => {
 };
 
 const handleThumbTouchMove = (e: TouchEvent) => {
-  if (!isThumbDragging.value || !sound.value) return;
+  if (!isThumbDragging.value || !playerStore.playMusic?.id) return;
 
   e.preventDefault();
 
@@ -912,7 +912,7 @@ const handleThumbTouchMove = (e: TouchEvent) => {
 };
 
 const handleThumbTouchEnd = (e: TouchEvent) => {
-  if (!isThumbDragging.value || !sound.value) return;
+  if (!isThumbDragging.value || !playerStore.playMusic?.id) return;
 
   e.preventDefault();
   e.stopPropagation();

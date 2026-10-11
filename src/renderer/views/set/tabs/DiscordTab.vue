@@ -1,18 +1,12 @@
 <template>
   <div class="flex flex-col gap-6 p-4">
-    <!-- Header -->
     <div class="mb-2">
       <h1 class="text-2xl font-bold tracking-tight">Discord Integration</h1>
       <p class="text-black/60 dark:text-white/60 text-sm mt-1">Connect your account and customize your rich presence.</p>
     </div>
 
-    <!-- Main Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      
-      <!-- Left Column (Account & Preview) -->
       <div class="lg:col-span-5 flex flex-col gap-6">
-        
-        <!-- Account Card -->
         <div class="bg-black/5 dark:bg-[#1a1b1e] rounded-3xl p-6 shadow-sm flex flex-col">
           <h2 class="text-lg font-semibold mb-4">Account</h2>
           <div class="flex items-center gap-4 mb-6">
@@ -33,7 +27,6 @@
             </div>
           </div>
 
-          <!-- RPC Toggle -->
           <div :class="['w-full rounded-2xl p-4 flex items-center justify-between transition-colors mb-4', setData.discordRPCEnabled && setData.discordToken ? 'bg-primary/10 border border-primary/20' : 'bg-black/5 dark:bg-white/5']">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-background flex items-center justify-center">
@@ -48,7 +41,6 @@
             <n-switch v-model:value="setData.discordRPCEnabled" />
           </div>
 
-          <!-- Gateway Status -->
           <div v-if="setData.discordToken && setData.discordRPCEnabled" :class="['rounded-2xl p-3.5 flex items-center gap-3 mb-4', gatewayStatus?.connected ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-black/5 dark:bg-white/5']">
             <n-icon size="20" :class="gatewayStatus?.connected ? 'text-green-500' : 'text-black/50 dark:text-white/50'">
               <svg v-if="gatewayStatus?.connected" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -57,7 +49,6 @@
             <span class="text-sm font-medium truncate">{{ gatewayStatusLabel }}</span>
           </div>
 
-          <!-- Action Buttons -->
           <div class="mt-auto pt-2 flex flex-col gap-2">
             <n-button v-if="!setData.discordToken" size="large" block :loading="loggingIn" class="h-12 font-bold rounded-xl bg-[#5865F2] hover:bg-[#4752C4] text-white border-none shadow-[0_4px_12px_rgba(88,101,242,0.25)] transition-all" @click="loginDiscordWebView">
               Connect Account
@@ -67,8 +58,6 @@
             </n-button>
           </div>
         </div>
-
-        <!-- Preview Card -->
         <div class="bg-black/5 dark:bg-[#1a1b1e] rounded-3xl p-6 shadow-sm" :class="{ 'opacity-50 pointer-events-none grayscale transition-all': !setData.discordRPCEnabled }">
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold">Live Preview</h2>
@@ -76,33 +65,41 @@
               Force Refresh
             </n-button>
           </div>
-          
           <div class="bg-[#f2f3f5] dark:bg-[#2b2d31] rounded-2xl p-5 shadow-inner">
             <div class="w-full font-bold text-xs text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wider">
               {{ activityTypeHeader.toUpperCase() }}
             </div>
             <div class="flex gap-4">
-              <!-- Images -->
               <div class="relative w-24 h-24 flex-shrink-0">
                 <div class="absolute inset-0 rounded-xl overflow-hidden bg-black/10 dark:bg-white/5">
-                  <img v-if="largeImagePreview" class="w-full h-full object-cover" :src="largeImagePreview" alt="Large" />
-                  <img v-else class="w-full h-full object-cover opacity-50" src="@/assets/logo.png" alt="Fallback" />
+                  <img
+                    v-if="largeImagePreview"
+                    class="w-full h-full object-cover"
+                    :src="largeImagePreview"
+                    alt=""
+                    referrerpolicy="no-referrer"
+                    @error="onLargeImageError"
+                  />
+                  <img v-else class="w-full h-full object-cover opacity-50" src="@/assets/logo.png" alt="" />
                 </div>
                 <div v-if="setData.discordSmallImageType !== 'dontshow' && setData.discordSmallImageType !== 'none'" class="absolute -bottom-1 -right-1 rounded-full bg-[#f2f3f5] dark:bg-[#2b2d31] p-1 shadow-sm">
                   <div class="w-8 h-8 rounded-full overflow-hidden bg-black/10 dark:bg-white/5">
-                    <img v-if="smallImagePreview" class="w-full h-full object-cover" :src="smallImagePreview" alt="Small" />
-                    <img v-else class="w-full h-full object-cover opacity-50" src="@/assets/logo.png" alt="Fallback" />
+                    <img
+                      v-if="smallImagePreview"
+                      class="w-full h-full object-cover"
+                      :src="smallImagePreview"
+                      alt=""
+                      referrerpolicy="no-referrer"
+                      @error="onSmallImageError"
+                    />
+                    <img v-else class="w-full h-full object-cover opacity-50" src="@/assets/logo.png" alt="" />
                   </div>
                 </div>
               </div>
-              
-              <!-- Details -->
               <div class="flex flex-col flex-1 min-w-0 justify-center">
                 <span class="font-bold text-[15px] truncate">{{ previewName || getPlaceholderText(setData.discordActivityName) }}</span>
                 <span class="text-[14px] truncate text-black/80 dark:text-white/80" v-if="previewDetails || getPlaceholderText(setData.discordActivityDetails)">{{ previewDetails || getPlaceholderText(setData.discordActivityDetails) }}</span>
                 <span class="text-[14px] truncate text-black/80 dark:text-white/80" v-if="previewState || getPlaceholderText(setData.discordActivityState)">{{ previewState || getPlaceholderText(setData.discordActivityState) }}</span>
-                
-                <!-- Progress -->
                 <div class="mt-3 flex flex-col gap-1.5">
                   <div class="h-1.5 w-full bg-black/10 dark:bg-white/10 rounded-full overflow-hidden">
                     <div class="h-full bg-primary transition-all duration-1000 ease-linear" :style="{ width: `${previewProgress}%` }"></div>
@@ -114,7 +111,6 @@
                 </div>
               </div>
             </div>
-            <!-- Buttons -->
             <div class="mt-4 flex flex-col gap-2">
               <div v-if="setData.discordActivityButton1Enabled !== false" class="h-10 rounded text-sm font-medium flex items-center justify-center bg-black/5 dark:bg-white/5 text-black/80 dark:text-white/80">
                 {{ setData.discordActivityButton1Label || 'Listen on Chorus Deck' }}
@@ -125,13 +121,8 @@
             </div>
           </div>
         </div>
-
       </div>
-
-      <!-- Right Column (Settings) -->
       <div class="lg:col-span-7 flex flex-col gap-6" :class="{ 'opacity-50 pointer-events-none grayscale transition-all': !setData.discordRPCEnabled }">
-        
-        <!-- Content Settings -->
         <div class="bg-black/5 dark:bg-[#1a1b1e] rounded-3xl p-6 shadow-sm">
           <h2 class="text-lg font-semibold mb-4">Content</h2>
           <div class="flex flex-col gap-2">
@@ -144,8 +135,6 @@
             </setting-item>
           </div>
         </div>
-
-        <!-- Visual Settings -->
         <div class="bg-black/5 dark:bg-[#1a1b1e] rounded-3xl p-6 shadow-sm">
           <h2 class="text-lg font-semibold mb-4">Visuals</h2>
           <div class="flex flex-col gap-2">
@@ -163,8 +152,6 @@
             </setting-item>
           </div>
         </div>
-
-        <!-- Connection Defaults -->
         <div class="bg-black/5 dark:bg-[#1a1b1e] rounded-3xl p-6 shadow-sm">
           <h2 class="text-lg font-semibold mb-4">Connection</h2>
           <div class="flex flex-col gap-2">
@@ -172,19 +159,19 @@
             <list-dialog-preference title="Platform Status" description="The platform shown on Discord" v-model:value="setData.discordActivityPlatform" :options="platformOptions" />
           </div>
         </div>
-        
       </div>
     </div>
   </div>
 </template>
 
-
 <script setup lang="ts">
 import { NAvatar, NButton, NSelect, NSwitch } from 'naive-ui';
 import { computed, inject } from 'vue';
 
-import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
 import type { DiscordGatewayStatus } from '@/api/bridge';
+import { handleImgError } from '@/services/coverService';
+
+import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
 import ListDialogPreference from '../ListDialogPreference.vue';
 import SettingItem from '../SettingItem.vue';
 import SettingSection from '../SettingSection.vue';
@@ -197,6 +184,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue';
 
 import { useSettingsStore } from '@/store/modules/settings';
 import { ensureDiscordToken } from '@/utils/discordToken';
+import { extractCleanSongMeta } from '@/utils/songMeta';
 
 const settingsStore = useSettingsStore();
 const tempDiscordToken = ref('');
@@ -218,7 +206,6 @@ const pollGatewayStatus = async () => {
   try {
     gatewayStatus.value = await window.api.discordGatewayStatus();
   } catch {
-    // ignore polling failures
   }
 };
 
@@ -253,9 +240,14 @@ const smallImageError = ref(false);
 
 const onLargeImageError = (e: any) => {
   largeImageError.value = true;
+  const song = playerCore.currentSong as any;
+  handleImgError(e, song, 'song');
 };
 const onSmallImageError = (e: any) => {
   smallImageError.value = true;
+  const song = playerCore.currentSong as any;
+  const isArtist = setData.value.discordSmallImageType === 'artist';
+  handleImgError(e, song, isArtist ? 'artist' : 'song');
 };
 
 let previewInterval: any = null;
@@ -336,7 +328,6 @@ const loginDiscordWebView = async () => {
       const expiresAt = userInfo.expiresIn
         ? Date.now() + userInfo.expiresIn * 1000
         : 0;
-      // Persist immediately via the settings store (no debounce race)
       settingsStore.setSetData({
         discordToken: userInfo.token,
         discordUsername: userInfo.username || '',
@@ -346,8 +337,6 @@ const loginDiscordWebView = async () => {
         discordTokenExpiresAt: expiresAt,
         discordRPCEnabled: true
       });
-
-      // Update local reactive setData so the UI reflects the change instantly
       setData.value = {
         ...setData.value,
         discordToken: userInfo.token,
@@ -358,7 +347,6 @@ const loginDiscordWebView = async () => {
         discordTokenExpiresAt: expiresAt,
         discordRPCEnabled: true
       };
-
       message.success('Connected to Discord!');
     } else {
       message.warning('Could not retrieve Discord token. Connection cancelled.');
@@ -379,7 +367,6 @@ const loginDiscordWebView = async () => {
 };
 
 const logoutDiscord = () => {
-  // Immediately persist the cleared token via the settings store (bypasses debounce)
   settingsStore.setSetData({
     discordToken: '',
     discordUsername: '',
@@ -387,7 +374,6 @@ const logoutDiscord = () => {
     discordAvatarUrl: ''
   });
 
-  // Also update the local reactive setData so the UI updates immediately
   setData.value = {
     ...setData.value,
     discordToken: '',
@@ -441,17 +427,15 @@ const refreshDiscord = async (silent = false) => {
     };
 
     const song = currentSong as any;
+    const { title, artist, album } = extractCleanSongMeta(song);
+    if (album && album !== 'Unknown Album' && !song.album) {
+      song.album = album;
+    }
+
     await window.api.updateDiscordPresence({
-      title: song.name,
-      artist:
-        song.ar?.map((a: any) => a.name).join(' / ') ||
-        song.artists?.map((a: any) => a.name).join(' / ') ||
-        'Unknown Artist',
-      album:
-        song.al?.name ||
-        (typeof song.album === 'string' ? song.album : null) ||
-        (typeof song.album === 'object' ? song.album?.name : null) ||
-        'Unknown Album',
+      title,
+      artist,
+      album,
       albumArt: song.al?.picUrl || song.picUrl || '',
       songId,
       artistId,
@@ -513,30 +497,21 @@ const activityTypeHeader = computed(() => {
 const previewSourceValue = (source: string) => {
   const currentSong = playerCore.currentSong;
   const isSongLoaded = !!(currentSong && currentSong.name);
-  const artist =
-    currentSong?.ar?.map((a: any) => a.name).join(' / ') ||
-    (currentSong as any)?.artists?.map((a: any) => a.name).join(' / ') ||
-    (isSongLoaded ? 'Unknown Artist' : '');
-  // album can be: al.name (object), or album (string field)
-  const album =
-    currentSong?.al?.name ||
-    (typeof (currentSong as any)?.album === 'string' ? (currentSong as any).album : null) ||
-    (typeof (currentSong as any)?.album === 'object' ? (currentSong as any).album?.name : null) ||
-    (isSongLoaded ? 'Unknown Album' : '');
-
   if (!source) return null;
+
+  const { title, artist, album } = extractCleanSongMeta(currentSong);
 
   switch (source) {
     case 'ARTIST':
-      return artist;
+      return isSongLoaded ? artist : '';
     case 'ALBUM':
-      return album;
+      return isSongLoaded ? album : '';
     case 'SONG':
-      return currentSong?.name || '';
+      return isSongLoaded ? title : '';
     case 'APP':
       return 'Chorus Deck';
     default:
-      return currentSong?.name || '';
+      return isSongLoaded ? title : '';
   }
 };
 
@@ -570,15 +545,15 @@ const previewLargeText = computed(() => {
     ? null
     : val;
 });
-
 const largeImagePreview = computed(() => {
-  if (largeImageError.value) return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
-  
   const type = setData.value.discordLargeImageType;
   const song = playerCore.currentSong as any;
   if (!song || !song.name) return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
 
-  const albumArt = song?.al?.picUrl || song?.picUrl || '';
+  const ytThumb = song?.id && String(song.id).length === 11 && !String(song.id).includes('/')
+    ? `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`
+    : '';
+  const albumArt = song?.al?.picUrl || song?.picUrl || ytThumb;
   const artistPic = song?.ar?.[0]?.picUrl || song?.artists?.[0]?.picUrl || albumArt;
 
   if (type === 'thumbnail' && albumArt) return albumArt;
@@ -595,12 +570,14 @@ const largeImagePreview = computed(() => {
 const smallImagePreview = computed(() => {
   const type = setData.value.discordSmallImageType;
   if (type === 'dontshow') return null;
-  if (smallImageError.value) return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
 
   const song = playerCore.currentSong as any;
   if (!song || !song.name) return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
 
-  const albumArt = song?.al?.picUrl || song?.picUrl || '';
+  const ytThumb = song?.id && String(song.id).length === 11 && !String(song.id).includes('/')
+    ? `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`
+    : '';
+  const albumArt = song?.al?.picUrl || song?.picUrl || ytThumb;
   const artistPic = song?.ar?.[0]?.picUrl || song?.artists?.[0]?.picUrl || albumArt;
 
   if (type === 'thumbnail' && albumArt) return albumArt;
@@ -638,8 +615,6 @@ const platformOptions = [
   { label: 'PS4', value: 'ps4' },
   { label: 'PS5', value: 'ps5' }
 ];
-
-// activityTypeOptions moved to top
 
 const sourceOptions = [
   { label: 'Artist Name', value: 'ARTIST' },

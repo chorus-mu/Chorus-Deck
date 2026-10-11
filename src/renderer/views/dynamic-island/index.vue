@@ -1,5 +1,9 @@
 <template>
-  <div class="dynamic-island-container">
+  <div
+    class="dynamic-island-container"
+    :class="{ 'is-disabled': !dynamicIslandEnabled }"
+    v-show="dynamicIslandEnabled"
+  >
     <div class="trigger-zone" @mouseenter="handleZoneEnter" @mouseleave="handleZoneLeave">
       <div
         class="dynamic-island"
@@ -23,7 +27,7 @@
                   <path class="ring-bg" :d="bigRing" :stroke="accentColor" />
                 </svg>
                 <div class="artwork-medium" :style="{ clipPath: bigArtClip }">
-                  <img :src="currentTrack.cover" crossorigin="anonymous" referrerpolicy="no-referrer" @error="coverFailed = true" />
+                  <img :src="currentTrack.cover" referrerpolicy="no-referrer" @error="coverFailed = true" />
                 </div>
               </div>
               <div class="artwork-ring-wrap" v-else>
@@ -83,6 +87,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { computed, onMounted, ref, watch, onUnmounted } from 'vue';
 
 import { useSettingsStore } from '@/store/modules/settings';
+import { getImgUrl } from '@/utils';
+import { extractCleanSongMeta } from '@/utils/songMeta';
 
 import IdleState from './components/IdleState.vue';
 import PlayingState from './components/PlayingState.vue';
@@ -96,6 +102,11 @@ const dynamicIslandVisibility = computed(
   () => settingsStore.setData.dynamicIslandVisibility || 'auto-hide'
 );
 const dynamicIslandEnabled = computed(() => settingsStore.setData.dynamicIslandEnabled ?? true);
+const isPermanent = computed(
+  () =>
+    dynamicIslandVisibility.value === 'permanent' ||
+    dynamicIslandVisibility.value === 'always-show'
+);
 
 const isPlaying = ref(false);
 const currentTrack = ref({
@@ -114,7 +125,6 @@ const progressPercent = computed(() => {
 
 const coverFailed = ref(false);
 
-// Wavy progress geometry (viewBox 300 x 16)
 const progressX = computed(() => Math.min(Math.max(progressPercent.value, 0), 100) * 3);
 
 const wavePhase = ref(0);
@@ -135,7 +145,6 @@ const dynamicWavePath = computed(() => {
     const dampingStart = Math.min(x / 15, 1);
     const dampingEnd = Math.min(distFromEnd / 25, 1);
     const damping = dampingStart * dampingEnd;
-    
     const y = 8 + 4 * damping * Math.sin(x * 0.15 - wavePhase.value);
     d += `L ${x.toFixed(1)} ${y.toFixed(1)} `;
   }
@@ -143,7 +152,6 @@ const dynamicWavePath = computed(() => {
   return d;
 });
 
-// Expanded artwork wavy ring (76x76 viewBox)
 const LOBES = 10;
 const AMP = 2.5; 
 const wavyPoints = (cx: number, cy: number, R: number, steps = 180) => {
@@ -164,10 +172,15 @@ const bigRing = wavyPoints(38, 38, BIG_ART_R + 3)
   .map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`)
   .join(' ');
 
-// ---------- Theme (light / dark) ----------
 const isDark = ref(localStorage.getItem('theme') === 'dark');
 const syncThemeClass = () => {
   document.documentElement.classList.toggle('dark', isDark.value);
+  document.documentElement.classList.add('is-overlay-window');
+  if (document.body) {
+    document.body.classList.add('is-overlay-window');
+    document.body.style.backgroundColor = 'transparent';
+  }
+  document.documentElement.style.backgroundColor = 'transparent';
 };
 
 // ---------- Color helpers ----------
@@ -208,7 +221,6 @@ const extractCoverColor = (url: string): Promise<string> =>
         if (!ctx) return resolve('');
         ctx.drawImage(img, 0, 0, size, size);
         const data = ctx.getImageData(0, 0, size, size).data;
-        // Weighted by saturation so vivid colors win over greys
         let r = 0, g = 0, b = 0, w = 0;
         for (let i = 0; i < data.length; i += 4) {
           const [, s, l] = rgbToHsl([data[i], data[i + 1], data[i + 2]]);
@@ -224,7 +236,6 @@ const extractCoverColor = (url: string): Promise<string> =>
     img.src = url;
   });
 
-// Album accent, clamped so it's always visible on the current theme
 const accentColor = computed(() => {
   const rgb = rgbStringToTuple(currentTrack.value.backgroundColor || '');
   if (!rgb) return isDark.value ? '#f1ebd9' : '#2a2a2a';
@@ -276,58 +287,101 @@ watch(
 let hideTimeout: ReturnType<typeof setTimeout> | null = null;
 let wasHiddenOnEnter = false;
 
-const showConfirmation = () => {
-  if (hideTimeout) clearTimeout(hideTimeout);
+const showConfirmation = (durationMs = 3500) => {
+  if (hideTimeout) {
+    clearTimeout(hideTimeout);
+    hideTimeout = null;
+  }
   
-  if (currentState.value !== 'expanded' && dynamicIslandEnabled.value) {
+  if (!dynamicIslandEnabled.value) {
+    currentState.value = 'hidden';
+    return;
+  }
+
+  if (isPermanent.value) {
     currentState.value = 'playing';
-    
-    if (!isPlaying.value && dynamicIslandVisibility.value !== 'always-show') {
-      hideTimeout = setTimeout(() => {
-        if (currentState.value === 'playing') {
-          currentState.value = 'hidden';
-        }
-      }, 3000);
-    }
+    return;
+  }
+  if (currentState.value !== 'expanded') {
+    currentState.value = 'playing';
+    hideTimeout = setTimeout(() => {
+      if (currentState.value === 'playing' && !isPermanent.value) {
+        currentState.value = 'hidden';
+      }
+    }, durationMs);
   }
 };
 
 const handleZoneEnter = () => {
-  if (hideTimeout) clearTimeout(hideTimeout);
-  if (dynamicIslandEnabled.value) {
-    if (currentState.value === 'hidden') {
-      wasHiddenOnEnter = true;
-      currentState.value = 'playing';
-    } else {
-      wasHiddenOnEnter = false;
-    }
+  if (hideTimeout) {
+    clearTimeout(hideTimeout);
+    hideTimeout = null;
+  }
+  if (!dynamicIslandEnabled.value) return;
+
+  if (currentState.value === 'hidden') {
+    wasHiddenOnEnter = true;
+    currentState.value = 'playing';
+  } else {
+    wasHiddenOnEnter = false;
   }
 };
 
 const handleIslandEnter = () => {
-  if (hideTimeout) clearTimeout(hideTimeout);
-  if (dynamicIslandEnabled.value && !wasHiddenOnEnter) {
-    currentState.value = 'expanded';
+  if (hideTimeout) {
+    clearTimeout(hideTimeout);
+    hideTimeout = null;
   }
+  if (!dynamicIslandEnabled.value) return;
+
+  currentState.value = 'expanded';
 };
 
 const handleZoneLeave = () => {
   wasHiddenOnEnter = false;
-  if (dynamicIslandEnabled.value) {
-    currentState.value = 'playing';
-    showConfirmation();
-  } else {
+  if (!dynamicIslandEnabled.value) {
     currentState.value = 'hidden';
+    return;
+  }
+
+  if (isPermanent.value) {
+    currentState.value = 'playing';
+  } else {
+    currentState.value = 'playing';
+    showConfirmation(2500);
   }
 };
 
-watch([dynamicIslandVisibility, dynamicIslandEnabled], () => {
-  if (dynamicIslandEnabled.value) {
-    showConfirmation();
-  } else {
-    currentState.value = 'hidden';
-  }
-});
+watch(
+  [dynamicIslandVisibility, dynamicIslandEnabled, isPermanent],
+  () => {
+    if (!dynamicIslandEnabled.value) {
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
+      }
+      currentState.value = 'hidden';
+      try {
+        getCurrentWindow().hide();
+      } catch {}
+    } else if (isPermanent.value) {
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        hideTimeout = null;
+      }
+      currentState.value = 'playing';
+      try {
+        getCurrentWindow().show();
+      } catch {}
+    } else {
+      try {
+        getCurrentWindow().show();
+      } catch {}
+      showConfirmation(3000);
+    }
+  },
+  { immediate: true }
+);
 
 const togglePlay = async () => {
   if (isPlaying.value) {
@@ -358,14 +412,168 @@ const formatTime = (seconds: number) => {
   return `${m}:${s < 10 ? '0' : ''}${s}`;
 };
 
-onMounted(() => {
+const syncFromStore = (parsed: any) => {
+  if (!parsed) return;
+  if (parsed.isPlay !== undefined) {
+    isPlaying.value = !!parsed.isPlay;
+  }
+  if (parsed.playMusic && (parsed.playMusic.name || parsed.playMusic.title)) {
+    const meta = extractCleanSongMeta(parsed.playMusic);
+    const dt = parsed.playMusic.dt || parsed.playMusic.duration;
+    if (dt) duration.value = dt > 10000 ? dt / 1000 : dt;
+    const rawCover =
+      parsed.playMusic.al?.picUrl ||
+      parsed.playMusic.picUrl ||
+      parsed.playMusic.coverImgUrl ||
+      parsed.playMusic.cover ||
+      '';
+    coverFailed.value = false;
+    currentTrack.value = {
+      title: meta.title || parsed.playMusic.name || parsed.playMusic.title || '',
+      artist: meta.artist || '',
+      cover: getImgUrl(rawCover, '300y300'),
+      backgroundColor: currentTrack.value.backgroundColor
+    };
+  }
+};
+
+onMounted(async () => {
   waveRaf = requestAnimationFrame(updateWave);
   syncThemeClass();
-  // localStorage is shared between windows; the 'storage' event fires in other windows on change
-  window.addEventListener('storage', (e) => {
+
+  try {
+    await settingsStore.getInitialSettings();
+  } catch {}
+
+  try {
+    const cachedEnabled = localStorage.getItem('dynamicIslandEnabled');
+    if (cachedEnabled !== null) {
+      settingsStore.setData.dynamicIslandEnabled = JSON.parse(cachedEnabled);
+    }
+    const cachedVis = localStorage.getItem('dynamicIslandVisibility');
+    if (cachedVis !== null) {
+      settingsStore.setData.dynamicIslandVisibility = JSON.parse(cachedVis);
+    }
+  } catch {}
+  if (!dynamicIslandEnabled.value) {
+    currentState.value = 'hidden';
+    try {
+      await getCurrentWindow().hide();
+    } catch {}
+  } else {
+    try {
+      await getCurrentWindow().show();
+    } catch {}
+    if (isPermanent.value) {
+      currentState.value = 'playing';
+    } else {
+      showConfirmation();
+    }
+  }
+
+  listen('dynamic-island-settings', async (event: any) => {
+    const payload = event.payload;
+    if (!payload) return;
+    if (payload.enabled !== undefined) {
+      settingsStore.setData.dynamicIslandEnabled = payload.enabled;
+      if (!payload.enabled) {
+        currentState.value = 'hidden';
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+        try {
+          await getCurrentWindow().hide();
+        } catch {}
+      } else {
+        try {
+          await getCurrentWindow().show();
+        } catch {}
+        if (isPermanent.value) {
+          currentState.value = 'playing';
+        } else {
+          showConfirmation();
+        }
+      }
+    }
+    if (payload.visibility !== undefined) {
+      settingsStore.setData.dynamicIslandVisibility = payload.visibility;
+      if (payload.visibility === 'permanent' || payload.visibility === 'always-show') {
+        if (hideTimeout) {
+          clearTimeout(hideTimeout);
+          hideTimeout = null;
+        }
+        currentState.value = 'playing';
+      } else {
+        showConfirmation();
+      }
+    }
+  });
+
+  listen('settings-changed', async (event: any) => {
+    const payload = event.payload;
+    if (!payload) return;
+    if (payload.dynamicIslandEnabled !== undefined) {
+      settingsStore.setData.dynamicIslandEnabled = payload.dynamicIslandEnabled;
+      if (!payload.dynamicIslandEnabled) {
+        currentState.value = 'hidden';
+        try {
+          await getCurrentWindow().hide();
+        } catch {}
+      }
+    }
+    if (payload.dynamicIslandVisibility !== undefined) {
+      settingsStore.setData.dynamicIslandVisibility = payload.dynamicIslandVisibility;
+    }
+  });
+
+  window.addEventListener('storage', async (e) => {
     if (e.key === 'theme') {
       isDark.value = e.newValue === 'dark';
       syncThemeClass();
+    } else if (e.key === 'player-core-store' && e.newValue) {
+      try {
+        const parsed = JSON.parse(e.newValue);
+        syncFromStore(parsed);
+      } catch {}
+    } else if (e.key === 'dynamicIslandEnabled' && e.newValue !== null) {
+      try {
+        const isEnabled = JSON.parse(e.newValue);
+        settingsStore.setData.dynamicIslandEnabled = isEnabled;
+        if (!isEnabled) {
+          currentState.value = 'hidden';
+          if (hideTimeout) {
+            clearTimeout(hideTimeout);
+            hideTimeout = null;
+          }
+          try {
+            await getCurrentWindow().hide();
+          } catch {}
+        } else {
+          try {
+            await getCurrentWindow().show();
+          } catch {}
+          if (isPermanent.value) {
+            currentState.value = 'playing';
+          } else {
+            showConfirmation();
+          }
+        }
+      } catch {}
+    } else if (e.key === 'dynamicIslandVisibility' && e.newValue !== null) {
+      try {
+        const vis = JSON.parse(e.newValue);
+        settingsStore.setData.dynamicIslandVisibility = vis;
+        if (vis === 'permanent' || vis === 'always-show') {
+          if (hideTimeout) {
+            clearTimeout(hideTimeout);
+            hideTimeout = null;
+          }
+          currentState.value = 'playing';
+        } else {
+          showConfirmation();
+        }
+      } catch {}
     }
   });
 
@@ -373,25 +581,9 @@ onMounted(() => {
     const stored = localStorage.getItem('player-core-store');
     if (stored) {
       const parsed = JSON.parse(stored);
-      if (parsed.isPlay) {
-        isPlaying.value = true;
-      }
-      if (parsed.playMusic) {
-        const dt = parsed.playMusic.dt || parsed.playMusic.duration;
-        if (dt) duration.value = dt > 10000 ? dt / 1000 : dt;
-        currentTrack.value = {
-          title: parsed.playMusic.name || parsed.playMusic.title || '',
-          artist: parsed.playMusic.ar?.[0]?.name || parsed.playMusic.artists?.[0]?.name || parsed.playMusic.artist || '',
-          cover: parsed.playMusic.al?.picUrl || parsed.playMusic.picUrl || parsed.playMusic.coverImgUrl || parsed.playMusic.cover || '',
-          backgroundColor: currentTrack.value.backgroundColor
-        };
-      }
+      syncFromStore(parsed);
     }
   } catch (e) {}
-
-  if (dynamicIslandEnabled.value) {
-    showConfirmation();
-  }
 
   listen('update-play-state', (event: any) => {
     if (isPlaying.value !== event.payload) {
@@ -402,10 +594,12 @@ onMounted(() => {
 
   listen('update-current-song', (event: any) => {
     const payload = event.payload;
+    coverFailed.value = false;
+    const coverUrl = payload.cover_url || currentTrack.value.cover || '';
     currentTrack.value = {
       title: payload.title || currentTrack.value.title || '',
       artist: payload.artist || currentTrack.value.artist || '',
-      cover: payload.cover_url || currentTrack.value.cover || '',
+      cover: getImgUrl(coverUrl, '300y300'),
       backgroundColor: currentTrack.value.backgroundColor
     };
     if (payload.duration) {
@@ -442,8 +636,15 @@ onUnmounted(() => {
   align-items: flex-start;
   padding-top: 0px;
   overflow: hidden;
-  background: transparent;
+  background: transparent !important;
   pointer-events: none;
+}
+
+.dynamic-island-container.is-disabled {
+  display: none !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 .trigger-zone {
@@ -452,7 +653,7 @@ onUnmounted(() => {
   padding-bottom: 50px;
   padding-left: 50px;
   padding-right: 50px;
-  background: rgba(0, 0, 0, 0.01);
+  background: transparent !important;
   display: flex;
   justify-content: center;
 }

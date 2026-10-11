@@ -50,7 +50,9 @@
           <img
             v-if="currentSrc"
             :src="currentSrc"
-            :alt="detail?.title"
+            alt=""
+            referrerpolicy="no-referrer"
+            @error="handleImgError($event, { title: detail?.title, artist: detail?.author }, isAlbum ? 'album' : 'playlist')"
             class="w-full h-full object-cover"
           />
           <div v-else class="w-full h-full flex items-center justify-center">
@@ -64,7 +66,6 @@
           class="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mb-1"
         >
           {{ isAlbum ? 'Album' : 'Playlist' }}
-          <template v-if="detail?.year">• {{ detail.year }}</template>
         </p>
 
         <h1 class="text-3xl font-bold text-center leading-tight mb-3">
@@ -85,6 +86,9 @@
               <img
                 v-if="author.avatar"
                 :src="author.avatar"
+                alt=""
+                referrerpolicy="no-referrer"
+                @error="handleImgError($event, { title: author.name, artist: author.name }, 'artist')"
                 class="w-6 h-6 rounded-full object-cover shadow-sm"
               />
               {{ author.name }}
@@ -98,6 +102,9 @@
               <img
                 v-if="detail.authorAvatar"
                 :src="detail.authorAvatar"
+                alt=""
+                referrerpolicy="no-referrer"
+                @error="handleImgError($event, { title: detail.author, artist: detail.author }, 'artist')"
                 class="w-6 h-6 rounded-full object-cover shadow-sm"
               />
               {{ detail.author }}
@@ -197,7 +204,9 @@
                 <img
                   v-if="album.coverImgUrl"
                   :src="getImgUrl(album.coverImgUrl, '300y300')"
-                  :alt="album.name"
+                  alt=""
+                  referrerpolicy="no-referrer"
+                  @error="handleImgError($event, { title: album.name, artist: album.subtitle }, 'album')"
                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
                 <div v-else class="w-full h-full flex items-center justify-center">
@@ -238,7 +247,9 @@
                 <img
                   v-if="playlist.coverImgUrl"
                   :src="getImgUrl(playlist.coverImgUrl, '300y300')"
-                  :alt="playlist.name"
+                  alt=""
+                  referrerpolicy="no-referrer"
+                  @error="handleImgError($event, { title: playlist.name, artist: playlist.subtitle }, 'playlist')"
                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
                 <div v-else class="w-full h-full flex items-center justify-center">
@@ -279,7 +290,9 @@
                 <img
                   v-if="similar.coverImgUrl"
                   :src="getImgUrl(similar.coverImgUrl, '300y300')"
-                  :alt="similar.name"
+                  alt=""
+                  referrerpolicy="no-referrer"
+                  @error="handleImgError($event, { title: similar.name, artist: similar.name }, 'artist')"
                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
                 <div v-else class="w-full h-full flex items-center justify-center">
@@ -322,16 +335,26 @@ import { playTrack } from '@/services/playbackController';
 import { usePlayerStore } from '@/store/modules/player';
 import type { SongResult } from '@/types/music';
 import { getImgUrl } from '@/utils';
+import { handleImgError } from '@/services/coverService';
 
 defineOptions({ name: 'PlaylistDetail' });
 
 const toSongResult = (song: YTMSong): SongResult => ({
   id: song.id,
   name: song.title,
-  picUrl: song.thumbnail,
+  picUrl:
+    song.thumbnail ||
+    (song.id && String(song.id).length === 11 && !String(song.id).includes('/')
+      ? `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`
+      : ''),
   source: 'ytmusic',
-  artists: song.artists.map((a) => ({ name: a.name })),
-  album: song.album
+  artists:
+    song.artists && song.artists.length > 0
+      ? song.artists.map((a) => ({ name: a.name }))
+      : detail.value?.author
+        ? [{ name: detail.value.author }]
+        : [],
+  album: song.album || (isAlbum.value ? detail.value?.title : undefined)
 });
 
 const route = useRoute();
@@ -548,15 +571,17 @@ const loadPlaylist = async () => {
   }
 };
 
-const playAll = () => {
+const playAll = async () => {
   if (!songs.value.length) return;
   playerStore.setQueue(songs.value, false, true);
+  await playerStore.setPlay(songs.value[0]);
 };
 
-const shufflePlay = () => {
+const shufflePlay = async () => {
   if (!songs.value.length) return;
   const shuffled = [...songs.value].sort(() => Math.random() - 0.5);
   playerStore.setQueue(shuffled, false, true);
+  await playerStore.setPlay(shuffled[0]);
 };
 
 const batchDownload = async () => {

@@ -44,7 +44,10 @@ pub fn resolve_source_text(source: &str, presence: &DiscordPresence) -> Option<S
     match source.to_uppercase().as_str() {
         "SONG" => presence.title.clone(),
         "ARTIST" => presence.artist.clone(),
-        "ALBUM" => presence.album.clone(),
+        "ALBUM" => presence.album.clone().filter(|a| {
+            let trimmed = a.trim();
+            !trimmed.is_empty() && !trimmed.eq_ignore_ascii_case("unknown album") && !trimmed.eq_ignore_ascii_case("unknown")
+        }),
         "APP" => Some("Chorus Deck".to_string()),
         "NONE" | "DONTSHOW" => None,
         _ => None,

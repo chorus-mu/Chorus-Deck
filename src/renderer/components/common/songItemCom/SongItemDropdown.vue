@@ -107,7 +107,7 @@ const renderSongPreview = () => {
                   default: () => {
                     const artistNames = (props.item.ar || props.item.artists)
                       ?.map((a) => a.name)
-                      .join(' / ');
+                      .join(', ');
                     return artistNames || 'unknown artist';
                   }
                 }

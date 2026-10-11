@@ -12,9 +12,11 @@
         class="cover-image"
         :class="{ 'has-black-bars': hasBlackBars }"
         preview-disabled
+        :fallback-src="fallbackArt"
         :object-fit="objectFit"
-        :img-props="{ referrerpolicy: 'no-referrer' }"
+        :img-props="{ referrerpolicy: 'no-referrer', alt: '' }"
         @load="onImageLoad"
+        @error="onImageError"
       />
       <div class="cover-shine" :style="shineStyle"></div>
     </div>
@@ -27,6 +29,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import logoImg from '@/assets/logo.png';
 
 interface Props {
   src: string;
@@ -72,14 +75,30 @@ const hasBlackBars = computed(() => {
   );
 });
 
+const fallbackArt = computed(() => {
+  if (currentSrc.value?.includes('i.ytimg.com')) {
+    const match = currentSrc.value.match(/\/vi\/([^\/]+)\//);
+    if (match) {
+      return `https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg`;
+    }
+  }
+  return logoImg;
+});
+
 const doFallback = () => {
   if (currentSrc.value?.includes('maxresdefault.jpg')) {
     currentSrc.value = currentSrc.value.replace('maxresdefault.jpg', 'sddefault.jpg');
   } else if (currentSrc.value?.includes('sddefault.jpg')) {
     currentSrc.value = currentSrc.value.replace('sddefault.jpg', 'mqdefault.jpg');
   } else if (currentSrc.value?.includes('mqdefault.jpg')) {
-    currentSrc.value = currentSrc.value.replace('mqdefault.jpg', 'default.jpg');
+    currentSrc.value = currentSrc.value.replace('mqdefault.jpg', 'hqdefault.jpg');
+  } else {
+    currentSrc.value = fallbackArt.value;
   }
+};
+
+const onImageError = () => {
+  doFallback();
 };
 
 const onImageLoad = (e: Event) => {

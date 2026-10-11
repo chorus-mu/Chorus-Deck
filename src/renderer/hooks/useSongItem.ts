@@ -7,6 +7,7 @@ import { getImgUrl } from '@/utils';
 import { t } from '@/utils/i18n';
 import { getImageBackground } from '@/utils/linearColor';
 
+import { normalizeArtistList } from './MusicHook';
 import { useArtist } from './useArtist';
 import { useDownload } from './useDownload';
 
@@ -32,12 +33,13 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
 
   const isDislike = computed(() => playerStore.dislikeList.includes(props.item.id));
 
-  const artists = computed(() => {
-    return (props.item.ar || props.item.artists)?.slice(0, 4) || [];
-  });
-
   const albumName = computed(() => {
     return props.item.album || props.item.al?.name;
+  });
+
+  const artists = computed(() => {
+    const raw = (props.item.ar || props.item.artists)?.slice(0, 4) || [];
+    return normalizeArtistList(raw, albumName.value);
   });
 
   const handleImageLoad = async (imageElement: HTMLImageElement) => {

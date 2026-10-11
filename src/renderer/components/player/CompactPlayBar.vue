@@ -21,10 +21,15 @@
       <div class="mini-song-info" @click="setMusicFull">
         <n-image
           :src="getImgUrl(playMusic?.picUrl, '100y100')"
-          :fallback-src="logoImg"
+          :fallback-src="fallbackCover"
           class="mini-song-cover"
           lazy
           preview-disabled
+          :img-props="{
+            crossorigin: 'anonymous',
+            referrerpolicy: 'no-referrer',
+            alt: ''
+          }"
         />
         <div class="mini-song-text">
           <n-ellipsis line-clamp="1">
@@ -35,7 +40,7 @@
               v-for="(artists, artistsindex) in artistList"
               :key="artistsindex"
             >
-              {{ artists.name }}{{ artistsindex < artistList.length - 1 ? ' / ' : '' }}
+              {{ artists.name }}{{ artistsindex < artistList.length - 1 ? ', ' : '' }}
             </span>
           </n-ellipsis>
         </div>
@@ -88,6 +93,14 @@ import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl, setAnimationClass } from '@/utils';
 import logoImg from '@/assets/logo.png';
+
+const fallbackCover = computed(() => {
+  const sid = playMusic?.value?.id ? String(playMusic.value.id) : '';
+  if (sid.length === 11 && !sid.includes('/')) {
+    return `https://i.ytimg.com/vi/${sid}/hqdefault.jpg`;
+  }
+  return logoImg;
+});
 
 const shouldShowCompactMenu = inject('shouldShowCompactMenu') as Ref<boolean>;
 

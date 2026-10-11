@@ -7,6 +7,7 @@ import type { SongResult } from '@/types/music';
 import { debouncedLocalStorage } from '@/utils/debouncedStorage';
 import { ensureDiscordToken } from '@/utils/discordToken';
 import { minifySong } from '@/utils/persistedSong';
+import { extractCleanSongMeta } from '@/utils/songMeta';
 
 import { useSettingsStore } from './settings';
 
@@ -141,8 +142,11 @@ export const usePlayerCoreStore = defineStore(
             return;
           }
 
-          const artist = newSong.ar?.map((a: any) => a.name).join(' / ') || (newSong as any).artists?.map((a: any) => a.name).join(' / ') || 'Unknown Artist';
-          const album = newSong.al?.name || (typeof (newSong as any).album === 'string' ? (newSong as any).album : null) || (typeof (newSong as any).album === 'object' ? (newSong as any).album?.name : null) || 'Unknown Album';
+          const { title, artist, album } = extractCleanSongMeta(newSong);
+          if (album && album !== 'Unknown Album' && !(newSong as any).album) {
+            (newSong as any).album = album;
+          }
+
           const albumArt = newSong.al?.picUrl || (newSong as any).picUrl || '';
           const artistArt = (newSong.ar?.[0] as any)?.picUrl || (newSong.ar?.[0] as any)?.img1v1Url || (newSong as any).artists?.[0]?.picUrl || (newSong as any).artists?.[0]?.img1v1Url || '';
           const songId = newSong.id?.toString() || '';
@@ -192,7 +196,7 @@ export const usePlayerCoreStore = defineStore(
               }
 
               return window.api.updateDiscordPresence({
-                title: newSong.name,
+                title,
                 artist,
                 album,
                 albumArt,

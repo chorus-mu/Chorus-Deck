@@ -90,7 +90,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 
-import { isDesktop, isLyricWindow } from '@/utils';
+import { isDesktop, isOverlayWindow } from '@/utils';
 
 const DISCLAIMER_AGREED_KEY = 'disclaimer_agreed_timestamp';
 
@@ -126,7 +126,7 @@ const handleDisagree = () => {
 };
 
 onMounted(() => {
-  if (isLyricWindow.value) return;
+  if (isOverlayWindow.value) return;
 
   if (shouldShowDisclaimer()) {
     showDisclaimer.value = true;

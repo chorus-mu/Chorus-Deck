@@ -9,7 +9,6 @@ import VueDevTools from 'vite-plugin-vue-devtools';
 
 export default defineConfig({
   base: './',
-  // 项目src
   root: resolve('src/renderer'),
   resolve: {
     alias: {
@@ -42,6 +41,16 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 1420,
     strictPort: true,
-    proxy: {}
+    proxy: {
+      '/__ytm_proxy': {
+        target: 'https://music.youtube.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/__ytm_proxy/, ''),
+        headers: {
+          Origin: 'https://music.youtube.com',
+          Referer: 'https://music.youtube.com/'
+        }
+      }
+    }
   }
 });

@@ -117,10 +117,11 @@
                 >
                   <img
                     :src="item.thumbnail || getPlaceholder(item.title)"
-                    :alt="item.title"
+                    alt=""
                     class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                     loading="lazy"
                     referrerpolicy="no-referrer"
+                    @error="handleImgError($event, item, 'song')"
                   />
                   <!-- Play overlay -->
                   <div
@@ -179,7 +180,8 @@ import {
 } from '@/api/ytmusic';
 import { useQueueStore } from '@/store/modules/queue';
 import type { SongResult } from '@/types/music';
-import logoImg from '@/assets/img/logo.png';
+import logoImg from '@/assets/logo.png';
+import { handleImgError } from '@/services/coverService';
 
 defineOptions({ name: 'Charts' });
 
@@ -190,7 +192,7 @@ const playlistStore = useQueueStore();
 
 function getSubtitle(item: YTMSong | YTMPlaylist): string {
   if (isYTMSong(item)) {
-    return item.artists.map((a) => a.name).join(', ') || item.album || '';
+    return item.artists.map((a) => a.name).join(', ') || '';
   }
   return item.subtitle || '';
 }
@@ -205,8 +207,9 @@ function playSong(item: YTMSong | YTMPlaylist) {
     id: item.id,
     name: item.title,
     picUrl: item.thumbnail,
+    album: item.album,
     source: 'ytmusic',
-    artists: item.artists.map((a) => ({ name: a.name }))
+    artists: item.artists.map((a) => ({ name: a.name, id: a.id }))
   };
   playlistStore.setQueue([track], false, false);
   window.dispatchEvent(new CustomEvent('ytm:play', { detail: track }));

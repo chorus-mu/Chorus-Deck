@@ -1,6 +1,40 @@
-body {
-  /* background-color: #000; */
+html,
+body,
+#app,
+.app-container {
   overflow: hidden;
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--shell-canvas, #e9ecef);
+}
+
+html.dark,
+body.dark,
+html.dark #app,
+html.dark .app-container {
+  background-color: var(--shell-canvas, #000000);
+}
+
+/* Allow specialized overlay windows (dynamic-island, lyric) to be 100% transparent with NO skirt */
+html.is-overlay-window,
+body.is-overlay-window,
+html.is-overlay-window body,
+html.is-overlay-window #app,
+html.is-overlay-window .app-container,
+html:has(.dynamic-island-container),
+body:has(.dynamic-island-container),
+html:has(.dynamic-island-container) body,
+html:has(.dynamic-island-container) #app,
+html:has(.dynamic-island-container) .app-container,
+html:has(.lyric-window),
+body:has(.lyric-window),
+html:has(.lyric-window) body,
+html:has(.lyric-window) #app,
+html:has(.lyric-window) .app-container {
+  background-color: transparent !important;
+  background: transparent !important;
 }
 
 :root {
@@ -26,8 +60,6 @@ body {
   font-size: 10px !important;
 }
 
-/* ==================== 桌面端 Message 样式 ==================== */
-
 .n-message {
   border-radius: 20px !important;
   padding: 10px 18px !important;
@@ -41,13 +73,11 @@ body {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-/* 浅色模式 */
 .n-message {
   background: rgba(255, 255, 255, 0.72) !important;
   color: #1a1a1a !important;
 }
 
-/* 深色模式 */
 .dark .n-message {
   background: rgba(40, 40, 40, 0.75) !important;
   color: #e5e5e5 !important;
@@ -56,7 +86,6 @@ body {
     0 0 0 1px rgba(255, 255, 255, 0.06) !important;
 }
 
-/* 成功 */
 .n-message--success-type {
   background: rgba(34, 197, 94, 0.15) !important;
   color: #16a34a !important;
@@ -72,7 +101,6 @@ body {
   color: #4ade80 !important;
 }
 
-/* 错误 */
 .n-message--error-type {
   background: rgba(239, 68, 68, 0.12) !important;
   color: #dc2626 !important;
@@ -88,7 +116,6 @@ body {
   color: #f87171 !important;
 }
 
-/* 警告 */
 .n-message--warning-type {
   background: rgba(245, 158, 11, 0.12) !important;
   color: #d97706 !important;
@@ -104,7 +131,6 @@ body {
   color: #fbbf24 !important;
 }
 
-/* 信息 */
 .n-message--info-type {
   background: rgba(59, 130, 246, 0.12) !important;
   color: #2563eb !important;
@@ -128,12 +154,10 @@ body {
   background: rgba(40, 40, 40, 0.75) !important;
 }
 
-/* 图标统一大小 */
 .n-message__icon {
   font-size: 18px !important;
 }
 
-/* 间距优化 */
 .n-message-wrapper {
   margin-bottom: 6px !important;
 }

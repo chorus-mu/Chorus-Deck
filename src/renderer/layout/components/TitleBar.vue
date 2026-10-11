@@ -1,5 +1,6 @@
 <template>
   <div
+    v-if="isDesktop()"
     id="title-bar"
     class="flex items-center justify-between pl-4 pr-2 py-1 select-none relative text-dark dark:text-white text-sm"
     @mousedown="drag"
@@ -10,43 +11,30 @@
       Chorus Deck
     </div>
     <div id="buttons" class="flex items-center gap-1.5" @mousedown.stop>
-      <n-button
-        v-if="!isDesktop()"
-        type="primary"
-        size="small"
-        text
-        title="Download app"
-        @click="openDownloadPage"
-      >
-        <i class="ri-download-line"></i>
-        Download desktop version
-      </n-button>
-      <template v-if="isDesktop()">
-        <div class="window-control-btn" @click="minimize" title="Minimize">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M3 8h10v1.5H3z" />
-          </svg>
-        </div>
-        <div class="window-control-btn" @click="maximize" title="Maximize">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <rect x="3" y="3" width="10" height="10" rx="1.5" />
-          </svg>
-        </div>
-        <div class="window-control-btn close-btn" @click="handleClose" title="Close">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-            <path
-              d="M4.29 4.29a1 1 0 0 1 1.42 0L8 6.59l2.29-2.3a1 1 0 0 1 1.42 1.42L9.41 8l2.3 2.29a1 1 0 0 1-1.42 1.42L8 9.41l-2.29 2.3a1 1 0 0 1-1.42-1.42L6.59 8 4.29 5.71a1 1 0 0 1 0-1.42z"
-            />
-          </svg>
-        </div>
-      </template>
+      <div class="window-control-btn" @click="minimize" title="Minimize">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M3 8h10v1.5H3z" />
+        </svg>
+      </div>
+      <div class="window-control-btn" @click="maximize" title="Maximize">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <rect x="3" y="3" width="10" height="10" rx="1.5" />
+        </svg>
+      </div>
+      <div class="window-control-btn close-btn" @click="handleClose" title="Close">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+          <path
+            d="M4.29 4.29a1 1 0 0 1 1.42 0L8 6.59l2.29-2.3a1 1 0 0 1 1.42 1.42L9.41 8l2.3 2.29a1 1 0 0 1-1.42 1.42L8 9.41l-2.29 2.3a1 1 0 0 1-1.42-1.42L6.59 8 4.29 5.71a1 1 0 0 1 0-1.42z"
+          />
+        </svg>
+      </div>
     </div>
   </div>
 

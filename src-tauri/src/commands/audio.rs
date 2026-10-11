@@ -1,11 +1,11 @@
-﻿use crate::commands::stream_decoder::StreamDecoder;
+use crate::commands::stream_decoder::StreamDecoder;
 use futures_util::StreamExt;
 use rodio::{Decoder, OutputStream, Sink, Source};
 use std::collections::VecDeque;
 use std::io::{Read, Seek, SeekFrom};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::eq::{EqCommand, EqSource, FREQUENCIES};
 use std::sync::mpsc::Sender;
@@ -212,6 +212,14 @@ fn spawn_producer(shared: Arc<StreamShared>, generation: u64) {
             }
 
             s.buf.extend(chunk);
+            let current_len = s.buf_start + s.buf.len() as u64;
+            let reached_total = s.total.map_or(false, |tot| current_len >= tot);
+            if reached_total {
+                s.eof = true;
+                drop(s);
+                shared.cond.notify_all();
+                break;
+            }
             drop(s);
             shared.cond.notify_all();
         }
@@ -304,7 +312,7 @@ impl Read for HttpStreamSource {
                 return Err(std::io::Error::new(std::io::ErrorKind::Other, err));
             }
 
-            if s.eof {
+            if s.eof || s.total.map_or(false, |tot| self.pos >= tot) {
                 if s.total.is_none() {
                     s.total = Some(self.pos);
                 }
@@ -552,10 +560,24 @@ pub fn audio_set_volume(state: State<'_, AudioState>, volume: f32) -> Result<(),
 }
 
 #[tauri::command(rename = "audio-seek")]
-pub fn audio_seek(state: State<'_, AudioState>, time_secs: f32) -> Result<(), String> {
-    if let Some(player) = state.player.lock().unwrap().as_ref() {
+pub fn audio_seek(
+    app: AppHandle,
+    state: State<'_, AudioState>,
+    time_secs: f32,
+) -> Result<(), String> {
+    let mut player_lock = state.player.lock().unwrap();
+    if let Some(player) = player_lock.as_mut() {
+        let max_dur = player.duration.unwrap_or(0.0);
+        if max_dur > 5.0 && time_secs >= (max_dur - 0.5) {
+            println!("Seek reached track end boundary ({} >= {}), emitting playback-ended", time_secs, max_dur);
+            player.sink.pause();
+            let _ = app.emit("playback-ended", ());
+            return Ok(());
+        }
+
         let duration = std::time::Duration::from_secs_f32(time_secs.max(0.0));
-        let _ = player.sink.try_seek(duration);
+        let seek_res = player.sink.try_seek(duration);
+        println!("audio_seek to {:.2}s result: {:?}", time_secs, seek_res);
         crate::smtc::windows_smtc::update_smtc_position(time_secs);
     }
     Ok(())

@@ -78,10 +78,19 @@ export const isCompact = computed(() => {
   return settingsStore.isCompact;
 });
 
-export const isDesktop = (): boolean => typeof window !== 'undefined' && Boolean(window.api);
+export const isDesktop = (): boolean =>
+  typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+
+export const isDynamicIslandWindow = computed(() => {
+  return typeof window !== 'undefined' && window.location.hash.includes('dynamic-island');
+});
 
 export const isLyricWindow = computed(() => {
-  return window.location.hash.includes('lyric');
+  return typeof window !== 'undefined' && window.location.hash.includes('lyric');
+});
+
+export const isOverlayWindow = computed(() => {
+  return isLyricWindow.value || isDynamicIslandWindow.value;
 });
 
 export const getSetData = async (): Promise<any> => {

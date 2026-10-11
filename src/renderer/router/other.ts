@@ -2,6 +2,18 @@ import type { RouteRecordRaw } from 'vue-router';
 
 const otherRouter: RouteRecordRaw[] = [
   {
+    path: '/local-music',
+    name: 'localMusic',
+    meta: {
+      title: 'Local Music',
+      keepAlive: true,
+      showInMenu: true,
+      back: true,
+      icon: 'ri-folder-music-line'
+    },
+    component: () => import('@/views/local-music/index.vue')
+  },
+  {
     path: '/downloads',
     name: 'downloads',
     meta: {

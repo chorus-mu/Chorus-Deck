@@ -56,18 +56,25 @@
       <!-- Queue Tab -->
       <template v-if="activeTab === 'queue'">
         <!-- Current Song Info -->
-        <div class="now-playing-card" v-if="playMusic" :style="nowPlayingCardStyle">
+        <div
+          class="now-playing-card"
+          v-if="currentSong"
+          :style="nowPlayingCardStyle"
+          @click="scrollToCurrentSong(true)"
+          title="Click to jump to current song in queue"
+        >
           <div class="now-playing-art">
             <n-image
-              :src="getImgUrl(playMusic?.picUrl, '80y80')"
-              :fallback-src="logoImg"
+              :src="getImgUrl(currentSong?.picUrl, '80y80')"
+              :fallback-src="getFallbackArt(currentSong)"
               class="art-img"
               preview-disabled
               object-fit="cover"
               :img-props="{
                 crossorigin: 'anonymous',
                 referrerpolicy: 'no-referrer',
-                style: 'object-fit: cover;'
+                style: 'object-fit: cover;',
+                alt: ''
               }"
             />
             <div class="now-playing-indicator" :style="{ backgroundColor: accentColor }">
@@ -76,11 +83,11 @@
           </div>
           <div class="now-playing-info">
             <div class="now-playing-label">Now Playing</div>
-            <div class="now-playing-title" v-html="playMusic.name || 'Unknown Track'"></div>
+            <div class="now-playing-title" v-html="currentSong.name || 'Unknown Track'"></div>
             <div class="now-playing-artist">
-              <template v-if="artistList && artistList.length > 0">
-                <span v-for="(artist, i) in artistList" :key="i">
-                  {{ artist.name || 'Unknown Artist' }}{{ i < artistList.length - 1 ? ' · ' : '' }}
+              <template v-if="currentSongArtists && currentSongArtists.length > 0">
+                <span v-for="(artist, i) in currentSongArtists" :key="i">
+                  {{ artist.name || 'Unknown Artist' }}{{ i < currentSongArtists.length - 1 ? ', ' : '' }}
                 </span>
               </template>
               <template v-else> Unknown Artist </template>
@@ -141,8 +148,8 @@
           <template #default="{ item, index }">
             <div
               class="queue-item"
-              :class="{ 'is-playing': item.id === playerStore.playMusic?.id }"
-              :style="item.id === playerStore.playMusic?.id ? playingItemStyle : {}"
+              :class="{ 'is-playing': isCurrentItem(item) }"
+              :style="isCurrentItem(item) ? playingItemStyle : {}"
               @click="playFromQueue(item, index, $event)"
               @dragover.prevent.stop
               @dragenter.prevent.stop
@@ -151,18 +158,19 @@
               <div class="item-art">
                 <n-image
                   :src="getImgUrl(item?.picUrl, '60y60')"
-                  :fallback-src="logoImg"
+                  :fallback-src="getFallbackArt(item)"
                   class="item-img"
                   preview-disabled
                   object-fit="cover"
                   :img-props="{
                     crossorigin: 'anonymous',
                     referrerpolicy: 'no-referrer',
-                    style: 'object-fit: cover;'
+                    style: 'object-fit: cover;',
+                    alt: ''
                   }"
                 />
                 <div
-                  v-if="item.id === playerStore.playMusic?.id"
+                  v-if="isCurrentItem(item)"
                   class="item-playing-overlay"
                   :style="{
                     backgroundColor: `color-mix(in srgb, ${accentColor} 80%, transparent)`
@@ -175,15 +183,15 @@
               <div class="item-info">
                 <div
                   class="item-title"
-                  :style="item.id === playerStore.playMusic?.id ? { color: accentColor } : {}"
+                  :style="isCurrentItem(item) ? { color: accentColor } : {}"
                 >
                   {{ item.name || 'Unknown Track' }}
                 </div>
                 <div class="item-artist">
-                  <template v-if="(item.ar || item.artists || []).length > 0">
-                    <span v-for="(ar, i) in item.ar || item.artists || []" :key="i">
+                  <template v-if="getItemArtists(item).length > 0">
+                    <span v-for="(ar, i) in getItemArtists(item)" :key="i">
                       {{ ar.name || 'Unknown Artist'
-                      }}{{ i < (item.ar || item.artists || []).length - 1 ? ' · ' : '' }}
+                      }}{{ i < getItemArtists(item).length - 1 ? ', ' : '' }}
                     </span>
                   </template>
                   <template v-else> Unknown Artist </template>
@@ -236,13 +244,26 @@ import { NDropdown, useDialog, useMessage, useThemeVars } from 'naive-ui';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 import SongItem from '@/components/common/SongItem.vue';
-import { artistList, playMusic } from '@/hooks/MusicHook';
+import { artistList, normalizeArtistList, playMusic } from '@/hooks/MusicHook';
 import { usePlaybackControl } from '@/hooks/usePlaybackControl';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import type { SongResult } from '@/types/music';
 import { getImgUrl, isCompact, secondToMinute } from '@/utils';
 import logoImg from '@/assets/logo.png';
+
+const getFallbackArt = (item: any): string => {
+  const sid = item?.id ? String(item.id) : '';
+  if (sid.length === 11 && !sid.includes('/')) {
+    return `https://i.ytimg.com/vi/${sid}/hqdefault.jpg`;
+  }
+  return logoImg;
+};
+
+const getItemArtists = (item: any) => {
+  const album = typeof item?.album === 'string' ? item.album : item?.al?.name;
+  return normalizeArtistList(item?.ar || item?.artists || [], album);
+};
 
 const message = useMessage();
 const dialog = useDialog();
@@ -294,9 +315,33 @@ const playingItemStyle = computed(() => ({
   background: `color-mix(in srgb, ${accentColor.value} 15%, transparent)`
 }));
 
+const currentSong = computed(() => {
+  if (playerStore.playMusic && playerStore.playMusic.id) {
+    return playerStore.playMusic;
+  }
+  return playMusic.value && playMusic.value.id ? playMusic.value : null;
+});
+
+const currentSongArtists = computed(() => {
+  const song = currentSong.value as any;
+  if (!song) return [];
+  const raw = (song.ar || song.artists) as any[];
+  const album: any = song.al || song.album;
+  const albumStr = typeof album === 'string' ? album : album?.name;
+  return normalizeArtistList(raw, albumStr);
+});
+
+const isCurrentItem = (item: any) => {
+  if (!item?.id || !currentSong.value?.id) return false;
+  return String(item.id) === String(currentSong.value.id);
+};
+
 const switchTab = (tab: 'queue' | 'lyrics') => {
   activeTab.value = tab;
   window.dispatchEvent(new CustomEvent('queue-tab-changed', { detail: tab }));
+  if (tab === 'queue') {
+    scrollToCurrentSong(true);
+  }
 };
 
 const show = computed({
@@ -312,9 +357,7 @@ watch(
     if (newValue) {
       internalVisible.value = true;
       closing.value = false;
-      nextTick(() => {
-        if (activeTab.value === 'queue') scrollToCurrentSong();
-      });
+      scrollToCurrentSong(false);
     } else {
       if (!internalVisible.value) return;
       closing.value = true;
@@ -324,7 +367,12 @@ watch(
 );
 
 const handleOpenTab = (e: CustomEvent) => {
-  if (e.detail) activeTab.value = e.detail;
+  if (e.detail) {
+    activeTab.value = e.detail;
+    if (e.detail === 'queue') {
+      scrollToCurrentSong(true);
+    }
+  }
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
@@ -362,17 +410,80 @@ const closePanel = () => {
   show.value = false;
 };
 const onAnimationEnd = () => {
-  if (closing.value) internalVisible.value = false;
+  if (closing.value) {
+    internalVisible.value = false;
+  } else if (internalVisible.value && activeTab.value === 'queue') {
+    scrollToCurrentSong(false);
+  }
 };
 
-const scrollToCurrentSong = () => {
-  setTimeout(() => {
-    if (queueListRef.value && queueItems.value.length > 0) {
-      const index = playerStore.queueIndex;
-      queueListRef.value.scrollTo({ top: (index > 3 ? index - 3 : 0) * 68 });
+const scrollToCurrentSong = (smooth = true) => {
+  const performScroll = () => {
+    if (!queueListRef.value || queueItems.value.length === 0) return;
+
+    const currentSongId = currentSong.value?.id;
+    let targetIndex = playerStore.queueIndex;
+
+    if (currentSongId !== undefined && currentSongId !== null) {
+      const found = queueItems.value.findIndex(
+        (item) => String(item.id) === String(currentSongId)
+      );
+      if (found !== -1) {
+        targetIndex = found;
+      }
     }
-  }, 100);
+
+    if (targetIndex < 0 || targetIndex >= queueItems.value.length) return;
+
+    // Leave context of 1 song above so the user clearly sees the current song
+    const scrollIndex = targetIndex > 1 ? targetIndex - 1 : 0;
+
+    try {
+      queueListRef.value.scrollTo({
+        index: scrollIndex,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    } catch {
+      const topPos = Math.max(0, scrollIndex * 68);
+      queueListRef.value.scrollTo({ top: topPos });
+    }
+  };
+
+  nextTick(() => {
+    performScroll();
+    requestAnimationFrame(performScroll);
+    setTimeout(performScroll, 80);
+    setTimeout(performScroll, 220);
+    setTimeout(performScroll, 360);
+  });
 };
+
+watch(
+  () => currentSong.value?.id,
+  (newId, oldId) => {
+    if (newId && newId !== oldId && internalVisible.value && activeTab.value === 'queue') {
+      scrollToCurrentSong(true);
+    }
+  }
+);
+
+watch(
+  () => playerStore.queueIndex,
+  (newIdx, oldIdx) => {
+    if (newIdx !== oldIdx && internalVisible.value && activeTab.value === 'queue') {
+      scrollToCurrentSong(true);
+    }
+  }
+);
+
+watch(
+  () => queueItems.value.length,
+  (newLen, oldLen) => {
+    if (newLen > 0 && oldLen === 0 && internalVisible.value && activeTab.value === 'queue') {
+      scrollToCurrentSong(false);
+    }
+  }
+);
 
 const handleDeleteSong = (song: SongResult) => {
   playerStore.removeFromQueue(song.id);
@@ -388,10 +499,10 @@ const handleQueueAction = (action: string, song: SongResult) => {
   }
 };
 
-const playFromQueue = (song: SongResult, index: number, event?: MouseEvent) => {
+const playFromQueue = async (song: SongResult, index: number, event?: MouseEvent) => {
   if ((event?.target as HTMLElement | null)?.closest('.item-actions')) return;
-  playerStore.setPlay(song);
-  if (playerStore.queueIndex !== index) playerStore.queueIndex = index;
+  playerStore.queueIndex = index;
+  await playerStore.setPlay(song);
 };
 
 const suppressQueueItemClick = () => undefined;
@@ -527,15 +638,18 @@ const handleClearQueue = () => {
   }
 }
 
-// ── Body ──────────────────────────────────────────────────────────────────────
 .panel-body {
   @apply flex flex-col flex-1 overflow-hidden;
 }
 
-// ── Now Playing card ──────────────────────────────────────────────────────────
 .now-playing-card {
-  @apply flex items-center gap-3 mx-3 my-2 p-3 rounded-2xl flex-shrink-0;
+  @apply flex items-center gap-3 mx-3 my-2 p-3 rounded-2xl flex-shrink-0 cursor-pointer;
   border: 1px solid transparent;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+
+  &:hover {
+    opacity: 0.92;
+  }
 
   .now-playing-art {
     @apply relative flex-shrink-0;
@@ -579,7 +693,6 @@ const handleClearQueue = () => {
   }
 }
 
-// ── Controls (Shuffle / Repeat) ───────────────────────────────────────────────
 .queue-controls {
   @apply flex items-center gap-2 px-3 pb-3 flex-shrink-0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
@@ -602,12 +715,10 @@ const handleClearQueue = () => {
     }
 
     &.ctrl-active {
-      // overridden by inline style
     }
   }
 }
 
-// ── Queue subtitle ────────────────────────────────────────────────────────────
 .queue-subtitle {
   @apply flex items-center justify-between px-4 py-2 flex-shrink-0;
 
@@ -694,7 +805,6 @@ const handleClearQueue = () => {
   }
 }
 
-// ── Empty queue ───────────────────────────────────────────────────────────────
 .empty-queue {
   @apply flex flex-col items-center justify-center flex-1 py-16;
   @apply text-gray-400 dark:text-gray-500;
@@ -708,7 +818,6 @@ const handleClearQueue = () => {
   }
 }
 
-// ── Lyrics ────────────────────────────────────────────────────────────────────
 .lyrics-container {
   @apply flex-1 flex items-center justify-center;
 
@@ -723,8 +832,6 @@ const handleClearQueue = () => {
   }
 }
 
-// ── Mobile overrides ──────────────────────────────────────────────────────────
-// Skipped for the desktop shell, which stays a side column at any window width.
 @media (max-width: 768px) {
   .queue-panel:not([data-shell-layout]) {
     position: fixed;

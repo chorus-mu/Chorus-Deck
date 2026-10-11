@@ -10,7 +10,7 @@
         />
       </svg>
       <div class="artwork-small" :style="{ clipPath: artworkClip }" v-if="currentTrack?.cover && failedCover !== currentTrack.cover">
-        <img :src="currentTrack.cover" crossorigin="anonymous" referrerpolicy="no-referrer" @error="failedCover = currentTrack.cover" />
+        <img :src="currentTrack.cover" referrerpolicy="no-referrer" @error="failedCover = currentTrack.cover" />
       </div>
       <div class="artwork-small placeholder" :style="{ clipPath: artworkClip }" v-else>
         <i class="ri-music-2-line"></i>
@@ -56,6 +56,13 @@ const props = defineProps({
 const isHovered = ref(false);
 const failedCover = ref('');
 const logoCanvas = ref<HTMLCanvasElement | null>(null);
+
+watch(
+  () => props.currentTrack?.cover,
+  () => {
+    failedCover.value = '';
+  }
+);
 
 // Shared wave shape so the ring and the artwork curves line up exactly
 const LOBES = 10;

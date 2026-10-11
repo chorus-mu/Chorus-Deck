@@ -16,6 +16,7 @@ export interface ResolvedYTMStream {
   videoId: string;
   durationMs?: number;
   thumbnail?: string;
+  album?: string;
   mimeType: string;
   userAgent: string;
   bitrate: number;
@@ -48,6 +49,10 @@ export const resolveYTMusicStream = async (song: SongResult): Promise<ResolvedYT
 
   if (stream.thumbnail && !song.picUrl) {
     song.picUrl = stream.thumbnail;
+  }
+
+  if (stream.album && !song.album) {
+    song.album = stream.album;
   }
 
   song.videoId = videoId;
