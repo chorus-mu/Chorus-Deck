@@ -1,29 +1,9 @@
-/**
- * thumbnail.ts
- * ─────────────────────────────────────────────────────────────────────────────
- * Single source of truth for every cover / thumbnail URL in Chorus Deck.
- *
- * Why a separate file?
- *   Sizes were scattered across dozens of components, each hardcoding a
- *   different pixel spec.  This module centralises the sizing logic so that:
- *     • Full-player cards request 1000×1000  (was 500×500 → blurry on HiDPI)
- *     • Search / detail views request 800×800  (was 400×400)
- *     • List rows / mini bars stay at 100×100  (already fine)
- *     • Colour-extraction probes stay at 30×30  (intentionally tiny)
- *
- * Usage:
- *   import { thumbPlayer, thumbList, thumbSearch, thumbTiny } from '@/utils/thumbnail';
- *
- *   // in a template
- *   :src="thumbPlayer(playMusic?.picUrl)"
- *
- *   // anywhere a raw URL is needed
- *   const url = thumbPlayer(song.picUrl);
- * ─────────────────────────────────────────────────────────────────────────────
- */
-
 export const getImgUrl = (url: string | undefined, size: string = '') => {
   if (!url) return '';
+
+  if (url.startsWith('//')) {
+    url = `https:${url}`;
+  }
 
   if (url.startsWith('data:') || url.startsWith('local://')) return url;
 
@@ -36,10 +16,10 @@ export const getImgUrl = (url: string | undefined, size: string = '') => {
     if (match) {
       const dim = Math.min(parseInt(match[1]), 544);
       let newUrl = url;
-      if (newUrl.match(/[=-]w\d+-h\d+/)) {
-        newUrl = newUrl.replace(/([=-])w\d+-h\d+/, `$1w${dim}-h${dim}`);
-      } else if (newUrl.match(/[=-]s\d+/)) {
-        newUrl = newUrl.replace(/([=-])s\d+/, `$1s${dim}`);
+      if (newUrl.match(/[=\/]w\d+-h\d+/)) {
+        newUrl = newUrl.replace(/([=\/])w\d+-h\d+/, `$1w${dim}-h${dim}`);
+      } else if (newUrl.match(/[=\/]s\d+/)) {
+        newUrl = newUrl.replace(/([=\/])s\d+/, `$1s${dim}`);
       } else {
         const base = newUrl.split('=')[0];
         newUrl = `${base}=w${dim}-h${dim}-l90-rj`;

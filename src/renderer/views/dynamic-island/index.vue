@@ -806,46 +806,40 @@ onUnmounted(() => {
 /* ---- Island content transitions ---- */
 .island-content-enter-active,
 .island-content-leave-active {
-  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94), filter 0.22s ease;
-  will-change: opacity, transform, filter;
+  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: opacity, transform;
 }
 .island-content-enter-from {
-  opacity: 0.3;
-  transform: scale(0.93);
-  filter: blur(5px);
+  opacity: 0;
+  transform: scale(0.88);
 }
 .island-content-leave-to {
-  opacity: 0.3;
-  transform: scale(0.93);
-  filter: blur(5px);
+  opacity: 0;
+  transform: scale(0.92);
 }
 .island-content-enter-to,
 .island-content-leave-from {
   opacity: 1;
   transform: scale(1);
-  filter: blur(0px);
 }
 
 /* ---- Playing <-> Idle swap inside notch ---- */
 .notch-swap-enter-active,
 .notch-swap-leave-active {
-  transition: opacity 0.16s ease, transform 0.16s ease, filter 0.16s ease;
-  will-change: opacity, transform, filter;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  will-change: opacity, transform;
 }
 .notch-swap-enter-from {
-  opacity: 0.35;
-  transform: scale(0.8) translateY(4px);
-  filter: blur(3px);
+  opacity: 0;
+  transform: scale(0.7) translateX(6px);
 }
 .notch-swap-leave-to {
-  opacity: 0.35;
-  transform: scale(0.8) translateY(-4px);
-  filter: blur(3px);
+  opacity: 0;
+  transform: scale(0.7) translateX(-6px);
 }
 .notch-swap-enter-to,
 .notch-swap-leave-from {
   opacity: 1;
-  transform: scale(1) translateY(0);
-  filter: blur(0px);
+  transform: scale(1) translateX(0);
 }
 </style>

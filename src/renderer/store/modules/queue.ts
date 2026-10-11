@@ -469,29 +469,6 @@ export const useQueueStore = defineStore(
           return;
         }
 
-        if (
-          repeatMode.value === 0 &&
-          !shuffleEnabled.value &&
-          queueIndex.value >= queueItems.value.length - 1
-        ) {
-          if (autoEnd) {
-            console.log('[nextPlay] Sequential playback: After the last song is played, stop');
-            if (sleepTimerStore.sleepTimer.type === 'end') {
-              sleepTimerStore.stopPlayback();
-            }
-            getMessage().info('Reached the end of the queue');
-            playerCore.setIsPlay(false);
-            const { audioService } = await import('@/services/audioService');
-            audioService.pause();
-          } else {
-            console.log(
-              '[nextPlay] Sequential playback: Already the last song, keep playing currently'
-            );
-            getMessage().info('Reached the end of the queue');
-          }
-          return;
-        }
-
         const nowQueueIndex = (queueIndex.value + 1) % queueItems.value.length;
         const nextSong = { ...queueItems.value[nowQueueIndex] };
 

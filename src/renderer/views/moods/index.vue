@@ -158,6 +158,7 @@ import {
 } from '@/api/ytmusic';
 import { useQueueStore } from '@/store/modules/queue';
 import type { SongResult } from '@/types/music';
+import logoImg from '@/assets/logo.png';
 
 defineOptions({ name: 'MoodDetail' });
 

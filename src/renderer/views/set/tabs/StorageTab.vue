@@ -1,5 +1,6 @@
 <template>
-  <setting-section v-if="isDesktop()" title="System Management">
+  <div class="flex flex-col gap-6">
+    <setting-section v-if="isDesktop()" title="System Management">
     <setting-item
       icon="ri-hard-drive-2-line"
       title="Disk Cache"
@@ -104,6 +105,7 @@
       <s-btn @click="restartApp">Restart</s-btn>
     </setting-item>
   </setting-section>
+  </div>
 </template>
 
 <script setup lang="ts">

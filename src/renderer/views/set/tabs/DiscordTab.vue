@@ -1,586 +1,190 @@
 <template>
-  <div>
-    <!-- Account -->
-    <setting-section title="Account">
-      <!-- Outer Card -->
-      <div
-        class="flex flex-col p-5 rounded-3xl bg-black/5 dark:bg-[#1a1b1e] mb-4 space-y-4 shadow-sm"
-      >
-        <!-- User Info Row -->
-        <div class="flex items-center space-x-4">
-          <!-- Avatar with Glow -->
-          <div class="relative">
-            <div
-              class="absolute inset-0 rounded-full shadow-[0_0_30px_rgba(88,101,242,0.56)] bg-[#5865F2]"
-              v-if="setData.discordToken"
-            ></div>
-            <div
-              class="relative w-[88px] h-[88px] rounded-full bg-black/10 dark:bg-[#2b2d31] flex items-center justify-center overflow-hidden z-10 border-[4px] border-[#1a1b1e] dark:border-[#2b2d31]"
-            >
-              <img
-                v-if="setData.discordToken && setData.discordAvatarUrl"
-                :src="setData.discordAvatarUrl"
-                alt="Avatar"
-                class="w-full h-full object-cover"
-              />
-              <n-icon v-else size="40" class="text-black/50 dark:text-white/50">
-                <svg viewBox="0 0 50 50" fill="currentColor">
-                  <path
-                    d="M 41.625 10.769531 C 37.644531 7.566406 31.347656 7.023438 31.078125 7.003906 C 30.660156 6.96875 30.261719 7.203125 30.089844 7.589844 C 30.074219 7.613281 29.9375 7.929688 29.785156 8.421875 C 32.417969 8.867188 35.652344 9.761719 38.578125 11.578125 C 39.046875 11.867188 39.191406 12.484375 38.902344 12.953125 C 38.710938 13.261719 38.386719 13.429688 38.050781 13.429688 C 37.871094 13.429688 37.6875 13.378906 37.523438 13.277344 C 32.492188 10.15625 26.210938 10 25 10 C 23.789063 10 17.503906 10.15625 12.476563 13.277344 C 12.007813 13.570313 11.390625 13.425781 11.101563 12.957031 C 10.808594 12.484375 10.953125 11.871094 11.421875 11.578125 C 14.347656 9.765625 17.582031 8.867188 20.214844 8.425781 C 20.0625 7.929688 19.925781 7.617188 19.914063 7.589844 C 19.738281 7.203125 19.34375 6.960938 18.921875 7.003906 C 18.652344 7.023438 12.355469 7.566406 8.320313 10.8125 C 6.214844 12.761719 2 24.152344 2 34 C 2 34.175781 2.046875 34.34375 2.132813 34.496094 C 5.039063 39.605469 12.972656 40.941406 14.78125 41 C 14.789063 41 14.800781 41 14.8125 41 C 15.132813 41 15.433594 40.847656 15.621094 40.589844 L 17.449219 38.074219 C 12.515625 36.800781 9.996094 34.636719 9.851563 34.507813 C 9.4375 34.144531 9.398438 33.511719 9.765625 33.097656 C 10.128906 32.683594 10.761719 32.644531 11.175781 33.007813 C 11.234375 33.0625 15.875 37 25 37 C 34.140625 37 38.78125 33.046875 38.828125 33.007813 C 39.242188 32.648438 39.871094 32.683594 40.238281 33.101563 C 40.601563 33.515625 40.5625 34.144531 40.148438 34.507813 C 40.003906 34.636719 37.484375 36.800781 32.550781 38.074219 L 34.378906 40.589844 C 34.566406 40.847656 34.867188 41 35.1875 41 C 35.199219 41 35.210938 41 35.21875 41 C 37.027344 40.941406 44.960938 39.605469 47.867188 34.496094 C 47.953125 34.34375 48 34.175781 48 34 C 48 24.152344 43.785156 12.761719 41.625 10.769531 Z M 18.5 30 C 16.566406 30 15 28.210938 15 26 C 15 23.789063 16.566406 22 18.5 22 C 20.433594 22 22 23.789063 22 26 C 22 28.210938 20.433594 30 18.5 30 Z M 31.5 30 C 29.566406 30 28 28.210938 28 26 C 28 23.789063 29.566406 22 31.5 22 C 33.433594 22 35 23.789063 35 26 C 35 28.210938 33.433594 30 31.5 30 Z"
-                  />
-                </svg>
-              </n-icon>
-            </div>
-          </div>
+  <div class="flex flex-col gap-6 p-4">
+    <!-- Header -->
+    <div class="mb-2">
+      <h1 class="text-2xl font-bold tracking-tight">Discord Integration</h1>
+      <p class="text-black/60 dark:text-white/60 text-sm mt-1">Connect your account and customize your rich presence.</p>
+    </div>
 
-          <div class="flex flex-col">
-            <span class="text-[22px] font-bold">{{
-              setData.discordName || setData.discordUsername || 'Account'
-            }}</span>
-            <span v-if="setData.discordUsername" class="text-base text-primary font-medium"
-              >@{{ setData.discordUsername }}</span
-            >
-          </div>
-        </div>
-
-        <!-- Session Status -->
-        <div
-          class="rounded-2xl p-3.5 px-4 flex items-center space-x-3 transition-colors"
-          :class="
-            setData.discordToken ? 'bg-primary/20 text-primary' : 'bg-black/5 dark:bg-white/10'
-          "
-        >
-          <n-icon
-            size="20"
-            :class="setData.discordToken ? 'text-primary' : 'text-black/60 dark:text-white/60'"
-          >
-            <svg
-              v-if="setData.discordToken"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            <svg v-else viewBox="0 0 50 50" fill="currentColor">
-              <path
-                d="M 41.625 10.769531 C 37.644531 7.566406 31.347656 7.023438 31.078125 7.003906 C 30.660156 6.96875 30.261719 7.203125 30.089844 7.589844 C 30.074219 7.613281 29.9375 7.929688 29.785156 8.421875 C 32.417969 8.867188 35.652344 9.761719 38.578125 11.578125 C 39.046875 11.867188 39.191406 12.484375 38.902344 12.953125 C 38.710938 13.261719 38.386719 13.429688 38.050781 13.429688 C 37.871094 13.429688 37.6875 13.378906 37.523438 13.277344 C 32.492188 10.15625 26.210938 10 25 10 C 23.789063 10 17.503906 10.15625 12.476563 13.277344 C 12.007813 13.570313 11.390625 13.425781 11.101563 12.957031 C 10.808594 12.484375 10.953125 11.871094 11.421875 11.578125 C 14.347656 9.765625 17.582031 8.867188 20.214844 8.425781 C 20.0625 7.929688 19.925781 7.617188 19.914063 7.589844 C 19.738281 7.203125 19.34375 6.960938 18.921875 7.003906 C 18.652344 7.023438 12.355469 7.566406 8.320313 10.8125 C 6.214844 12.761719 2 24.152344 2 34 C 2 34.175781 2.046875 34.34375 2.132813 34.496094 C 5.039063 39.605469 12.972656 40.941406 14.78125 41 C 14.789063 41 14.800781 41 14.8125 41 C 15.132813 41 15.433594 40.847656 15.621094 40.589844 L 17.449219 38.074219 C 12.515625 36.800781 9.996094 34.636719 9.851563 34.507813 C 9.4375 34.144531 9.398438 33.511719 9.765625 33.097656 C 10.128906 32.683594 10.761719 32.644531 11.175781 33.007813 C 11.234375 33.0625 15.875 37 25 37 C 34.140625 37 38.78125 33.046875 38.828125 33.007813 C 39.242188 32.648438 39.871094 32.683594 40.238281 33.101563 C 40.601563 33.515625 40.5625 34.144531 40.148438 34.507813 C 40.003906 34.636719 37.484375 36.800781 32.550781 38.074219 L 34.378906 40.589844 C 34.566406 40.847656 34.867188 41 35.1875 41 C 35.199219 41 35.210938 41 35.21875 41 C 37.027344 40.941406 44.960938 39.605469 47.867188 34.496094 C 47.953125 34.34375 48 34.175781 48 34 C 48 24.152344 43.785156 12.761719 41.625 10.769531 Z M 18.5 30 C 16.566406 30 15 28.210938 15 26 C 15 23.789063 16.566406 22 18.5 22 C 20.433594 22 22 23.789063 22 26 C 22 28.210938 20.433594 30 18.5 30 Z M 31.5 30 C 29.566406 30 28 28.210938 28 26 C 28 23.789063 29.566406 22 31.5 22 C 33.433594 22 35 23.789063 35 26 C 35 28.210938 33.433594 30 31.5 30 Z"
-              />
-            </svg>
-          </n-icon>
-          <span class="text-[15px] font-medium">{{
-            setData.discordToken
-              ? 'Discord account ready'
-              : "Connect to Discord to show what you're listening to"
-          }}</span>
-        </div>
-
-        <!-- Gateway Session Status -->
-        <div
-          v-if="setData.discordToken && setData.discordRPCEnabled"
-          class="rounded-2xl p-3.5 px-4 flex items-center space-x-3 transition-colors min-w-0"
-          :class="
-            gatewayStatus?.connected
-              ? 'bg-green-500/15 text-green-600 dark:text-green-400'
-              : 'bg-black/5 dark:bg-white/10'
-          "
-        >
-          <n-icon
-            size="20"
-            :class="
-              gatewayStatus?.connected
-                ? 'text-green-600 dark:text-green-400'
-                : 'text-black/60 dark:text-white/60'
-            "
-          >
-            <svg
-              v-if="gatewayStatus?.connected"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            <svg
-              v-else
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="12" cy="12" r="10"></circle>
-              <line x1="12" y1="8" x2="12.01" y2="8"></line>
-              <line x1="12" y1="12" x2="12" y2="16"></line>
-            </svg>
-          </n-icon>
-          <span class="text-[15px] font-medium truncate" :title="gatewayStatusLabel">{{
-            gatewayStatusLabel
-          }}</span>
-        </div>
-
-        <!-- Enable RPC Toggle inside Account Card -->
-        <div
-          :class="[
-            'w-full rounded-2xl p-4 flex items-center justify-between transition-colors',
-            setData.discordRPCEnabled && setData.discordToken
-              ? 'bg-primary/20'
-              : 'bg-black/5 dark:bg-white/10'
-          ]"
-        >
-          <div class="flex items-center space-x-4">
-            <div class="w-11 h-11 rounded-lg bg-background flex items-center justify-center">
-              <n-icon size="24" class="text-primary">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="16" x2="12" y2="12"></line>
-                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                </svg>
-              </n-icon>
-            </div>
-            <span class="text-[17px] font-semibold">Enable Discord RPC</span>
-          </div>
-          <n-switch v-model:value="setData.discordRPCEnabled" size="large" />
-        </div>
-
-        <div v-if="!setData.discordToken" class="flex flex-col space-y-4 mt-2">
-          <n-button
-            size="large"
-            block
-            :loading="loggingIn"
-            class="h-[60px] text-[16px] font-bold rounded-[8px] bg-[#5865F2] hover:bg-[#4752C4] text-white border-none shadow-[0_8px_16px_rgba(88,101,242,0.24)] transition-all hover:shadow-[0_12px_20px_rgba(88,101,242,0.32)] hover:-translate-y-0.5"
-            @click="loginDiscordWebView"
-          >
-            <template #icon>
-              <n-icon size="24"
-                ><svg viewBox="0 0 50 50" fill="currentColor">
-                  <path
-                    d="M 41.625 10.769531 C 37.644531 7.566406 31.347656 7.023438 31.078125 7.003906 C 30.660156 6.96875 30.261719 7.203125 30.089844 7.589844 C 30.074219 7.613281 29.9375 7.929688 29.785156 8.421875 C 32.417969 8.867188 35.652344 9.761719 38.578125 11.578125 C 39.046875 11.867188 39.191406 12.484375 38.902344 12.953125 C 38.710938 13.261719 38.386719 13.429688 38.050781 13.429688 C 37.871094 13.429688 37.6875 13.378906 37.523438 13.277344 C 32.492188 10.15625 26.210938 10 25 10 C 23.789063 10 17.503906 10.15625 12.476563 13.277344 C 12.007813 13.570313 11.390625 13.425781 11.101563 12.957031 C 10.808594 12.484375 10.953125 11.871094 11.421875 11.578125 C 14.347656 9.765625 17.582031 8.867188 20.214844 8.425781 C 20.0625 7.929688 19.925781 7.617188 19.914063 7.589844 C 19.738281 7.203125 19.34375 6.960938 18.921875 7.003906 C 18.652344 7.023438 12.355469 7.566406 8.320313 10.8125 C 6.214844 12.761719 2 24.152344 2 34 C 2 34.175781 2.046875 34.34375 2.132813 34.496094 C 5.039063 39.605469 12.972656 40.941406 14.78125 41 C 14.789063 41 14.800781 41 14.8125 41 C 15.132813 41 15.433594 40.847656 15.621094 40.589844 L 17.449219 38.074219 C 12.515625 36.800781 9.996094 34.636719 9.851563 34.507813 C 9.4375 34.144531 9.398438 33.511719 9.765625 33.097656 C 10.128906 32.683594 10.761719 32.644531 11.175781 33.007813 C 11.234375 33.0625 15.875 37 25 37 C 34.140625 37 38.78125 33.046875 38.828125 33.007813 C 39.242188 32.648438 39.871094 32.683594 40.238281 33.101563 C 40.601563 33.515625 40.5625 34.144531 40.148438 34.507813 C 40.003906 34.636719 37.484375 36.800781 32.550781 38.074219 L 34.378906 40.589844 C 34.566406 40.847656 34.867188 41 35.1875 41 C 35.199219 41 35.210938 41 35.21875 41 C 37.027344 40.941406 44.960938 39.605469 47.867188 34.496094 C 47.953125 34.34375 48 34.175781 48 34 C 48 24.152344 43.785156 12.761719 41.625 10.769531 Z M 18.5 30 C 16.566406 30 15 28.210938 15 26 C 15 23.789063 16.566406 22 18.5 22 C 20.433594 22 22 23.789063 22 26 C 22 28.210938 20.433594 30 18.5 30 Z M 31.5 30 C 29.566406 30 28 28.210938 28 26 C 28 23.789063 29.566406 22 31.5 22 C 33.433594 22 35 23.789063 35 26 C 35 28.210938 33.433594 30 31.5 30 Z"
-                  /></svg
-              ></n-icon>
-            </template>
-            Connect to Discord
-          </n-button>
-        </div>
-
-        <!-- Action Button -->
-        <n-button
-          v-if="setData.discordToken"
-          size="large"
-          block
-          secondary
-          class="h-14 font-semibold text-[15px] rounded-full mt-2 border-2 border-primary/50 text-primary hover:bg-primary/10"
-          @click="logoutDiscord"
-        >
-          Disconnect
-        </n-button>
-      </div>
-    </setting-section>
-
-    <!-- Options -->
-    <setting-section title="Options">
-      <setting-item title="Refresh" description="Force refresh Discord Rich Presence">
-        <template #action>
-          <n-button
-            :disabled="!setData.discordRPCEnabled || !setData.discordToken"
-            :loading="isRefreshing"
-            @click="refreshDiscordClick"
-          >
-            Refresh
-          </n-button>
-        </template>
-      </setting-item>
-    </setting-section>
-
-    <!-- Discord Connection Settings -->
-    <setting-section
-      title="Integration"
-      :class="{ 'opacity-50 pointer-events-none': !setData.discordRPCEnabled }"
-    >
-      <list-dialog-preference
-        title="Activity Status"
-        description="Your online status on Discord"
-        v-model:value="setData.discordPresenceStatus"
-        :options="statusOptions"
-      >
-        <template #icon
-          ><svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line></svg
-        ></template>
-      </list-dialog-preference>
-
-      <list-dialog-preference
-        title="Platform Status"
-        description="The platform shown on Discord"
-        v-model:value="setData.discordActivityPlatform"
-        :options="platformOptions"
-      >
-        <template #icon
-          ><svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line></svg
-        ></template>
-      </list-dialog-preference>
-    </setting-section>
-
-    <!-- Activity Content -->
-    <setting-section
-      title="Activity"
-      :class="{ 'opacity-50 pointer-events-none': !setData.discordRPCEnabled }"
-    >
-      <list-dialog-preference
-        title="Activity Name"
-        description="The name of the activity"
-        v-model:value="setData.discordActivityName"
-        :options="sourceOptions"
-      >
-        <template #icon
-          ><svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg
-        ></template>
-      </list-dialog-preference>
-
-      <list-dialog-preference
-        title="Activity Details"
-        description="What to show on the first line"
-        v-model:value="setData.discordActivityDetails"
-        :options="sourceOptions"
-      >
-        <template #icon
-          ><svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg
-        ></template>
-      </list-dialog-preference>
-
-      <list-dialog-preference
-        title="Status"
-        description="What to show on the second line"
-        v-model:value="setData.discordActivityState"
-        :options="sourceOptions"
-      >
-        <template #icon
-          ><svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg
-        ></template>
-      </list-dialog-preference>
-
-      <setting-item
-        title="Show When Paused"
-        description="Keep Rich Presence active when playback is paused"
-      >
-        <template #icon
-          ><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 960" fill="currentColor">
-            <path
-              d="M520,760v-560h240v560L520,760ZM200,760v-560h240v560L200,760ZM600,680h80v-400h-80v400ZM280,680h80v-400h-80v400ZM280,280v400,-400ZM600,280v400,-400Z"
-            /></svg
-        ></template>
-
-        <n-switch v-model:value="setData.discordShowWhenPaused" />
-      </setting-item>
-
-      <list-dialog-preference
-        title="Activity Type"
-        description="How the activity is displayed"
-        v-model:value="setData.discordActivityType"
-        :options="activityTypeOptions"
-      >
-        <template #icon
-          ><svg viewBox="0 0 50 50" fill="currentColor">
-            <path
-              d="M 41.625 10.769531 C 37.644531 7.566406 31.347656 7.023438 31.078125 7.003906 C 30.660156 6.96875 30.261719 7.203125 30.089844 7.589844 C 30.074219 7.613281 29.9375 7.929688 29.785156 8.421875 C 32.417969 8.867188 35.652344 9.761719 38.578125 11.578125 C 39.046875 11.867188 39.191406 12.484375 38.902344 12.953125 C 38.710938 13.261719 38.386719 13.429688 38.050781 13.429688 C 37.871094 13.429688 37.6875 13.378906 37.523438 13.277344 C 32.492188 10.15625 26.210938 10 25 10 C 23.789063 10 17.503906 10.15625 12.476563 13.277344 C 12.007813 13.570313 11.390625 13.425781 11.101563 12.957031 C 10.808594 12.484375 10.953125 11.871094 11.421875 11.578125 C 14.347656 9.765625 17.582031 8.867188 20.214844 8.425781 C 20.0625 7.929688 19.925781 7.617188 19.914063 7.589844 C 19.738281 7.203125 19.34375 6.960938 18.921875 7.003906 C 18.652344 7.023438 12.355469 7.566406 8.320313 10.8125 C 6.214844 12.761719 2 24.152344 2 34 C 2 34.175781 2.046875 34.34375 2.132813 34.496094 C 5.039063 39.605469 12.972656 40.941406 14.78125 41 C 14.789063 41 14.800781 41 14.8125 41 C 15.132813 41 15.433594 40.847656 15.621094 40.589844 L 17.449219 38.074219 C 12.515625 36.800781 9.996094 34.636719 9.851563 34.507813 C 9.4375 34.144531 9.398438 33.511719 9.765625 33.097656 C 10.128906 32.683594 10.761719 32.644531 11.175781 33.007813 C 11.234375 33.0625 15.875 37 25 37 C 34.140625 37 38.78125 33.046875 38.828125 33.007813 C 39.242188 32.648438 39.871094 32.683594 40.238281 33.101563 C 40.601563 33.515625 40.5625 34.144531 40.148438 34.507813 C 40.003906 34.636719 37.484375 36.800781 32.550781 38.074219 L 34.378906 40.589844 C 34.566406 40.847656 34.867188 41 35.1875 41 C 35.199219 41 35.210938 41 35.21875 41 C 37.027344 40.941406 44.960938 39.605469 47.867188 34.496094 C 47.953125 34.34375 48 34.175781 48 34 C 48 24.152344 43.785156 12.761719 41.625 10.769531 Z M 18.5 30 C 16.566406 30 15 28.210938 15 26 C 15 23.789063 16.566406 22 18.5 22 C 20.433594 22 22 23.789063 22 26 C 22 28.210938 20.433594 30 18.5 30 Z M 31.5 30 C 29.566406 30 28 28.210938 28 26 C 28 23.789063 29.566406 22 31.5 22 C 33.433594 22 35 23.789063 35 26 C 35 28.210938 33.433594 30 31.5 30 Z"
-            /></svg
-        ></template>
-      </list-dialog-preference>
-      <list-dialog-preference
-        title="Large Image"
-        description="The main image displayed"
-        v-model:value="setData.discordLargeImageType"
-        :options="imageTypeOptions"
-      >
-        <template #icon
-          ><svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-            <polyline points="21 15 16 10 5 21"></polyline></svg
-        ></template>
-      </list-dialog-preference>
-      <setting-item
-        v-if="setData.discordLargeImageType === 'custom'"
-        title="Large Image Custom URL"
-        description="URL for the large image"
-      >
-        <template #icon
-          ><svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg
-        ></template>
-
-        <template #action>
-          <s-input
-            v-model="setData.discordLargeImageCustomUrl"
-            type="text"
-            width="w-[200px]"
-            placeholder="https://..."
-          />
-        </template>
-      </setting-item>
-
-      <list-dialog-preference
-        title="Small Image"
-        description="The secondary small image"
-        v-model:value="setData.discordSmallImageType"
-        :options="smallImageTypeOptions"
-      >
-        <template #icon
-          ><svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-            <polyline points="21 15 16 10 5 21"></polyline></svg
-        ></template>
-      </list-dialog-preference>
-
-      <setting-item
-        v-if="setData.discordSmallImageType === 'custom'"
-        title="Small Image Custom URL"
-        description="URL for the small image"
-      >
-        <template #icon
-          ><svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg
-        ></template>
-
-        <template #action>
-          <s-input
-            v-model="setData.discordSmallImageCustomUrl"
-            type="text"
-            width="w-[200px]"
-            placeholder="https://..."
-          />
-        </template>
-      </setting-item>
-    </setting-section>
-
-    <!-- Preview -->
-    <setting-section
-      title="Preview"
-      :class="{ 'opacity-50 pointer-events-none': !setData.discordRPCEnabled }"
-    >
-      <div class="w-full flex justify-center mt-4 mb-6">
-        <div
-          class="w-[420px] max-w-full bg-[#f2f3f5] dark:bg-[#2b2d31] rounded-[16px] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.15)] mx-auto"
-        >
-          <div
-            class="w-full font-bold text-[12px] text-gray-600 dark:text-gray-400 text-left mb-4 uppercase tracking-wider"
-          >
-            {{ activityTypeHeader.toUpperCase() }}
-          </div>
-
-          <div class="flex items-start w-full">
-            <div class="relative w-[112px] h-[112px] flex-shrink-0">
-              <div
-                class="absolute top-0 left-0 w-[100px] h-[100px] rounded-[16px] overflow-hidden flex items-center justify-center bg-black/5 dark:bg-white/5 shadow-md"
-              >
-                <img
-                  v-if="largeImagePreview"
-                  class="w-full h-full object-cover"
-                  :src="largeImagePreview"
-                  alt="Large Image"
-                />
-                <img
-                  v-else
-                  class="w-full h-full object-cover"
-                  src="@/assets/logo.png"
-                  alt="Blank Large Image"
-                />
-              </div>
-
-              <div
-                v-if="
-                  setData.discordSmallImageType !== 'dontshow' &&
-                  setData.discordSmallImageType !== 'none'
-                "
-                class="absolute top-[72px] left-[72px] rounded-full bg-[#f2f3f5] dark:bg-[#2b2d31] flex items-center justify-center z-10 p-1"
-              >
-                <div
-                  class="w-[36px] h-[36px] rounded-full overflow-hidden flex items-center justify-center bg-black/5 dark:bg-white/5 shadow-sm"
-                >
-                  <img
-                    v-if="smallImagePreview"
-                    class="w-full h-full object-cover"
-                    :src="smallImagePreview"
-                    alt="Small Image"
-                  />
-                  <img
-                    v-else
-                    class="w-full h-full object-cover"
-                    src="@/assets/logo.png"
-                    alt="Blank Small Image"
-                  />
-                </div>
+    <!-- Main Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      
+      <!-- Left Column (Account & Preview) -->
+      <div class="lg:col-span-5 flex flex-col gap-6">
+        
+        <!-- Account Card -->
+        <div class="bg-black/5 dark:bg-[#1a1b1e] rounded-3xl p-6 shadow-sm flex flex-col">
+          <h2 class="text-lg font-semibold mb-4">Account</h2>
+          <div class="flex items-center gap-4 mb-6">
+            <div class="relative flex-shrink-0">
+              <div class="absolute inset-0 rounded-full shadow-[0_0_30px_rgba(88,101,242,0.56)] bg-[#5865F2]" v-if="setData.discordToken"></div>
+              <div class="relative w-20 h-20 rounded-full bg-black/10 dark:bg-[#2b2d31] flex items-center justify-center overflow-hidden z-10 border-[4px] border-white dark:border-[#1a1b1e]">
+                <img v-if="setData.discordToken && setData.discordAvatarUrl" :src="setData.discordAvatarUrl" alt="Avatar" class="w-full h-full object-cover" />
+                <n-icon v-else size="36" class="text-black/40 dark:text-white/40">
+                  <svg viewBox="0 0 50 50" fill="currentColor">
+                    <path d="M 41.625 10.769531 C 37.644531 7.566406 31.347656 7.023438 31.078125 7.003906 C 30.660156 6.96875 30.261719 7.203125 30.089844 7.589844 C 30.074219 7.613281 29.9375 7.929688 29.785156 8.421875 C 32.417969 8.867188 35.652344 9.761719 38.578125 11.578125 C 39.046875 11.867188 39.191406 12.484375 38.902344 12.953125 C 38.710938 13.261719 38.386719 13.429688 38.050781 13.429688 C 37.871094 13.429688 37.6875 13.378906 37.523438 13.277344 C 32.492188 10.15625 26.210938 10 25 10 C 23.789063 10 17.503906 10.15625 12.476563 13.277344 C 12.007813 13.570313 11.390625 13.425781 11.101563 12.957031 C 10.808594 12.484375 10.953125 11.871094 11.421875 11.578125 C 14.347656 9.765625 17.582031 8.867188 20.214844 8.425781 C 20.0625 7.929688 19.925781 7.617188 19.914063 7.589844 C 19.738281 7.203125 19.34375 6.960938 18.921875 7.003906 C 18.652344 7.023438 12.355469 7.566406 8.320313 10.8125 C 6.214844 12.761719 2 24.152344 2 34 C 2 34.175781 2.046875 34.34375 2.132813 34.496094 C 5.039063 39.605469 12.972656 40.941406 14.78125 41 C 14.789063 41 14.800781 41 14.8125 41 C 15.132813 41 15.433594 40.847656 15.621094 40.589844 L 17.449219 38.074219 C 12.515625 36.800781 9.996094 34.636719 9.851563 34.507813 C 9.4375 34.144531 9.398438 33.511719 9.765625 33.097656 C 10.128906 32.683594 10.761719 32.644531 11.175781 33.007813 C 11.234375 33.0625 15.875 37 25 37 C 34.140625 37 38.78125 33.046875 38.828125 33.007813 C 39.242188 32.648438 39.871094 32.683594 40.238281 33.101563 C 40.601563 33.515625 40.5625 34.144531 40.148438 34.507813 C 40.003906 34.636719 37.484375 36.800781 32.550781 38.074219 L 34.378906 40.589844 C 34.566406 40.847656 34.867188 41 35.1875 41 C 35.199219 41 35.210938 41 35.21875 41 C 37.027344 40.941406 44.960938 39.605469 47.867188 34.496094 C 47.953125 34.34375 48 34.175781 48 34 C 48 24.152344 43.785156 12.761719 41.625 10.769531 Z M 18.5 30 C 16.566406 30 15 28.210938 15 26 C 15 23.789063 16.566406 22 18.5 22 C 20.433594 22 22 23.789063 22 26 C 22 28.210938 20.433594 30 18.5 30 Z M 31.5 30 C 29.566406 30 28 28.210938 28 26 C 28 23.789063 29.566406 22 31.5 22 C 33.433594 22 35 23.789063 35 26 C 35 28.210938 33.433594 30 31.5 30 Z" />
+                  </svg>
+                </n-icon>
               </div>
             </div>
-
-            <div class="flex flex-col flex-1 overflow-hidden min-w-0 px-2">
-              <span class="font-bold text-black dark:text-white text-[15px] truncate leading-tight">
-                {{ previewName || getPlaceholderText(setData.discordActivityName) }}
-              </span>
-              <span
-                class="text-black dark:text-white text-[14px] truncate leading-tight mt-1"
-                v-if="previewDetails || getPlaceholderText(setData.discordActivityDetails)"
-              >
-                {{ previewDetails || getPlaceholderText(setData.discordActivityDetails) }}
-              </span>
-              <span
-                class="text-black dark:text-white text-[14px] truncate leading-tight"
-                v-if="previewState || getPlaceholderText(setData.discordActivityState)"
-              >
-                {{ previewState || getPlaceholderText(setData.discordActivityState) }}
-              </span>
-
-              <div class="flex flex-col mt-3">
-                <div
-                  class="h-[6px] w-full bg-black/10 dark:bg-white/10 rounded-full overflow-hidden"
-                >
-                  <div
-                    class="h-full bg-primary transition-all duration-1000 ease-linear"
-                    :style="{ width: `${previewProgress}%` }"
-                  ></div>
-                </div>
-                <div
-                  class="flex items-center justify-between text-[11px] font-medium text-black/50 dark:text-white/50 mt-1"
-                >
-                  <span>{{ formatTime(previewCurrentTime) }}</span>
-                  <span>{{ formatTime(previewDuration) }}</span>
-                </div>
-              </div>
+            <div class="flex flex-col flex-1 min-w-0">
+              <span class="text-xl font-bold truncate">{{ setData.discordName || setData.discordUsername || 'Not connected' }}</span>
+              <span v-if="setData.discordUsername" class="text-primary text-sm font-medium truncate">@{{ setData.discordUsername }}</span>
             </div>
           </div>
 
-          <!-- Buttons -->
-          <div class="w-full mt-4 flex flex-col space-y-2">
-            <n-button
-              v-if="setData.discordActivityButton1Enabled !== false"
-              block
-              secondary
-              class="h-[40px] font-medium rounded-[4px] border-none bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              {{ setData.discordActivityButton1Label || 'Listen on Chorus Deck' }}
+          <!-- RPC Toggle -->
+          <div :class="['w-full rounded-2xl p-4 flex items-center justify-between transition-colors mb-4', setData.discordRPCEnabled && setData.discordToken ? 'bg-primary/10 border border-primary/20' : 'bg-black/5 dark:bg-white/5']">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-background flex items-center justify-center">
+                <n-icon size="22" class="text-primary">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20V10" /><path d="M18 20V4" /><path d="M6 20v-4" />
+                  </svg>
+                </n-icon>
+              </div>
+              <span class="font-semibold">Enable RPC</span>
+            </div>
+            <n-switch v-model:value="setData.discordRPCEnabled" />
+          </div>
+
+          <!-- Gateway Status -->
+          <div v-if="setData.discordToken && setData.discordRPCEnabled" :class="['rounded-2xl p-3.5 flex items-center gap-3 mb-4', gatewayStatus?.connected ? 'bg-green-500/10 text-green-600 dark:text-green-400' : 'bg-black/5 dark:bg-white/5']">
+            <n-icon size="20" :class="gatewayStatus?.connected ? 'text-green-500' : 'text-black/50 dark:text-white/50'">
+              <svg v-if="gatewayStatus?.connected" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12.01" y2="8"></line><line x1="12" y1="12" x2="12" y2="16"></line></svg>
+            </n-icon>
+            <span class="text-sm font-medium truncate">{{ gatewayStatusLabel }}</span>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="mt-auto pt-2 flex flex-col gap-2">
+            <n-button v-if="!setData.discordToken" size="large" block :loading="loggingIn" class="h-12 font-bold rounded-xl bg-[#5865F2] hover:bg-[#4752C4] text-white border-none shadow-[0_4px_12px_rgba(88,101,242,0.25)] transition-all" @click="loginDiscordWebView">
+              Connect Account
             </n-button>
-            <n-button
-              v-if="setData.discordActivityButton2Enabled"
-              block
-              secondary
-              class="h-[40px] font-medium rounded-[4px] border-none bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              {{ setData.discordActivityButton2Label || 'Go to Chorus Deck' }}
+            <n-button v-if="setData.discordToken" size="large" block secondary class="h-12 font-semibold rounded-xl text-primary hover:bg-primary/10 border-none bg-primary/5" @click="logoutDiscord">
+              Disconnect
             </n-button>
           </div>
         </div>
+
+        <!-- Preview Card -->
+        <div class="bg-black/5 dark:bg-[#1a1b1e] rounded-3xl p-6 shadow-sm" :class="{ 'opacity-50 pointer-events-none grayscale transition-all': !setData.discordRPCEnabled }">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Live Preview</h2>
+            <n-button size="small" tertiary class="rounded-lg" :disabled="!setData.discordRPCEnabled || !setData.discordToken" :loading="isRefreshing" @click="refreshDiscordClick">
+              Force Refresh
+            </n-button>
+          </div>
+          
+          <div class="bg-[#f2f3f5] dark:bg-[#2b2d31] rounded-2xl p-5 shadow-inner">
+            <div class="w-full font-bold text-xs text-gray-500 dark:text-gray-400 mb-3 uppercase tracking-wider">
+              {{ activityTypeHeader.toUpperCase() }}
+            </div>
+            <div class="flex gap-4">
+              <!-- Images -->
+              <div class="relative w-24 h-24 flex-shrink-0">
+                <div class="absolute inset-0 rounded-xl overflow-hidden bg-black/10 dark:bg-white/5">
+                  <img v-if="largeImagePreview" class="w-full h-full object-cover" :src="largeImagePreview" alt="Large" />
+                  <img v-else class="w-full h-full object-cover opacity-50" src="@/assets/logo.png" alt="Fallback" />
+                </div>
+                <div v-if="setData.discordSmallImageType !== 'dontshow' && setData.discordSmallImageType !== 'none'" class="absolute -bottom-1 -right-1 rounded-full bg-[#f2f3f5] dark:bg-[#2b2d31] p-1 shadow-sm">
+                  <div class="w-8 h-8 rounded-full overflow-hidden bg-black/10 dark:bg-white/5">
+                    <img v-if="smallImagePreview" class="w-full h-full object-cover" :src="smallImagePreview" alt="Small" />
+                    <img v-else class="w-full h-full object-cover opacity-50" src="@/assets/logo.png" alt="Fallback" />
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Details -->
+              <div class="flex flex-col flex-1 min-w-0 justify-center">
+                <span class="font-bold text-[15px] truncate">{{ previewName || getPlaceholderText(setData.discordActivityName) }}</span>
+                <span class="text-[14px] truncate text-black/80 dark:text-white/80" v-if="previewDetails || getPlaceholderText(setData.discordActivityDetails)">{{ previewDetails || getPlaceholderText(setData.discordActivityDetails) }}</span>
+                <span class="text-[14px] truncate text-black/80 dark:text-white/80" v-if="previewState || getPlaceholderText(setData.discordActivityState)">{{ previewState || getPlaceholderText(setData.discordActivityState) }}</span>
+                
+                <!-- Progress -->
+                <div class="mt-3 flex flex-col gap-1.5">
+                  <div class="h-1.5 w-full bg-black/10 dark:bg-white/10 rounded-full overflow-hidden">
+                    <div class="h-full bg-primary transition-all duration-1000 ease-linear" :style="{ width: `${previewProgress}%` }"></div>
+                  </div>
+                  <div class="flex items-center justify-between text-[11px] font-medium text-black/50 dark:text-white/50">
+                    <span>{{ formatTime(previewCurrentTime) }}</span>
+                    <span>{{ formatTime(previewDuration) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Buttons -->
+            <div class="mt-4 flex flex-col gap-2">
+              <div v-if="setData.discordActivityButton1Enabled !== false" class="h-10 rounded text-sm font-medium flex items-center justify-center bg-black/5 dark:bg-white/5 text-black/80 dark:text-white/80">
+                {{ setData.discordActivityButton1Label || 'Listen on Chorus Deck' }}
+              </div>
+              <div v-if="setData.discordActivityButton2Enabled" class="h-10 rounded text-sm font-medium flex items-center justify-center bg-black/5 dark:bg-white/5 text-black/80 dark:text-white/80">
+                {{ setData.discordActivityButton2Label || 'Go to Chorus Deck' }}
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
-    </setting-section>
+
+      <!-- Right Column (Settings) -->
+      <div class="lg:col-span-7 flex flex-col gap-6" :class="{ 'opacity-50 pointer-events-none grayscale transition-all': !setData.discordRPCEnabled }">
+        
+        <!-- Content Settings -->
+        <div class="bg-black/5 dark:bg-[#1a1b1e] rounded-3xl p-6 shadow-sm">
+          <h2 class="text-lg font-semibold mb-4">Content</h2>
+          <div class="flex flex-col gap-2">
+            <list-dialog-preference title="Activity Name" description="First line" v-model:value="setData.discordActivityName" :options="sourceOptions" />
+            <list-dialog-preference title="Activity Details" description="Second line" v-model:value="setData.discordActivityDetails" :options="sourceOptions" />
+            <list-dialog-preference title="Status" description="Third line" v-model:value="setData.discordActivityState" :options="sourceOptions" />
+            <list-dialog-preference title="Activity Type" description="How the activity is displayed" v-model:value="setData.discordActivityType" :options="activityTypeOptions" />
+            <setting-item title="Show When Paused" description="Keep Rich Presence active when playback is paused">
+              <n-switch v-model:value="setData.discordShowWhenPaused" />
+            </setting-item>
+          </div>
+        </div>
+
+        <!-- Visual Settings -->
+        <div class="bg-black/5 dark:bg-[#1a1b1e] rounded-3xl p-6 shadow-sm">
+          <h2 class="text-lg font-semibold mb-4">Visuals</h2>
+          <div class="flex flex-col gap-2">
+            <list-dialog-preference title="Large Image" description="The main image displayed" v-model:value="setData.discordLargeImageType" :options="imageTypeOptions" />
+            <setting-item v-if="setData.discordLargeImageType === 'custom'" title="Custom URL" description="URL for large image">
+              <template #action>
+                <s-input v-model="setData.discordLargeImageCustomUrl" type="text" width="w-[200px]" placeholder="https://..." />
+              </template>
+            </setting-item>
+            <list-dialog-preference title="Small Image" description="The secondary small image" v-model:value="setData.discordSmallImageType" :options="smallImageTypeOptions" />
+            <setting-item v-if="setData.discordSmallImageType === 'custom'" title="Custom URL" description="URL for small image">
+              <template #action>
+                <s-input v-model="setData.discordSmallImageCustomUrl" type="text" width="w-[200px]" placeholder="https://..." />
+              </template>
+            </setting-item>
+          </div>
+        </div>
+
+        <!-- Connection Defaults -->
+        <div class="bg-black/5 dark:bg-[#1a1b1e] rounded-3xl p-6 shadow-sm">
+          <h2 class="text-lg font-semibold mb-4">Connection</h2>
+          <div class="flex flex-col gap-2">
+            <list-dialog-preference title="Activity Status" description="Your online status on Discord" v-model:value="setData.discordPresenceStatus" :options="statusOptions" />
+            <list-dialog-preference title="Platform Status" description="The platform shown on Discord" v-model:value="setData.discordActivityPlatform" :options="platformOptions" />
+          </div>
+        </div>
+        
+      </div>
+    </div>
   </div>
 </template>
+
 
 <script setup lang="ts">
 import { NAvatar, NButton, NSelect, NSwitch } from 'naive-ui';
 import { computed, inject } from 'vue';
 
-import type { DiscordGatewayStatus } from '@/api/bridge';
-
 import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
+import type { DiscordGatewayStatus } from '@/api/bridge';
 import ListDialogPreference from '../ListDialogPreference.vue';
 import SettingItem from '../SettingItem.vue';
 import SettingSection from '../SettingSection.vue';
@@ -589,7 +193,7 @@ import SInput from '../SInput.vue';
 const setData = inject(SETTINGS_DATA_KEY)!;
 const message = inject(SETTINGS_MESSAGE_KEY)!;
 
-import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch } from 'vue';
 
 import { useSettingsStore } from '@/store/modules/settings';
 import { ensureDiscordToken } from '@/utils/discordToken';
@@ -647,6 +251,13 @@ const previewProgress = computed(() => {
 const largeImageError = ref(false);
 const smallImageError = ref(false);
 
+const onLargeImageError = (e: any) => {
+  largeImageError.value = true;
+};
+const onSmallImageError = (e: any) => {
+  smallImageError.value = true;
+};
+
 let previewInterval: any = null;
 
 onMounted(() => {
@@ -659,9 +270,9 @@ onMounted(() => {
       const { audioService } = await import('@/services/audioService');
       const currentDur = audioService.getDuration();
       const songDur = playerCore.currentSong?.dt ? playerCore.currentSong.dt / 1000 : 0;
-
+      
       previewCurrentTime.value = time;
-      previewDuration.value = currentDur > 0 ? currentDur : songDur > 0 ? songDur : 120;
+      previewDuration.value = currentDur > 0 ? currentDur : (songDur > 0 ? songDur : 120);
     } catch (e) {
       // ignore
     }
@@ -689,7 +300,7 @@ watch(
     setData.value.discordActivityButton2Enabled,
     setData.value.discordActivityButton2Label,
     setData.value.discordActivityButton2UrlSource,
-    setData.value.discordActivityButton2CustomUrl
+    setData.value.discordActivityButton2CustomUrl,
   ],
   () => {
     if (setData.value.discordRPCEnabled && setData.value.discordToken) {
@@ -698,7 +309,7 @@ watch(
         refreshDiscord(true);
       }, 500);
     } else if (!setData.value.discordRPCEnabled && setData.value.discordToken) {
-      window.api.clearDiscordPresence();
+       window.api.clearDiscordPresence();
     }
   },
   { deep: true }
@@ -722,7 +333,9 @@ const loginDiscordWebView = async () => {
       expiresIn?: number;
     } | null>('discord-webview-login');
     if (userInfo && userInfo.token) {
-      const expiresAt = userInfo.expiresIn ? Date.now() + userInfo.expiresIn * 1000 : 0;
+      const expiresAt = userInfo.expiresIn
+        ? Date.now() + userInfo.expiresIn * 1000
+        : 0;
       // Persist immediately via the settings store (no debounce race)
       settingsStore.setSetData({
         discordToken: userInfo.token,
@@ -959,41 +572,45 @@ const previewLargeText = computed(() => {
 });
 
 const largeImagePreview = computed(() => {
-  if (largeImageError.value)
-    return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
-
+  if (largeImageError.value) return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
+  
   const type = setData.value.discordLargeImageType;
   const song = playerCore.currentSong as any;
-  if (!song || !song.name)
-    return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
+  if (!song || !song.name) return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
 
   const albumArt = song?.al?.picUrl || song?.picUrl || '';
   const artistPic = song?.ar?.[0]?.picUrl || song?.artists?.[0]?.picUrl || albumArt;
 
   if (type === 'thumbnail' && albumArt) return albumArt;
   if (type === 'artist' && artistPic) return artistPic;
-  if (type === 'appicon') return '';
-  if (type === 'custom') return setData.value.discordLargeImageCustomUrl || '';
+  if (type === 'appicon')
+    return '';
+  if (type === 'custom')
+    return (
+      setData.value.discordLargeImageCustomUrl || ''
+    );
   return albumArt || '';
 });
 
 const smallImagePreview = computed(() => {
   const type = setData.value.discordSmallImageType;
   if (type === 'dontshow') return null;
-  if (smallImageError.value)
-    return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
+  if (smallImageError.value) return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
 
   const song = playerCore.currentSong as any;
-  if (!song || !song.name)
-    return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
+  if (!song || !song.name) return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
 
   const albumArt = song?.al?.picUrl || song?.picUrl || '';
   const artistPic = song?.ar?.[0]?.picUrl || song?.artists?.[0]?.picUrl || albumArt;
 
   if (type === 'thumbnail' && albumArt) return albumArt;
   if (type === 'artist' && artistPic) return artistPic;
-  if (type === 'appicon') return '';
-  if (type === 'custom') return setData.value.discordSmallImageCustomUrl || '';
+  if (type === 'appicon')
+    return '';
+  if (type === 'custom')
+    return (
+      setData.value.discordSmallImageCustomUrl || ''
+    );
   return albumArt || '';
 });
 

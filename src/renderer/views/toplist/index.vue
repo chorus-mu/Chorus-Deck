@@ -179,6 +179,7 @@ import {
 } from '@/api/ytmusic';
 import { useQueueStore } from '@/store/modules/queue';
 import type { SongResult } from '@/types/music';
+import logoImg from '@/assets/img/logo.png';
 
 defineOptions({ name: 'Charts' });
 

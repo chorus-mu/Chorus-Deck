@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="flex flex-col gap-6">
     <setting-section title="Playback Settings">
       <setting-item
         icon="ri-hq-line"
@@ -476,27 +476,6 @@
         </n-switch>
       </setting-item>
     </setting-section>
-
-    <div
-      class="mt-6 p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-gray-100 dark:border-gray-800"
-    >
-      <div class="text-sm font-medium text-gray-500 mb-3">Support genuine</div>
-      <div class="text-base text-gray-900 dark:text-white mb-4">
-        Everyone still needs to support the genuine version, this software is only for open source
-        discussion. Major music membership purchase links:
-      </div>
-      <div class="flex gap-3 flex-wrap">
-        <a
-          v-for="link in memberLinks"
-          :key="link.url"
-          class="px-4 py-2 rounded-xl bg-gray-50 dark:bg-black/20 text-primary hover:text-primary transition-colors"
-          :href="link.url"
-          target="_blank"
-        >
-          {{ link.name }} <i class="ri-external-link-line ml-1"></i>
-        </a>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -511,11 +490,6 @@ import SBtn from '../SBtn.vue';
 import SettingItem from '../SettingItem.vue';
 import SettingSection from '../SettingSection.vue';
 import SSelect from '../SSelect.vue';
-
-const memberLinks = [
-  { name: 'NetEase Cloud Music Membership', url: 'https://music.163.com/store/vip' },
-  { name: 'QQmusic membership', url: 'https://y.qq.com/portal/vipportal/' }
-];
 
 const setData = inject(SETTINGS_DATA_KEY)!;
 const platform = ref('web');

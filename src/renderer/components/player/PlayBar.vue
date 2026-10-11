@@ -224,6 +224,7 @@ import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl, isCompact, isDesktop, secondToMinute, setAnimationClass } from '@/utils';
+import logoImg from '@/assets/logo.png';
 
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();

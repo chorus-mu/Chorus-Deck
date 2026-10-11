@@ -1,10 +1,11 @@
 <template>
   <div class="artist-page h-full w-full overflow-hidden">
     <!-- Loading overlay -->
-    <div
-      v-if="loading"
-      class="absolute inset-0 z-50 bg-white dark:bg-[#0a0a0a] overflow-hidden p-4"
-    >
+    <transition name="fade">
+      <div
+        v-if="loading"
+        class="absolute inset-0 z-50 bg-white dark:bg-[#0a0a0a] overflow-hidden p-4"
+      >
       <div class="flex flex-col items-center pt-24">
         <n-skeleton height="112px" width="112px" style="border-radius: 16px" class="mb-4" />
         <n-skeleton text width="15%" class="mb-2" />
@@ -24,40 +25,45 @@
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </transition>
     <div v-show="!loading" class="h-full w-full">
       <n-scrollbar class="h-full">
         <div
-          class="artist-banner relative w-full overflow-hidden"
+          class="artist-banner relative w-full overflow-hidden fade-in-up"
           style="height: 220px"
           :style="bannerStyle"
         >
           <img
             v-if="artist?.thumbnail"
             :src="getImgUrl(artist.thumbnail, '400y400')"
-            class="absolute inset-0 w-full h-full object-cover blur-3xl opacity-50 scale-125 mix-blend-overlay"
+            class="absolute inset-0 w-full h-full object-cover blur-3xl opacity-0 scale-125 mix-blend-overlay transition-opacity duration-700 ease-out"
+            @load="handleImageLoad"
+            @error="handleImageError"
           />
           <div class="absolute inset-0 banner-glass" />
           <div class="absolute bottom-0 left-0 right-0 h-24 gradient-fade" />
         </div>
 
-        <div class="flex justify-center -mt-14 relative z-20 mb-3">
+        <div class="flex justify-center -mt-14 relative z-20 mb-3 fade-in-up delay-100">
           <div
-            class="w-28 h-28 rounded-2xl overflow-hidden bg-neutral-200 dark:bg-neutral-800 shadow-xl ring-4 ring-white/20 dark:ring-black/30"
+            class="w-28 h-28 rounded-2xl overflow-hidden bg-neutral-200 dark:bg-neutral-800 shadow-xl ring-4 ring-white/20 dark:ring-black/30 relative"
           >
             <img
               v-if="artist?.avatar || artist?.thumbnail"
               :src="getImgUrl(artist?.avatar || artist?.thumbnail, '300y300')"
               :alt="artist?.title"
-              class="w-full h-full object-cover"
+              class="w-full h-full object-cover opacity-0 transition-opacity duration-500"
+              @load="handleImageLoad"
+              @error="handleImageError"
             />
-            <div v-else class="w-full h-full flex items-center justify-center">
+            <div class="absolute inset-0 flex items-center justify-center -z-10">
               <i class="ri-user-3-line text-4xl text-neutral-400" />
             </div>
           </div>
         </div>
 
-        <div class="flex flex-col items-center px-6 relative z-10 pb-4">
+        <div class="flex flex-col items-center px-6 relative z-10 pb-4 fade-in-up delay-200">
           <p
             class="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mb-1"
           >
@@ -153,19 +159,21 @@
               <div
                 v-for="album in albumItems"
                 :key="album.id"
-                class="flex-shrink-0 w-36 cursor-pointer group"
+                class="flex-shrink-0 w-36 cursor-pointer group fade-in"
                 @click="openPlaylistItem(album.id, album.name, 'album')"
               >
                 <div
-                  class="w-36 h-36 rounded-2xl overflow-hidden mb-2 bg-neutral-200 dark:bg-neutral-800 shadow-sm group-hover:shadow-md transition-shadow"
+                  class="w-36 h-36 rounded-2xl overflow-hidden mb-2 bg-neutral-200 dark:bg-neutral-800 shadow-sm group-hover:shadow-md transition-shadow relative"
                 >
                   <img
                     v-if="album.coverImgUrl"
                     :src="getImgUrl(album.coverImgUrl, '300y300')"
                     :alt="album.name"
-                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    class="w-full h-full object-cover opacity-0 group-hover:scale-105 transition-all duration-500 ease-out"
+                    @load="handleImageLoad"
+                    @error="handleImageError"
                   />
-                  <div v-else class="w-full h-full flex items-center justify-center">
+                  <div class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800">
                     <i class="ri-album-line text-3xl text-neutral-400" />
                   </div>
                 </div>
@@ -194,19 +202,21 @@
               <div
                 v-for="playlist in playlistItems"
                 :key="playlist.id"
-                class="flex-shrink-0 w-36 cursor-pointer group"
+                class="flex-shrink-0 w-36 cursor-pointer group fade-in"
                 @click="openPlaylistItem(playlist.id, playlist.name, 'playlist')"
               >
                 <div
-                  class="w-36 h-36 rounded-2xl overflow-hidden mb-2 bg-neutral-200 dark:bg-neutral-800 shadow-sm group-hover:shadow-md transition-shadow"
+                  class="w-36 h-36 rounded-2xl overflow-hidden mb-2 bg-neutral-200 dark:bg-neutral-800 shadow-sm group-hover:shadow-md transition-shadow relative"
                 >
                   <img
                     v-if="playlist.coverImgUrl"
                     :src="getImgUrl(playlist.coverImgUrl, '300y300')"
                     :alt="playlist.name"
-                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    class="w-full h-full object-cover opacity-0 group-hover:scale-105 transition-all duration-500 ease-out"
+                    @load="handleImageLoad"
+                    @error="handleImageError"
                   />
-                  <div v-else class="w-full h-full flex items-center justify-center">
+                  <div class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800">
                     <i class="ri-play-list-line text-3xl text-neutral-400" />
                   </div>
                 </div>
@@ -239,15 +249,17 @@
                 @click="openArtist(similar.id)"
               >
                 <div
-                  class="w-36 h-36 rounded-full overflow-hidden mb-2 bg-neutral-200 dark:bg-neutral-800 shadow-sm group-hover:shadow-md transition-shadow ring-2 ring-white/10 dark:ring-black/20"
+                  class="w-36 h-36 rounded-full overflow-hidden mb-2 bg-neutral-200 dark:bg-neutral-800 shadow-sm group-hover:shadow-md transition-shadow ring-2 ring-white/10 dark:ring-black/20 relative"
                 >
                   <img
                     v-if="similar.coverImgUrl"
                     :src="getImgUrl(similar.coverImgUrl, '300y300')"
                     :alt="similar.name"
-                    class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    class="w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ease-out opacity-0"
+                    @load="handleImageLoad"
+                    @error="handleImageError"
                   />
-                  <div v-else class="w-full h-full flex items-center justify-center">
+                  <div class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800">
                     <i class="ri-user-3-line text-3xl text-neutral-400" />
                   </div>
                 </div>
@@ -266,7 +278,7 @@
               playlistItems.length === 0 &&
               similarArtistItems.length === 0
             "
-            class="py-20 text-center text-sm text-neutral-400"
+            class="py-20 text-center text-sm text-neutral-400 fade-in"
           >
             <i class="ri-music-2-line text-4xl block mb-3 opacity-30" />
             Nothing found for this artist yet.
@@ -311,6 +323,25 @@ const colorCanvas = ref<HTMLCanvasElement | null>(null);
 const extractedColors = ref<string[]>(['#1e293b', '#0f172a']);
 
 const artistId = computed(() => String(route.params.id || ''));
+
+const handleImageLoad = (e: Event) => {
+  const img = e.target as HTMLImageElement;
+  if (img) {
+    if (img.classList.contains('mix-blend-overlay')) {
+      img.classList.remove('opacity-0');
+      img.classList.add('opacity-50');
+    } else {
+      img.classList.remove('opacity-0');
+    }
+  }
+};
+
+const handleImageError = (e: Event) => {
+  const img = e.target as HTMLImageElement;
+  if (img) {
+    img.style.display = 'none';
+  }
+};
 
 const bannerStyle = computed(() => {
   const [c1, c2, c3] = extractedColors.value;
@@ -523,5 +554,41 @@ onUnmounted(() => {
   span:first-child {
     @apply font-semibold;
   }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.delay-100 {
+  animation-delay: 100ms;
+}
+
+.delay-200 {
+  animation-delay: 200ms;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

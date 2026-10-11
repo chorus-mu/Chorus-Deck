@@ -242,6 +242,7 @@ import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import type { SongResult } from '@/types/music';
 import { getImgUrl, isCompact, secondToMinute } from '@/utils';
+import logoImg from '@/assets/logo.png';
 
 const message = useMessage();
 const dialog = useDialog();

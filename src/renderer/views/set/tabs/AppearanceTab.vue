@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="flex flex-col gap-6">
     <setting-section title="Appearance">
       <setting-item
         icon="ri-contrast-drop-2-line"
@@ -106,7 +106,7 @@
 
       <div
         v-if="isDesktop() && selectedFonts.length > 0"
-        class="p-4 border-b border-gray-100 dark:border-gray-800"
+        class="p-4 rounded-2xl bg-neutral-100 dark:bg-neutral-900 shadow-sm"
       >
         <div class="text-base font-bold mb-4 text-gray-900 dark:text-white">Font Preview</div>
         <div class="space-y-4" :style="{ fontFamily: setData.fontFamily }">

@@ -717,6 +717,10 @@ function getTabCount(key: string): number {
   return 0;
 }
 
+function getPlaceholder(title: string): string {
+  return logoImg;
+}
+
 function onImgError(event: Event, title: string) {
   (event.target as HTMLImageElement).src = getPlaceholder(title);
 }

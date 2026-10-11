@@ -87,6 +87,7 @@ import { usePlaybackControl } from '@/hooks/usePlaybackControl';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl, setAnimationClass } from '@/utils';
+import logoImg from '@/assets/logo.png';
 
 const shouldShowCompactMenu = inject('shouldShowCompactMenu') as Ref<boolean>;
 

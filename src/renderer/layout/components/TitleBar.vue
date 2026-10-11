@@ -4,7 +4,11 @@
     class="flex items-center justify-between pl-4 pr-2 py-1 select-none relative text-dark dark:text-white text-sm"
     @mousedown="drag"
   >
-    <div id="title" class="font-medium">Chorus Deck</div>
+    <div id="title" class="font-medium flex items-center gap-2">
+      <div class="flex items-center gap-1 mr-2" style="-webkit-app-region: no-drag">
+      </div>
+      Chorus Deck
+    </div>
     <div id="buttons" class="flex items-center gap-1.5" @mousedown.stop>
       <n-button
         v-if="!isDesktop()"

@@ -12,9 +12,11 @@
               class="main-page"
               :class="route.meta.noScroll ? 'pr-3' : ''"
             >
-              <keep-alive :include="keepAliveInclude">
-                <component :is="Component" />
-              </keep-alive>
+              <transition name="fade" mode="out-in">
+                <keep-alive :include="keepAliveInclude">
+                  <component :is="Component" :key="route.fullPath" />
+                </keep-alive>
+              </transition>
             </router-view>
           </div>
           <app-sidebar :menus="menuStore.menus" />
@@ -40,9 +42,11 @@
             <div class="main-viewport">
               <router-view v-slot="{ Component }">
                 <div class="main-page" :class="{ 'no-scroll': route.meta.noScroll }">
-                  <keep-alive :include="keepAliveInclude">
-                    <component :is="Component" />
-                  </keep-alive>
+                  <transition name="fade" mode="out-in">
+                    <keep-alive :include="keepAliveInclude">
+                      <component :is="Component" :key="route.fullPath" />
+                    </keep-alive>
+                  </transition>
                 </div>
               </router-view>
             </div>
@@ -214,5 +218,16 @@ onMounted(() => {
     height: calc(100vh - 75px);
     position: relative;
   }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(4px);
 }
 </style>

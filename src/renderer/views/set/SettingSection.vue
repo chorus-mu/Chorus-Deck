@@ -1,10 +1,13 @@
 <template>
-  <div :id="id" :ref="setRef" class="mb-6 w-full flex flex-col">
-    <div v-if="title || $slots.title" class="text-sm font-semibold mb-2 mt-2 text-primary px-2">
-      <slot name="title">{{ title }}</slot>
+  <div :id="id" :ref="setRef" class="mb-10 w-full flex flex-col">
+    <div v-if="title || $slots.title" class="flex items-center gap-3 mb-5 px-1">
+      <h2 class="text-xl font-bold tracking-tight text-neutral-900 dark:text-white">
+        <slot name="title">{{ title }}</slot>
+      </h2>
+      <div class="h-1.5 w-1.5 rounded-full bg-primary" />
     </div>
 
-    <div class="flex flex-col gap-1 w-full">
+    <div class="flex flex-col gap-2 w-full">
       <slot></slot>
     </div>
   </div>

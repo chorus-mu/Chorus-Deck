@@ -1,8 +1,9 @@
 <template>
-  <setting-section title="About">
+  <div class="flex flex-col gap-6">
+    <setting-section title="About">
     <!-- App Card -->
     <div
-      class="flex flex-col items-center justify-center p-6 bg-surface-container-low rounded-3xl mb-6"
+      class="flex flex-col items-center justify-center p-6 bg-neutral-100 dark:bg-neutral-900 rounded-2xl mb-6 shadow-sm"
     >
       <div
         class="w-24 h-24 rounded-full bg-surface-container flex items-center justify-center cursor-pointer transition-transform duration-500"
@@ -75,6 +76,7 @@
       <s-btn @click.stop="openAppRepo"> <i class="ri-github-line mr-1"></i>GitHub </s-btn>
     </setting-item>
   </setting-section>
+  </div>
 </template>
 
 <script setup lang="ts">

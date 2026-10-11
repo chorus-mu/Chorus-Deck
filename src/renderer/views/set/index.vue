@@ -1,29 +1,32 @@
 <template>
   <div class="h-full w-full flex flex-col">
-    <div v-if="currentSection === 'main'" class="flex-shrink-0 z-10 pt-6 pb-2">
-      <h1 class="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-white mb-6">Settings</h1>
-      <n-input
-        v-model:value="searchQuery"
-        placeholder="Search settings..."
-        round
-        clearable
-        class="w-full mb-4 bg-gray-50 dark:bg-neutral-900"
-      >
-        <template #prefix>
-          <i class="ri-search-line text-gray-400"></i>
-        </template>
-      </n-input>
+    <div v-if="currentSection === 'main'" class="flex-shrink-0 z-10 pt-6 pb-2 px-[var(--content-padding-x)]">
+      <h1 class="text-3xl font-bold tracking-tight text-neutral-900 dark:text-white mb-6">Settings</h1>
+      <div class="relative mb-4">
+        <i class="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 text-lg pointer-events-none" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search settings..."
+          class="w-full pl-12 pr-12 py-3.5 rounded-2xl bg-neutral-100 dark:bg-neutral-800/80 border-transparent text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-0 focus:border-transparent text-sm font-medium transition-all duration-200"
+        />
+        <button
+          v-if="searchQuery"
+          class="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+          @click="searchQuery = ''"
+        >
+          <i class="ri-close-line text-lg" />
+        </button>
+      </div>
     </div>
 
     <div
       v-else
-      class="flex-shrink-0 z-10 page-padding pt-6 pb-2 flex items-center gap-4 border-b border-gray-100 dark:border-gray-800"
+      class="flex-shrink-0 z-10 px-[var(--content-padding-x)] pt-6 pb-2 flex items-center gap-4 mb-4"
     >
       <div
-        class="w-10 h-10 rounded-full hover:bg-gray-100 dark:hover:bg-neutral-800 flex items-center justify-center cursor-pointer transition-colors"
-        @click="
-          currentSection === 'discord' ? (currentSection = 'account') : (currentSection = 'main')
-        "
+        class="w-10 h-10 rounded-full hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center cursor-pointer transition-colors"
+        @click="currentSection = 'main'"
       >
         <i class="ri-arrow-left-line text-xl text-neutral-900 dark:text-white"></i>
       </div>
@@ -33,26 +36,26 @@
     </div>
 
     <n-scrollbar class="flex-1">
-      <div class="w-full mx-auto pb-32 pt-2">
-        <!-- Main Settings Menu -->
-        <div v-show="currentSection === 'main'" class="animate-fade-in flex flex-col gap-2">
+        <div class="w-full mx-auto pb-32 pt-6 px-[var(--content-padding-x)]">
+          <!-- Main Settings Menu -->
+          <div v-show="currentSection === 'main'" class="animate-fade-in grid grid-cols-1 md:grid-cols-2 gap-4">
           <div
             v-for="item in filteredSettings"
             :key="item.id"
-            class="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-neutral-900 cursor-pointer transition-colors"
+            class="group flex items-center gap-4 p-4 rounded-xl bg-neutral-50/50 dark:bg-neutral-900/30 hover:bg-neutral-50 dark:hover:bg-neutral-900/60 cursor-pointer transition-all duration-200"
             @click="currentSection = item.id"
           >
             <div
-              class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary"
+              class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary flex-shrink-0"
             >
               <i v-if="!item.customIcon" :class="item.icon + ' text-2xl'"></i>
               <span v-else class="text-xl font-bold font-sans">{{ item.customIcon }}</span>
             </div>
-            <div class="flex-1">
-              <div class="text-base font-semibold text-neutral-900 dark:text-white">
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-semibold text-neutral-900 dark:text-white mb-0.5 group-hover:text-primary transition-colors">
                 {{ item.title }}
               </div>
-              <div v-if="item.description" class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <div v-if="item.description" class="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-1">
                 {{ item.description }}
               </div>
             </div>
@@ -66,29 +69,14 @@
         <div v-show="currentSection === 'discord'" class="animate-fade-in">
           <discord-tab />
         </div>
-        <div v-show="currentSection === 'ai'" class="animate-fade-in">
-          <ai-tab />
-        </div>
         <div v-show="currentSection === 'appearance'" class="animate-fade-in">
           <appearance-tab />
         </div>
         <div v-show="currentSection === 'player'" class="animate-fade-in">
           <player-tab />
         </div>
-        <div v-show="currentSection === 'content'" class="animate-fade-in">
-          <content-tab />
-        </div>
-        <div v-show="currentSection === 'privacy'" class="animate-fade-in">
-          <privacy-tab />
-        </div>
         <div v-show="currentSection === 'storage'" class="animate-fade-in">
           <storage-tab />
-        </div>
-        <div v-show="currentSection === 'backup_restore'" class="animate-fade-in">
-          <backup-restore-tab />
-        </div>
-        <div v-show="currentSection === 'system_update'" class="animate-fade-in">
-          <system-update-tab />
         </div>
         <div v-show="currentSection === 'about'" class="animate-fade-in">
           <about-tab />
@@ -115,15 +103,10 @@ import { createDefaultAppUpdateState } from '../../../shared/appUpdate';
 import { SETTINGS_DATA_KEY, SETTINGS_DIALOG_KEY, SETTINGS_MESSAGE_KEY } from './keys';
 import AboutTab from './tabs/AboutTab.vue';
 import AccountTab from './tabs/AccountTab.vue';
-import AiTab from './tabs/AiTab.vue';
 import AppearanceTab from './tabs/AppearanceTab.vue';
-import BackupRestoreTab from './tabs/BackupRestoreTab.vue';
-import ContentTab from './tabs/ContentTab.vue';
 import DiscordTab from './tabs/DiscordTab.vue';
 import PlayerTab from './tabs/PlayerTab.vue';
-import PrivacyTab from './tabs/PrivacyTab.vue';
 import StorageTab from './tabs/StorageTab.vue';
-import SystemUpdateTab from './tabs/SystemUpdateTab.vue';
 
 const settingsStore = useSettingsStore();
 const message = useMessage();
@@ -169,7 +152,15 @@ provide(SETTINGS_DIALOG_KEY, dialog);
 const searchQuery = ref('');
 const currentSection = ref('main');
 
-const allSettingsItems = computed(() => [
+interface SettingsItem {
+  id: string;
+  title: string;
+  icon: string;
+  description: string;
+  customIcon?: string;
+}
+
+const allSettingsItems = computed<SettingsItem[]>(() => [
   {
     id: 'account',
     title: 'Account',
@@ -177,10 +168,10 @@ const allSettingsItems = computed(() => [
     description: 'Manage cookies and account details'
   },
   {
-    id: 'ai',
-    title: 'Ai Lyrics Translation',
-    customIcon: 'Ai',
-    description: 'Manage AI-powered translation engines'
+    id: 'discord',
+    title: 'Discord',
+    icon: 'ri-discord-line',
+    description: 'Discord Rich Presence integration'
   },
   {
     id: 'appearance',
@@ -195,34 +186,10 @@ const allSettingsItems = computed(() => [
     description: 'Playback settings, equalizer, and quality'
   },
   {
-    id: 'content',
-    title: 'Content',
-    icon: 'ri-global-line',
-    description: 'Language and regional preferences'
-  },
-  {
-    id: 'privacy',
-    title: 'Privacy',
-    icon: 'ri-shield-check-line',
-    description: 'Data sharing and privacy controls'
-  },
-  {
     id: 'storage',
     title: 'Storage',
     icon: 'ri-database-2-line',
     description: 'Cache management and storage limits'
-  },
-  {
-    id: 'backup_restore',
-    title: 'Backup & Restore',
-    icon: 'ri-history-line',
-    description: 'Backup your settings and data'
-  },
-  {
-    id: 'system_update',
-    title: 'System Update',
-    icon: 'ri-refresh-line',
-    description: 'Check for application updates'
   },
   {
     id: 'about',

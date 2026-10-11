@@ -41,7 +41,6 @@ export interface YTMPlaylistDetail {
   relatedPlaylistsEndpoint?: YTMBrowseEndpoint;
   relatedArtists?: YTMPlaylist[];
   relatedArtistsEndpoint?: YTMBrowseEndpoint;
-  relatedArtistsEndpoint?: YTMBrowseEndpoint;
   year?: string;
   authorAvatar?: string;
   authors?: { name: string; id: string; avatar?: string }[];

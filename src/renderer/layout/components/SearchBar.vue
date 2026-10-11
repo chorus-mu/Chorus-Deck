@@ -1,8 +1,17 @@
 <template>
   <div class="flex items-center gap-2 pb-4 pr-4 pl-1">
+    <div class="flex items-center gap-1.5 mr-2">
+      <button class="back-btn" @click="goBack" title="Go Back">
+        <i class="ri-arrow-left-line" />
+      </button>
+      <button class="back-btn" @click="goForward" title="Go Forward">
+        <i class="ri-arrow-right-line" />
+      </button>
+    </div>
+
     <transition name="tab-slide">
       <div
-        v-if="!isSearchExpanded && !showBackButton"
+        v-if="!isSearchExpanded"
         class="tabs-track flex-shrink-0"
         ref="tabsTrackRef"
       >
@@ -18,17 +27,6 @@
           <i :class="tab.icon" />
           <span>{{ tab.label }}</span>
         </button>
-      </div>
-
-      <div v-else-if="showBackButton" class="flex items-center gap-2 flex-shrink-0">
-        <button class="back-btn" @click="goBack">
-          <i class="ri-arrow-left-line" />
-        </button>
-        <transition name="nav-title">
-          <span v-if="navTitleStore.isVisible && !isSearchExpanded" class="nav-page-title">
-            {{ navTitleStore.title }}
-          </span>
-        </transition>
       </div>
     </transition>
 
@@ -193,12 +191,8 @@ const showDownloadButton = computed(
 );
 const { zoomFactor, initZoomFactor, increaseZoom, decreaseZoom, resetZoom, isZoom100 } = useZoom();
 
-const showBackButton = computed(() => {
-  const meta = router.currentRoute.value.meta;
-  if (!settingsStore.isCompact && meta.isCompact === false) return false;
-  return meta.back === true;
-});
 const goBack = () => router.back();
+const goForward = () => router.forward();
 
 const tabs = computed(() => {
   const items = [
