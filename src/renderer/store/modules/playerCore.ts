@@ -174,11 +174,11 @@ export const usePlayerCoreStore = defineStore(
 
           const btn1Url = resolveButtonUrl(
             s.discordActivityButton1UrlSource || 'custom',
-            s.discordActivityButton1CustomUrl || 'https://github.com/slice-of-fun/Chorus-Deck'
+            s.discordActivityButton1CustomUrl || 'https://github.com/chorus-mu/Chorus-Deck'
           );
           const btn2Url = resolveButtonUrl(
             s.discordActivityButton2UrlSource || 'custom',
-            s.discordActivityButton2CustomUrl || 'https://github.com/slice-of-fun/Chorus-Deck'
+            s.discordActivityButton2CustomUrl || 'https://github.com/chorus-mu/Chorus-Deck'
           );
 
           window.api

@@ -130,7 +130,7 @@ const rememberChoice = ref(false);
 
 const openDownloadPage = () => {
   if (!isDesktop()) {
-    window.open('https://github.com/Chorus-Deck/Chorus-Deck/releases', '_blank');
+    window.open('https://github.com/chorus-mu/Chorus-Deck/releases', '_blank');
   }
 };
 

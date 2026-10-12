@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
 pub const APP_ICON_URL: &str =
-    "https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png";
+    "https://raw.githubusercontent.com/chorus-mu/Chorus-Deck/main/resources/logo.png";
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]

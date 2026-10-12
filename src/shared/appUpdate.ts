@@ -9,7 +9,7 @@ export const APP_UPDATE_STATUS = {
 } as const;
 
 export const APP_UPDATE_RELEASE_URL =
-  'https://github.com/algerkong/AlgerMusicPlayer/releases/latest';
+  'https://github.com/chorus-mu/Chorus-Deck/releases/latest';
 
 export type AppUpdateStatus = (typeof APP_UPDATE_STATUS)[keyof typeof APP_UPDATE_STATUS];
 

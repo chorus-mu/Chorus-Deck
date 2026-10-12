@@ -414,7 +414,7 @@ const refreshDiscord = async (silent = false) => {
     const resolveButtonUrl = (source: string, custom: string): string => {
       switch ((source || 'songurl').toLowerCase()) {
         case 'songurl':
-          return songUrl || 'https://github.com/slice-of-fun/Chorus-Deck';
+          return songUrl || 'https://github.com/chorus-mu/Chorus-Deck';
         case 'artisturl':
           return artistUrl || songUrl || '';
         case 'albumurl':
@@ -462,7 +462,7 @@ const refreshDiscord = async (silent = false) => {
       button2Label: s.discordActivityButton2Label || 'Go to Chorus Deck',
       button2Url: resolveButtonUrl(
         s.discordActivityButton2UrlSource || 'custom',
-        s.discordActivityButton2CustomUrl || 'https://github.com/slice-of-fun/Chorus-Deck'
+        s.discordActivityButton2CustomUrl || 'https://github.com/chorus-mu/Chorus-Deck'
       ),
       token: (await ensureDiscordToken(s)) || undefined
     });
@@ -548,7 +548,7 @@ const previewLargeText = computed(() => {
 const largeImagePreview = computed(() => {
   const type = setData.value.discordLargeImageType;
   const song = playerCore.currentSong as any;
-  if (!song || !song.name) return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
+  if (!song || !song.name) return 'https://raw.githubusercontent.com/chorus-mu/Chorus-Deck/main/resources/logo.png';
 
   const ytThumb = song?.id && String(song.id).length === 11 && !String(song.id).includes('/')
     ? `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`
@@ -572,7 +572,7 @@ const smallImagePreview = computed(() => {
   if (type === 'dontshow') return null;
 
   const song = playerCore.currentSong as any;
-  if (!song || !song.name) return 'https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/logo.png';
+  if (!song || !song.name) return 'https://raw.githubusercontent.com/chorus-mu/Chorus-Deck/main/resources/logo.png';
 
   const ytThumb = song?.id && String(song.id).length === 11 && !String(song.id).includes('/')
     ? `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`

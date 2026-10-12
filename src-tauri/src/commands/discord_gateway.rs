@@ -15,7 +15,7 @@ use crate::commands::discord::{
     resolve_image_url, resolve_source_text, to_discord_text, DiscordPresence, APP_ICON_URL,
 };
 
-const PAUSE_IMAGE_URL: &str = "https://raw.githubusercontent.com/slice-of-fun/Chorus-Deck/main/resources/paused.png";
+const PAUSE_IMAGE_URL: &str = "https://raw.githubusercontent.com/chorus-mu/Chorus-Deck/main/resources/paused.png";
 
 type WsStream = tokio_tungstenite::WebSocketStream<
     tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,

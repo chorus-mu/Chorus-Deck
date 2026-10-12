@@ -3,7 +3,7 @@
   "version": "5.1.0",
   "description": "Chorus Deck",
   "author": "Chorus Deck",
-  "homepage": "https://github.com/Chorus-Deck",
+  "homepage": "https://github.com/chorus-mu",
   "scripts": {
     "prepare": "husky",
     "format": "prettier --write ./src",

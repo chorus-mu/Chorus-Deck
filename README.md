@@ -61,7 +61,7 @@ You will need the following tools installed on your development machine:
 Clone the repository and install the Node dependencies:
 
 ```bash
-git clone https://github.com/Chorus-Deck/Chorus-Deck.git
+git clone https://github.com/chorus-mu/Chorus-Deck.git
 cd Chorus-Deck
 npm install
 ```

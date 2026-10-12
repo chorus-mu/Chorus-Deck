@@ -112,7 +112,7 @@ export const getLatestReleaseInfo = async (): Promise<GithubReleaseInfo | null> 
     const headers: Record<string, string> = {};
 
     const apiUrls = [
-      'https://api.github.com/repos/algerkong/AlgerMusicPlayer/releases/latest',
+      'https://api.github.com/repos/chorus-mu/Chorus-Deck/releases/latest',
 
       'http://music.alger.fun/package.json'
     ];
@@ -137,7 +137,7 @@ export const getLatestReleaseInfo = async (): Promise<GithubReleaseInfo | null> 
           return {
             tag_name: response.data.version,
             body: changelogResponse.data,
-            html_url: 'https://github.com/algerkong/AlgerMusicPlayer/releases/latest',
+            html_url: 'https://github.com/chorus-mu/Chorus-Deck/releases/latest',
             assets: []
           } as unknown as GithubReleaseInfo;
         }

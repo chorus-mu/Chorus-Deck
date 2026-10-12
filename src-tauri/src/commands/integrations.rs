@@ -1,4 +1,4 @@
-﻿use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
@@ -72,7 +72,7 @@ pub fn app_update_open_release_page(app: AppHandle) -> Result<bool, String> {
     use tauri_plugin_opener::OpenerExt;
 
     let url = format!(
-        "https://github.com/ChorusDeck/Chorus-Deck/releases/latest?app={}",
+        "https://github.com/chorus-mu/Chorus-Deck/releases/latest?app={}",
         app.package_info().name
     );
     app.opener()
