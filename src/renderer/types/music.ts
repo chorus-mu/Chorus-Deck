@@ -17,6 +17,7 @@ export interface ILyricText {
   hasWordByWord?: boolean;
   startTime?: number;
   duration?: number;
+  isPreamble?: boolean;
 }
 
 export interface ILyric {

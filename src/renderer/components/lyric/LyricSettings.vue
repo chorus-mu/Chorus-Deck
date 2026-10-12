@@ -63,6 +63,22 @@
           <input type="checkbox" v-model="config.showRoma" class="toggle-switch" />
         </div>
         <div class="setting-item">
+          <span>Glow Effect</span>
+          <input type="checkbox" v-model="config.lyricsGlowEffect" class="toggle-switch" />
+        </div>
+        <div class="setting-item">
+          <span>Apple Music Blur</span>
+          <input type="checkbox" v-model="config.appleMusicLyricsBlur" class="toggle-switch" />
+        </div>
+        <div class="setting-item">
+          <span>Auto Scroll</span>
+          <input type="checkbox" v-model="config.lyricsScroll" class="toggle-switch" />
+        </div>
+        <div class="setting-item">
+          <span>Click to Seek</span>
+          <input type="checkbox" v-model="config.lyricsClick" class="toggle-switch" />
+        </div>
+        <div class="setting-item">
           <span>Hide Lyrics</span>
           <input type="checkbox" v-model="config.hideLyrics" class="toggle-switch" />
         </div>
@@ -92,6 +108,110 @@
             <span>50%</span>
             <span>75%</span>
             <span>100%</span>
+          </div>
+        </div>
+
+        <div class="radio-group">
+          <label class="radio-label">Lyric Granularity</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="radio-item-compact">
+              <input
+                type="radio"
+                v-model="config.lyricGranularity"
+                value="auto"
+                class="radio-input"
+              />
+              <span>Auto</span>
+            </label>
+            <label class="radio-item-compact">
+              <input
+                type="radio"
+                v-model="config.lyricGranularity"
+                value="sentence"
+                class="radio-input"
+              />
+              <span>Sentence</span>
+            </label>
+            <label class="radio-item-compact">
+              <input
+                type="radio"
+                v-model="config.lyricGranularity"
+                value="word"
+                class="radio-input"
+              />
+              <span>Word</span>
+            </label>
+            <label class="radio-item-compact">
+              <input
+                type="radio"
+                v-model="config.lyricGranularity"
+                value="syllable"
+                class="radio-input"
+              />
+              <span>Syllable</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="select-group">
+          <label class="select-label">Transition Animation</label>
+          <select v-model="config.lyricsAnimationStyle" class="select-input">
+            <option
+              v-for="opt in animationStyleOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="select-group">
+          <label class="select-label">Preferred Lyric Provider</label>
+          <select v-model="config.preferredLyricProvider" class="select-input">
+            <option
+              v-for="opt in providerOptions"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+
+        <div class="radio-group">
+          <label class="radio-label">Text Alignment</label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="radio-item-compact">
+              <input
+                type="radio"
+                v-model="config.lyricsTextPosition"
+                value="LEFT"
+                class="radio-input"
+                @change="config.centerLyrics = false"
+              />
+              <span>Left</span>
+            </label>
+            <label class="radio-item-compact">
+              <input
+                type="radio"
+                v-model="config.lyricsTextPosition"
+                value="CENTER"
+                class="radio-input"
+                @change="config.centerLyrics = true"
+              />
+              <span>Center</span>
+            </label>
+            <label class="radio-item-compact">
+              <input
+                type="radio"
+                v-model="config.lyricsTextPosition"
+                value="RIGHT"
+                class="radio-input"
+                @change="config.centerLyrics = false"
+              />
+              <span>Right</span>
+            </label>
           </div>
         </div>
       </div>
@@ -294,10 +414,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, reactive, ref } from 'vue';
+import { computed, inject, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 
 import { playMusic } from '@/hooks/MusicHook';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
+import { LYRIC_CONFIG_CHANGE_EVENT, readLyricConfig, writeLyricConfig } from '@/utils/lyricConfig';
 
 const accentColor = computed(
   () => playMusic.value?.primaryColor || 'var(--primary-color, #6366f1)'
@@ -306,6 +427,36 @@ const accentColor = computed(
 const config = inject<LyricConfig>(
   'lyricSetting',
   reactive<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG })
+);
+
+let isInternalSync = false;
+
+const handleExternalConfigChange = () => {
+  if (isInternalSync) return;
+  const current = readLyricConfig();
+  Object.assign(config, current);
+};
+
+onMounted(() => {
+  const current = readLyricConfig();
+  Object.assign(config, current);
+  window.addEventListener(LYRIC_CONFIG_CHANGE_EVENT, handleExternalConfigChange);
+});
+
+onUnmounted(() => {
+  window.removeEventListener(LYRIC_CONFIG_CHANGE_EVENT, handleExternalConfigChange);
+});
+
+watch(
+  () => config,
+  (newConfig) => {
+    isInternalSync = true;
+    writeLyricConfig(newConfig);
+    setTimeout(() => {
+      isInternalSync = false;
+    }, 50);
+  },
+  { deep: true }
 );
 
 const activeTab = ref('display');
@@ -320,6 +471,26 @@ const gradientDirectionOptions = [
   { label: 'To Right', value: 'to right' },
   { label: 'To Bottom', value: 'to bottom' },
   { label: 'To Bottom Right', value: 'to bottom right' }
+];
+
+const animationStyleOptions = [
+  { label: 'Apple Spring (Jump from Top)', value: 'apple_spring' },
+  { label: 'AMLL Fluid (Smooth Glide)', value: 'smooth_fluid' },
+  { label: 'Funky Bounce (Pop Overshoot)', value: 'bouncy_pop' },
+  { label: '3D Carousel (Perspective Cylinder)', value: 'carousel_3d' },
+  { label: 'Cyberpunk Glow (Neon Aura Snap)', value: 'cyberpunk_glow' },
+  { label: 'Kinetic Slant (Directional Skew)', value: 'kinetic_slant' },
+  { label: 'Minimal Fade (Pure Crossfade)', value: 'minimal_fade' }
+];
+
+const providerOptions = [
+  { label: 'Auto (Smart Best Match)', value: 'auto' },
+  { label: 'BetterLyrics (Word / Syllable synced)', value: 'betterlyrics' },
+  { label: 'YouLyPlus (Rich Line & Word synced)', value: 'youlyplus' },
+  { label: 'LrcLib (Open Line / Word synced)', value: 'lrclib' },
+  { label: 'KuGou (Comprehensive Global & C-Pop)', value: 'kugou' },
+  { label: 'Paxsenix (Musixmatch / Spotify Mirror)', value: 'paxsenix' },
+  { label: 'SimpMusic (YouTube Music Syllables)', value: 'simpmusic' }
 ];
 
 const addGradientColor = () => {

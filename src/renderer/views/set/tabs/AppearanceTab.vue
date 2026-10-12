@@ -275,6 +275,45 @@
 
     <setting-section title="Lyrics Appearance">
       <setting-item
+        icon="ri-text-spacing"
+        title="Lyric Granularity"
+        description="Choose sync mode: whole sentence/line, word-by-word, or syllable-by-syllable"
+      >
+        <template #action>
+          <n-select
+            v-model:value="setData.lyricGranularity"
+            :options="lyricGranularityOptions"
+            class="w-56 max-md:w-full"
+          />
+        </template>
+      </setting-item>
+      <setting-item
+        icon="ri-film-line"
+        title="Lyrics Animation Style"
+        description="Select the transition physics and animation for lyric lines"
+      >
+        <template #action>
+          <n-select
+            v-model:value="setData.lyricsAnimationStyle"
+            :options="lyricsAnimationOptions"
+            class="w-56 max-md:w-full"
+          />
+        </template>
+      </setting-item>
+      <setting-item
+        icon="ri-music-2-line"
+        title="Preferred Lyric Provider"
+        description="Priority provider for multi-source lyric searching"
+      >
+        <template #action>
+          <n-select
+            v-model:value="setData.preferredLyricProvider"
+            :options="preferredProviderOptions"
+            class="w-64 max-md:w-full"
+          />
+        </template>
+      </setting-item>
+      <setting-item
         icon="ri-align-left"
         title="Lyrics Position"
         description="Alignment of the lyrics text"
@@ -283,19 +322,6 @@
           <n-select
             v-model:value="setData.lyricsTextPosition"
             :options="lyricsPositionOptions"
-            class="w-48 max-md:w-full"
-          />
-        </template>
-      </setting-item>
-      <setting-item
-        icon="ri-film-line"
-        title="Lyrics Animation Style"
-        description="Select the animation style for lyrics transitions"
-      >
-        <template #action>
-          <n-select
-            v-model:value="setData.lyricsAnimationStyle"
-            :options="lyricsAnimationOptions"
             class="w-48 max-md:w-full"
           />
         </template>
@@ -524,6 +550,7 @@ import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
 import SettingItem from '../SettingItem.vue';
 import SettingSection from '../SettingSection.vue';
 import SInput from '../SInput.vue';
+import { LYRIC_CONFIG_CHANGE_EVENT, readLyricConfig, writeLyricConfig } from '@/utils/lyricConfig';
 
 const fontPreviews = [
   { key: 'chinese' },
@@ -564,17 +591,34 @@ const lyricsPositionOptions = [
   { label: 'Right', value: 'RIGHT' }
 ];
 
+const lyricGranularityOptions = [
+  { label: 'Auto (Best Available)', value: 'auto' },
+  { label: 'Sentence / Line-by-Line', value: 'sentence' },
+  { label: 'Word-by-Word', value: 'word' },
+  { label: 'Syllable-by-Syllable', value: 'syllable' }
+];
+
+const preferredProviderOptions = [
+  { label: 'Auto (Smart Best Match)', value: 'auto' },
+  { label: 'BetterLyrics (Word / Syllable synced)', value: 'betterlyrics' },
+  { label: 'YouLyPlus (Rich Line & Word synced)', value: 'youlyplus' },
+  { label: 'LrcLib (Open Line / Word synced)', value: 'lrclib' },
+  { label: 'KuGou (Comprehensive Global & C-Pop)', value: 'kugou' },
+  { label: 'Paxsenix (Musixmatch / Spotify Mirror)', value: 'paxsenix' },
+  { label: 'SimpMusic (YouTube Music Syllables)', value: 'simpmusic' }
+];
+
 const lyricsAnimationOptions = [
+  { label: 'Apple Spring (Jump from Top)', value: 'apple_spring' },
+  { label: 'AMLL Fluid (Smooth Glide)', value: 'smooth_fluid' },
+  { label: 'Funky Bounce (Pop Overshoot)', value: 'bouncy_pop' },
+  { label: '3D Carousel (Perspective Cylinder)', value: 'carousel_3d' },
+  { label: 'Cyberpunk Glow (Neon Aura Snap)', value: 'cyberpunk_glow' },
+  { label: 'Kinetic Slant (Directional Skew)', value: 'kinetic_slant' },
+  { label: 'Minimal Fade (Pure Crossfade)', value: 'minimal_fade' },
   { label: 'None', value: 'NONE' },
-  { label: 'Fade', value: 'FADE' },
-  { label: 'Glow', value: 'GLOW' },
-  { label: 'Slide', value: 'SLIDE' },
-  { label: 'Karaoke', value: 'KARAOKE' },
-  { label: 'Apple Music Style', value: 'APPLE' },
-  { label: 'Apple Music Style (Letter)', value: 'APPLE_V2' },
-  { label: 'Chorus Music 1', value: 'chorusmusic_1' },
-  { label: 'Lyrics V2 Fluid', value: 'LYRICS_V2' },
-  { label: 'Metro Lyrics', value: 'METRO_LYRICS' }
+  { label: 'Legacy Slide', value: 'SLIDE' },
+  { label: 'Legacy Karaoke', value: 'KARAOKE' }
 ];
 
 const defaultOpenTabOptions = [
@@ -692,5 +736,55 @@ watch(
     }
   },
   { immediate: true }
+);
+
+onMounted(() => {
+  const currentConfig = readLyricConfig();
+  setData.value = {
+    ...setData.value,
+    lyricGranularity: setData.value.lyricGranularity ?? (currentConfig.lyricGranularity || 'auto'),
+    preferredLyricProvider: setData.value.preferredLyricProvider ?? (currentConfig.preferredLyricProvider || 'auto'),
+    lyricsTextSize: setData.value.lyricsTextSize ?? currentConfig.fontSize,
+    lyricsLineSpacing: setData.value.lyricsLineSpacing ?? currentConfig.lineHeight,
+    lyricsTextPosition: setData.value.lyricsTextPosition ?? (currentConfig.centerLyrics ? 'CENTER' : (currentConfig.lyricsTextPosition || 'LEFT')),
+    lyricsGlowEffect: setData.value.lyricsGlowEffect ?? (currentConfig.lyricsGlowEffect ?? true),
+    appleMusicLyricsBlur: setData.value.appleMusicLyricsBlur ?? (currentConfig.appleMusicLyricsBlur ?? true),
+    lyricsClick: setData.value.lyricsClick ?? (currentConfig.lyricsClick ?? true),
+    lyricsScroll: setData.value.lyricsScroll ?? (currentConfig.lyricsScroll ?? true),
+    lyricsAnimationStyle: setData.value.lyricsAnimationStyle ?? (currentConfig.lyricsAnimationStyle || 'apple_spring')
+  };
+});
+
+watch(
+  [
+    () => setData.value.lyricGranularity,
+    () => setData.value.preferredLyricProvider,
+    () => setData.value.lyricsTextSize,
+    () => setData.value.lyricsLineSpacing,
+    () => setData.value.lyricsTextPosition,
+    () => setData.value.lyricsGlowEffect,
+    () => setData.value.appleMusicLyricsBlur,
+    () => setData.value.lyricsClick,
+    () => setData.value.lyricsScroll,
+    () => setData.value.lyricsAnimationStyle
+  ],
+  ([granularity, provider, size, spacing, pos, glow, blur, click, scroll, anim]) => {
+    const current = readLyricConfig();
+    const updated = {
+      ...current,
+      lyricGranularity: granularity ?? current.lyricGranularity,
+      preferredLyricProvider: provider ?? current.preferredLyricProvider,
+      fontSize: size ?? current.fontSize,
+      lineHeight: spacing ?? current.lineHeight,
+      centerLyrics: pos === 'CENTER',
+      lyricsTextPosition: pos ?? current.lyricsTextPosition,
+      lyricsGlowEffect: glow ?? current.lyricsGlowEffect,
+      appleMusicLyricsBlur: blur ?? current.appleMusicLyricsBlur,
+      lyricsClick: click ?? current.lyricsClick,
+      lyricsScroll: scroll ?? current.lyricsScroll,
+      lyricsAnimationStyle: anim ?? current.lyricsAnimationStyle
+    };
+    writeLyricConfig(updated);
+  }
 );
 </script>

@@ -72,40 +72,26 @@ pub async fn fetch(video_id: &Option<String>) -> Option<LyricResult> {
     let mut lines = Vec::new();
     if is_synced {
         for line in lyrics_str.lines() {
-            if let Some(pos) = line.find(']') {
-                if line.starts_with('[') && pos >= 6 {
-                    let time_str = &line[1..pos];
-                    let text = line[pos+1..].trim().to_string();
-                    
-                    let mut parts = time_str.split(':');
-                    if let (Some(m), Some(s)) = (parts.next(), parts.next()) {
-                        if let (Ok(m), Ok(s)) = (m.parse::<f64>(), s.parse::<f64>()) {
-                            let time_ms = ((m * 60.0 + s) * 1000.0) as i64;
-                            lines.push(LyricLine {
-                                time: time_ms,
-                                text,
-                                words: None,
-                                translation: None,
-                                romaji: None,
-                            });
-                        }
-                    }
-                }
+            if let Some(parsed) = crate::lyrics::parse_lrc_or_elrc_line(line) {
+                lines.push(parsed);
             }
         }
     } else {
         for line in lyrics_str.lines() {
-            lines.push(LyricLine {
-                time: 0,
-                text: line.to_string(),
-                words: None,
-                translation: None,
-                romaji: None,
-            });
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                lines.push(LyricLine {
+                    time: 0,
+                    text: trimmed.to_string(),
+                    words: None,
+                    translation: None,
+                    romaji: None,
+                });
+            }
         }
     }
     
-    if lines.is_empty() && is_synced {
+    if lines.is_empty() {
         return None;
     }
     

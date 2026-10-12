@@ -106,9 +106,7 @@ function audioStreamProxyPlugin() {
           }
           const userAgent =
             reqUrl.searchParams.get('ua') ||
-            (streamUrl.includes('c=ANDROID')
-              ? 'com.google.android.youtube/21.02.35 (Linux; U; Android 11) gzip'
-              : 'com.google.ios.youtube/21.03.3 (iPad7,6; U; CPU iPadOS 17_7_10 like Mac OS X; en-US)');
+            'com.google.ios.youtube/21.03.3 (iPad7,6; U; CPU iPadOS 17_7_10 like Mac OS X; en-US)';
 
           let start = 0;
           let end: number | null = null;
@@ -125,12 +123,20 @@ function audioStreamProxyPlugin() {
           }
           const upstreamRange = end !== null ? `bytes=${start}-${end}` : `bytes=${start}-`;
 
+          const controller = new AbortController();
+          req.on('close', () => {
+            controller.abort();
+          });
+
           const upstream = await fetch(streamUrl, {
             headers: {
               'User-Agent': userAgent,
-              'Range': upstreamRange
-            }
+              'Range': upstreamRange,
+              'Accept': '*/*'
+            },
+            signal: controller.signal
           });
+
           if (upstream.status === 206 || upstream.status === 200) {
             const headers: Record<string, string> = {
               'Content-Type': upstream.headers.get('content-type') || 'audio/mp4',
@@ -144,15 +150,26 @@ function audioStreamProxyPlugin() {
               headers['Content-Length'] = upstream.headers.get('content-length')!;
             }
             res.writeHead(upstream.status, headers);
+
             if (upstream.body) {
-              const reader = (upstream.body as any).getReader();
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                res.write(Buffer.from(value));
-              }
+              const { Readable } = await import('node:stream');
+              const nodeStream = Readable.fromWeb(upstream.body as any);
+              req.on('close', () => {
+                try {
+                  nodeStream.destroy();
+                } catch {}
+              });
+              nodeStream.on('error', (err: any) => {
+                if (err.name !== 'AbortError' && !res.writableEnded) {
+                  try {
+                    res.end();
+                  } catch {}
+                }
+              });
+              nodeStream.pipe(res);
+            } else {
+              res.end();
             }
-            res.end();
           } else {
             res.writeHead(upstream.status, {
               'Access-Control-Allow-Origin': '*'
@@ -160,6 +177,9 @@ function audioStreamProxyPlugin() {
             res.end();
           }
         } catch (err: any) {
+          if (err.name === 'AbortError') {
+            return;
+          }
           console.error('[audioStreamProxyPlugin] error:', err);
           if (!res.headersSent) {
             res.writeHead(500, { 'Access-Control-Allow-Origin': '*' });

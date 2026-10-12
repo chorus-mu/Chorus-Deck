@@ -493,10 +493,20 @@ export const bridge = {
   getLyrics: (payload: unknown) => rawInvoke<unknown>('get-lyrics', { payload }),
   clearLyricsCache: () => rawInvoke<void>('clear-lyrics-cache'),
   clearLyricCache: () => rawInvoke<void>('clear-lyric-cache'),
-  cacheLyric: (key: string, value: unknown) => rawInvoke<void>('cache-lyric', { key, value }),
-  fetchBestLyrics: (title: string, artist: string, videoId?: string) =>
-    rawInvoke<any>('fetch_best_lyrics', { title, artist, videoId }),
-  clearDiskCache: () => rawInvoke<void>('clear-disk-cache'),
+  fetchBestLyrics: (
+    title: string,
+    artist: string,
+    videoId?: string,
+    duration?: number,
+    preferredProvider?: string
+  ) =>
+    rawInvoke<any>('fetch_best_lyrics', {
+      title,
+      artist,
+      videoId,
+      duration,
+      preferredProvider
+    }),
   getDiskCacheConfig: () => rawInvoke<unknown>('get-disk-cache-config'),
   setDiskCacheConfig: (config: unknown) => rawInvoke<void>('set-disk-cache-config', { config }),
   getDiskCacheStats: () => rawInvoke<unknown>('get-disk-cache-stats'),

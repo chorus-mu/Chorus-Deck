@@ -17,6 +17,9 @@ struct LyricsItem {
     text: Option<String>,
     time: Option<i64>,
     syllabus: Option<Vec<Syllable>>,
+    translation: Option<String>,
+    roman: Option<String>,
+    romaji: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -37,20 +40,23 @@ const BASE_SERVERS: &[&str] = &[
     "https://lyrics-plus-backend.vercel.app",
 ];
 
-pub async fn fetch(title: &str, artist: &str) -> Option<LyricResult> {
+pub async fn fetch(title: &str, artist: &str, duration: Option<f64>) -> Option<LyricResult> {
     let client = Client::builder().timeout(Duration::from_secs(8)).build().ok()?;
 
     let mut tasks = FuturesUnordered::new();
+    let dur_str = duration.map(|d| d.round() as i64).unwrap_or(0).to_string();
     
     for server in BASE_SERVERS {
         let client_clone = client.clone();
         let title_clone = title.to_string();
         let artist_clone = artist.to_string();
+        let dur_clone = dur_str.clone();
         let url = format!("{}/v2/lyrics/get", server);
         
         tasks.push(tokio::spawn(async move {
             let req = client_clone.get(&url)
-                .query(&[("title", &title_clone), ("artist", &artist_clone), ("duration", &"0".to_string())])
+                .query(&[("title", &title_clone), ("artist", &artist_clone), ("duration", &dur_clone)])
+                .header("User-Agent", "ChorusDeck/5.1.0 (https://github.com/chorus-mu)")
                 .send()
                 .await;
             match req {
@@ -66,20 +72,58 @@ pub async fn fetch(title: &str, artist: &str) -> Option<LyricResult> {
 
     while let Some(res) = tasks.next().await {
         if let Ok(Some(resp)) = res {
-            if resp.synced_lyrics.is_some() || resp.lyrics.is_some() || resp.plain_lyrics.is_some() {
+            // Prefer response with rich syllable lyrics if possible
+            if resp.lyrics.as_ref().map_or(false, |l| !l.is_empty()) {
                 first_valid_response = Some(resp);
                 break;
+            } else if resp.synced_lyrics.as_ref().map_or(false, |s| !s.trim().is_empty()) || resp.plain_lyrics.as_ref().map_or(false, |p| !p.trim().is_empty()) {
+                if first_valid_response.is_none() {
+                    first_valid_response = Some(resp);
+                }
             }
         }
     }
 
     let resp = first_valid_response?;
     
-    // Parse response
+    // Parse response prioritizing syllabus/word sync over line-only
     let mut lines = Vec::new();
     let mut is_synced = false;
 
-    if let Some(synced) = resp.synced_lyrics.filter(|s| !s.trim().is_empty()) {
+    if let Some(items) = resp.lyrics.filter(|l| !l.is_empty()) {
+        is_synced = true;
+        for item in items {
+            let line_time = item.time.unwrap_or(0);
+            let mut words = None;
+            
+            if let Some(syllables) = item.syllabus {
+                if !syllables.is_empty() {
+                    let mut w_list = Vec::new();
+                    for syl in syllables {
+                        let text = syl.text.unwrap_or_default();
+                        let bg_marker = if syl.is_background.unwrap_or(false) { "{bg}" } else { "" };
+                        w_list.push(LyricWord {
+                            word: format!("{}{}", bg_marker, text),
+                            start: syl.time.unwrap_or(line_time),
+                            duration: syl.duration.unwrap_or(0),
+                        });
+                    }
+                    words = Some(w_list);
+                }
+            }
+            
+            let translation = item.translation.filter(|t| !t.trim().is_empty());
+            let romaji = item.roman.or(item.romaji).filter(|r| !r.trim().is_empty());
+
+            lines.push(LyricLine {
+                time: line_time,
+                text: item.text.unwrap_or_default(),
+                words,
+                translation,
+                romaji,
+            });
+        }
+    } else if let Some(synced) = resp.synced_lyrics.filter(|s| !s.trim().is_empty()) {
         is_synced = true;
         for line in synced.lines() {
             if let Some(pos) = line.find(']') {
@@ -102,45 +146,18 @@ pub async fn fetch(title: &str, artist: &str) -> Option<LyricResult> {
                 }
             }
         }
-    } else if let Some(items) = resp.lyrics {
-        is_synced = true;
-        for item in items {
-            let line_time = item.time.unwrap_or(0);
-            let mut words = None;
-            
-            if let Some(syllables) = item.syllabus {
-                if !syllables.is_empty() {
-                    let mut w_list = Vec::new();
-                    for syl in syllables {
-                        let text = syl.text.unwrap_or_default();
-                        let bg_marker = if syl.is_background.unwrap_or(false) { "{bg}" } else { "" };
-                        w_list.push(LyricWord {
-                            word: format!("{}{}", bg_marker, text),
-                            start: syl.time.unwrap_or(line_time),
-                            duration: syl.duration.unwrap_or(0),
-                        });
-                    }
-                    words = Some(w_list);
-                }
-            }
-            
-            lines.push(LyricLine {
-                time: line_time,
-                text: item.text.unwrap_or_default(),
-                words,
-                translation: None,
-                romaji: None,
-            });
-        }
-    } else if let Some(plain) = resp.plain_lyrics {
+    } else if let Some(plain) = resp.plain_lyrics.filter(|p| !p.trim().is_empty()) {
         for line in plain.lines() {
-            lines.push(LyricLine {
-                time: 0,
-                text: line.to_string(),
-                words: None,
-                translation: None,
-                romaji: None,
-            });
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                lines.push(LyricLine {
+                    time: 0,
+                    text: trimmed.to_string(),
+                    words: None,
+                    translation: None,
+                    romaji: None,
+                });
+            }
         }
     }
 

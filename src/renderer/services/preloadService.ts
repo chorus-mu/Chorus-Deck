@@ -48,6 +48,9 @@ class PreloadService {
   }
 
   private async _validate(url: string, song: SongResult): Promise<string> {
+    if (song.dt && song.dt > 0) {
+      return url;
+    }
     return new Promise<string>((resolve, reject) => {
       const testAudio = new Audio();
       testAudio.preload = 'metadata';

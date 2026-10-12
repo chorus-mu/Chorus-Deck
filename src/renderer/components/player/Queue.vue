@@ -228,11 +228,102 @@
 
       <!-- Lyrics Tab -->
       <template v-else>
-        <div class="lyrics-container">
-          <div class="lyrics-placeholder">
-            <i class="ri-mic-line"></i>
-            <p>Lyrics coming soon</p>
+        <div class="queue-lyrics-container">
+          <div v-if="isLyricsLoading" class="queue-lyrics-loading">
+            <div
+              v-for="n in 6"
+              :key="n"
+              class="lyrics-skeleton-line"
+              :style="{ width: `${45 + (n % 4) * 15}%` }"
+            ></div>
           </div>
+
+          <div
+            v-else-if="lrcArray && lrcArray.length > 0"
+            ref="queueLyricsScrollerRef"
+            class="queue-lyrics-scroller"
+            :class="{
+              'text-center': lyricConfig.lyricsTextPosition === 'CENTER' || lyricConfig.centerLyrics,
+              'text-right': lyricConfig.lyricsTextPosition === 'RIGHT'
+            }"
+            @wheel="handleQueueLyricsScroll"
+            @touchstart="handleQueueLyricsScroll"
+          >
+            <div class="queue-lyrics-padding-top"></div>
+
+            <div
+              v-for="(item, index) in lrcArray"
+              :id="`queue-lyric-line-${index}`"
+              :key="index"
+              class="queue-lyric-line"
+              :class="{
+                'is-active': isLineActive(index),
+                'is-clickable': lyricConfig.lyricsClick !== false && item.startTime !== -1 && item.text,
+                'has-glow': lyricConfig.lyricsGlowEffect !== false
+              }"
+              :style="getQueueLineStyle(index)"
+              @click="lyricConfig.lyricsClick !== false && item.startTime !== -1 ? handleLyricClick(index) : null"
+            >
+              <AmllInterludeDots
+                v-if="item.isPreamble || !item.text || item.text.trim() === '•••' || item.text.trim() === ''"
+                :start-time="item.startTime ?? 0"
+                :duration="item.duration ?? 3000"
+                :current-time="(nowTime + correctionTime) * 1000"
+                :is-active="isLineActive(index)"
+                :is-first-line="index === 0"
+              />
+
+              <div
+                v-else-if="shouldRenderWordByWord(item)"
+                class="queue-word-by-word-lyric"
+              >
+                <template v-for="(word, wordIndex) in item.words" :key="wordIndex">
+                  <span
+                    class="queue-lyric-word"
+                    :style="getQueueWordStyle(index, wordIndex, word)"
+                  >
+                    {{ word.text ? word.text.replace('{bg}', '') : '' }}
+                  </span>
+                  <span v-if="word.space" class="queue-lyric-space">&nbsp;</span>
+                </template>
+              </div>
+
+              <span
+                v-else
+                class="queue-lyric-text"
+                :style="getQueueLrcStyle(index)"
+                :class="{ 'bg-vocal': item.text ? item.text.startsWith('{bg}') : false }"
+              >
+                {{ item.text ? item.text.replace('{bg}', '') : '' }}
+              </span>
+
+              <div v-if="lyricConfig.showRoma !== false && item.romaText" class="queue-lyric-roma">
+                {{ item.romaText }}
+              </div>
+              <div v-if="lyricConfig.showTranslation !== false && item.trText" class="queue-lyric-tr">
+                {{ item.trText }}
+              </div>
+            </div>
+
+            <div class="queue-lyrics-padding-bottom"></div>
+          </div>
+
+          <div v-else class="queue-lyrics-empty">
+            <i class="ri-music-2-line"></i>
+            <p v-if="currentSong?.id">No lyrics found for this song</p>
+            <p v-else>Play a song to view lyrics</p>
+          </div>
+
+          <button
+            v-if="showQueueSyncBtn && lrcArray && lrcArray.length > 0"
+            class="queue-lyrics-sync-btn"
+            type="button"
+            @click="syncQueueLyrics"
+            title="Resume auto-scroll"
+          >
+            <i class="ri-focus-3-line"></i>
+            <span>Sync</span>
+          </button>
         </div>
       </template>
     </div>
@@ -241,16 +332,37 @@
 
 <script setup lang="ts">
 import { NDropdown, useDialog, useMessage, useThemeVars } from 'naive-ui';
+import tinycolor from 'tinycolor2';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
-import SongItem from '@/components/common/SongItem.vue';
-import { artistList, normalizeArtistList, playMusic } from '@/hooks/MusicHook';
+import AmllInterludeDots from '@/components/lyric/AmllInterludeDots.vue';
+import {
+  artistList,
+  correctionTime,
+  ensureLyricsLoaded,
+  isLyricsLoading,
+  lrcArray,
+  normalizeArtistList,
+  nowIndex,
+  nowTime,
+  playMusic,
+  setAudioTime,
+  textColors,
+  useLyricProgress
+} from '@/hooks/MusicHook';
 import { usePlaybackControl } from '@/hooks/usePlaybackControl';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import type { SongResult } from '@/types/music';
 import { getImgUrl, isCompact, secondToMinute } from '@/utils';
+import { computeLyricLineStyle } from '@/utils/lyricAnimation';
+import { LYRIC_CONFIG_CHANGE_EVENT, readLyricConfig } from '@/utils/lyricConfig';
 import logoImg from '@/assets/logo.png';
+
+const lyricConfig = ref(readLyricConfig());
+const handleLyricConfigChange = () => {
+  lyricConfig.value = readLyricConfig();
+};
 
 const getFallbackArt = (item: any): string => {
   const sid = item?.id ? String(item.id) : '';
@@ -278,13 +390,63 @@ const activeTab = ref<'queue' | 'lyrics'>('queue');
 const isShellLayout = computed(() => !isCompact.value);
 const repeatMode = computed(() => playerStore.repeatMode);
 const shuffleEnabled = computed(() => playerStore.shuffleEnabled);
-const accentColor = computed(
+const isDarkTheme = computed(() => {
+  return settingsStore.theme === 'dark' || document.documentElement.classList.contains('dark');
+});
+
+const rawAlbumColor = computed(
   () =>
-    playMusic.value?.primaryColor || themeVars.value.primaryColor || 'var(--primary-color, #6366f1)'
+    playMusic.value?.primaryColor || themeVars.value.primaryColor || '#6366f1'
 );
 
+const accentColor = computed(() => {
+  const base = rawAlbumColor.value;
+  const tc = tinycolor(base);
+  if (!tc.isValid()) return isDarkTheme.value ? '#c7d2fe' : '#1e1b4b';
+
+  const hsl = tc.toHsl();
+  if (isDarkTheme.value) {
+    // In dark mode: high luminance & vivid saturation for radiant neon glow
+    const sat = Math.min(Math.max(hsl.s, 0.5) * 1.1, 1);
+    const lum = Math.min(Math.max(hsl.l, 0.72), 0.88);
+    return tinycolor({ h: hsl.h, s: sat, l: lum }).toRgbString();
+  } else {
+    // In light mode: deep, rich, aggressive dark tone of the album art (strong contrast against light background)
+    const sat = Math.min(Math.max(hsl.s, 0.6) * 1.25, 1);
+    const lum = Math.min(Math.max(hsl.l, 0.14), 0.26);
+    return tinycolor({ h: hsl.h, s: sat, l: lum }).toRgbString();
+  }
+});
+
+// Inactive/dim text color adapted for light vs dark theme
+const inactiveLyricColor = computed(() => {
+  const base = rawAlbumColor.value;
+  const tc = tinycolor(base);
+  const h = tc.isValid() ? tc.toHsl().h : 230;
+
+  if (isDarkTheme.value) {
+    // Soft muted light tinted with subtle album hue
+    return tinycolor({ h, s: 0.12, l: 0.52 }).toRgbString();
+  } else {
+    // Semi-transparent muted tone so active line pops decisively
+    return tinycolor({ h, s: 0.18, l: 0.55 }).setAlpha(0.65).toRgbString();
+  }
+});
+
+// Glow effect shadow based on theme
+const lyricGlowStyle = computed(() => {
+  if (isDarkTheme.value) {
+    return `0 0 16px color-mix(in srgb, ${accentColor.value} 70%, transparent), 0 0 32px color-mix(in srgb, ${accentColor.value} 40%, transparent)`;
+  } else {
+    // In light theme: crisp, aggressive ambient halo highlighting the dark text
+    return `0 3px 12px color-mix(in srgb, ${accentColor.value} 45%, transparent), 0 0 1px ${accentColor.value}`;
+  }
+});
+
 const panelStyle = computed(() => ({
-  '--accent': accentColor.value
+  '--accent': accentColor.value,
+  '--lyric-inactive': inactiveLyricColor.value,
+  '--lyric-glow': lyricGlowStyle.value
 }));
 
 const headerStyle = computed(() => ({
@@ -336,11 +498,202 @@ const isCurrentItem = (item: any) => {
   return String(item.id) === String(currentSong.value.id);
 };
 
+const queueLyricsScrollerRef = ref<HTMLElement | null>(null);
+const isUserScrolledLyrics = ref(false);
+const showQueueSyncBtn = ref(false);
+let lyricsUserScrollTimeout: ReturnType<typeof setTimeout> | null = null;
+const { getLrcStyle: originalLrcStyle } = useLyricProgress();
+
+const handleQueueLyricsScroll = () => {
+  isUserScrolledLyrics.value = true;
+  showQueueSyncBtn.value = true;
+  if (lyricsUserScrollTimeout) {
+    clearTimeout(lyricsUserScrollTimeout);
+  }
+  lyricsUserScrollTimeout = setTimeout(() => {
+    isUserScrolledLyrics.value = false;
+    showQueueSyncBtn.value = false;
+    scrollToActiveLyric(false);
+  }, 3500);
+};
+
+const syncQueueLyrics = () => {
+  if (lyricsUserScrollTimeout) {
+    clearTimeout(lyricsUserScrollTimeout);
+    lyricsUserScrollTimeout = null;
+  }
+  isUserScrolledLyrics.value = false;
+  showQueueSyncBtn.value = false;
+  scrollToActiveLyric(false);
+};
+
+const scrollToActiveLyric = (immediate = false) => {
+  if (!queueLyricsScrollerRef.value || !lrcArray.value.length) return;
+  if (isUserScrolledLyrics.value && !immediate) return;
+  if (lyricConfig.value.lyricsScroll === false && !immediate) return;
+
+  const activeEl = document.getElementById(`queue-lyric-line-${nowIndex.value}`);
+  if (!activeEl) return;
+
+  const scroller = queueLyricsScrollerRef.value;
+  const containerRect = scroller.getBoundingClientRect();
+  const lineRect = activeEl.getBoundingClientRect();
+
+  const targetScrollTop =
+    scroller.scrollTop +
+    (lineRect.top - containerRect.top) -
+    containerRect.height / 2 +
+    lineRect.height / 2;
+
+  scroller.scrollTo({
+    top: Math.max(0, targetScrollTop),
+    behavior: immediate ? 'auto' : 'smooth'
+  });
+};
+
+const handleLyricClick = (index: number) => {
+  setAudioTime(index);
+  isUserScrolledLyrics.value = false;
+  showQueueSyncBtn.value = false;
+  nextTick(() => {
+    scrollToActiveLyric(false);
+  });
+};
+
+const isLineActive = (index: number) => {
+  return index === nowIndex.value;
+};
+
+const shouldRenderWordByWord = (item: any) => {
+  if (lyricConfig.value.lyricGranularity === 'sentence') return false;
+  return !!(item?.hasWordByWord && item?.words && item?.words.length > 0);
+};
+
+const getQueueLineStyle = (index: number) => {
+  const active = isLineActive(index);
+  const userFontSize = lyricConfig.value.fontSize ? `${lyricConfig.value.fontSize * 0.9}px` : undefined;
+  const userLineHeight = lyricConfig.value.lineHeight ? `${lyricConfig.value.lineHeight}` : undefined;
+  const userAlign: 'left' | 'center' | 'right' =
+    lyricConfig.value.lyricsTextPosition === 'CENTER' || lyricConfig.value.centerLyrics
+      ? 'center'
+      : lyricConfig.value.lyricsTextPosition === 'RIGHT'
+        ? 'right'
+        : 'left';
+
+  const animStyle = computeLyricLineStyle({
+    index,
+    nowIndex: nowIndex.value,
+    style: lyricConfig.value.lyricsAnimationStyle || 'apple_spring',
+    alignment: userAlign,
+    focusEnabled: lyricConfig.value.focusCurrentLyric !== false
+  });
+
+  if (active) {
+    const hasGlow = lyricConfig.value.lyricsGlowEffect !== false;
+    return {
+      ...animStyle,
+      fontSize: userFontSize,
+      lineHeight: userLineHeight,
+      background: `color-mix(in srgb, ${accentColor.value} 14%, transparent)`,
+      boxShadow: hasGlow
+        ? isDarkTheme.value
+          ? `0 0 20px color-mix(in srgb, ${accentColor.value} 28%, transparent)`
+          : `0 2px 10px color-mix(in srgb, ${accentColor.value} 18%, transparent)`
+        : 'none'
+    };
+  }
+
+  return {
+    ...animStyle,
+    fontSize: userFontSize,
+    lineHeight: userLineHeight
+  };
+};
+
+const getQueueLrcStyle = (index: number) => {
+  const activeClr = accentColor.value;
+  const inactiveClr = inactiveLyricColor.value;
+
+  if (index === nowIndex.value) {
+    const originalStyle = originalLrcStyle(index);
+    if (originalStyle.backgroundImage) {
+      return {
+        ...originalStyle,
+        backgroundImage: originalStyle.backgroundImage
+          .replace(/#ffffff/g, activeClr)
+          .replace(/#ffffff8a/g, inactiveClr),
+        backgroundClip: 'text',
+        WebkitBackgroundClip: 'text',
+        color: 'transparent'
+      };
+    }
+    return {
+      color: activeClr
+    };
+  }
+
+  return {
+    color: inactiveClr
+  };
+};
+
+const getQueueWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
+  const activeClr = accentColor.value;
+  const inactiveClr = inactiveLyricColor.value;
+
+  if (lineIndex !== nowIndex.value) {
+    return {
+      color: inactiveClr,
+      transition: 'color 0.25s ease'
+    };
+  }
+
+  const currentTime = (nowTime.value + correctionTime.value) * 1000;
+  const wordStartTime = word.startTime;
+  const wordEndTime = word.startTime + word.duration;
+
+  if (currentTime >= wordStartTime && currentTime < wordEndTime) {
+    const progress = Math.min((currentTime - wordStartTime) / word.duration, 1);
+    const progressPercent = Math.round(progress * 100);
+
+    return {
+      backgroundImage: `linear-gradient(to right, ${activeClr} 0%, ${activeClr} ${progressPercent}%, ${inactiveClr} ${progressPercent}%, ${inactiveClr} 100%)`,
+      backgroundClip: 'text',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+      transition: 'all 0.1s ease'
+    };
+  } else if (currentTime >= wordEndTime) {
+    return {
+      color: activeClr,
+      WebkitTextFillColor: 'initial',
+      transition: 'none'
+    };
+  } else {
+    return {
+      color: inactiveClr,
+      WebkitTextFillColor: 'initial',
+      transition: 'color 0.25s ease'
+    };
+  }
+};
+
+watch(nowIndex, () => {
+  if (activeTab.value === 'lyrics' && internalVisible.value) {
+    scrollToActiveLyric(false);
+  }
+});
+
 const switchTab = (tab: 'queue' | 'lyrics') => {
   activeTab.value = tab;
   window.dispatchEvent(new CustomEvent('queue-tab-changed', { detail: tab }));
   if (tab === 'queue') {
     scrollToCurrentSong(true);
+  } else if (tab === 'lyrics') {
+    void ensureLyricsLoaded(false);
+    nextTick(() => {
+      scrollToActiveLyric(true);
+    });
   }
 };
 
@@ -382,11 +735,13 @@ const handleKeyDown = (event: KeyboardEvent) => {
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('open-queue-tab', handleOpenTab as any);
+  window.addEventListener(LYRIC_CONFIG_CHANGE_EVENT, handleLyricConfigChange);
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('open-queue-tab', handleOpenTab as any);
+  window.removeEventListener(LYRIC_CONFIG_CHANGE_EVENT, handleLyricConfigChange);
 });
 
 const queueItems = computed(() => playerStore.queueItems as SongResult[]);
@@ -412,8 +767,15 @@ const closePanel = () => {
 const onAnimationEnd = () => {
   if (closing.value) {
     internalVisible.value = false;
-  } else if (internalVisible.value && activeTab.value === 'queue') {
-    scrollToCurrentSong(false);
+  } else if (internalVisible.value) {
+    if (activeTab.value === 'queue') {
+      scrollToCurrentSong(false);
+    } else if (activeTab.value === 'lyrics') {
+      void ensureLyricsLoaded(false);
+      nextTick(() => {
+        scrollToActiveLyric(true);
+      });
+    }
   }
 };
 
@@ -818,17 +1180,216 @@ const handleClearQueue = () => {
   }
 }
 
-.lyrics-container {
-  @apply flex-1 flex items-center justify-center;
+.queue-lyrics-container {
+  @apply relative flex flex-col flex-1 h-full overflow-hidden;
+  user-select: none;
 
-  .lyrics-placeholder {
-    @apply flex flex-col items-center gap-3 text-gray-400 dark:text-gray-500;
+  .queue-lyrics-scroller {
+    @apply flex-1 overflow-y-auto px-5 py-4;
+    scroll-behavior: smooth;
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 10%,
+      black 88%,
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 10%,
+      black 88%,
+      transparent 100%
+    );
+
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .queue-lyrics-padding-top {
+    height: 38%;
+  }
+
+  .queue-lyrics-padding-bottom {
+    height: 48%;
+  }
+
+  .queue-lyric-line {
+    @apply py-2.5 px-3 rounded-xl transition-all duration-300;
+    line-height: 1.5;
+    font-size: 1.05rem;
+    font-weight: 500;
+    color: var(--lyric-inactive, rgba(120, 120, 120, 0.75));
+    transform-origin: left center;
+    cursor: default;
+
+    &.is-clickable {
+      cursor: pointer;
+
+      &:hover:not(.is-active) {
+        opacity: 0.9;
+        transform: scale(1.015);
+      }
+    }
+
+    &.is-active {
+      color: var(--accent, #6366f1) !important;
+      font-size: 1.35rem;
+      font-weight: 800;
+      filter: drop-shadow(var(--lyric-glow));
+      position: relative;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: -4px;
+        top: 18%;
+        bottom: 18%;
+        width: 3.5px;
+        border-radius: 4px;
+        background: var(--accent, #6366f1);
+        box-shadow: 0 0 10px var(--accent, #6366f1);
+      }
+
+      .queue-lyric-text {
+        color: var(--accent, #6366f1);
+        font-weight: 800;
+      }
+    }
+
+    .queue-lyric-text {
+      display: inline-block;
+      transition: all 0.2s ease;
+      word-break: break-word;
+    }
+
+    .queue-word-by-word-lyric {
+      display: inline;
+      word-break: break-word;
+
+      .queue-lyric-word {
+        display: inline;
+      }
+      .queue-lyric-space {
+        display: inline;
+      }
+    }
+
+    .queue-lyric-roma {
+      @apply text-xs mt-1 font-normal opacity-70;
+    }
+
+    .queue-lyric-tr {
+      @apply text-xs mt-0.5 font-normal opacity-85;
+    }
+  }
+
+  .queue-lyrics-loading {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 40px 24px;
+    width: 100%;
+
+    .lyrics-skeleton-line {
+      height: 24px;
+      border-radius: 8px;
+      background: linear-gradient(
+        90deg,
+        rgba(150, 150, 150, 0.12) 25%,
+        rgba(150, 150, 150, 0.24) 37%,
+        rgba(150, 150, 150, 0.12) 63%
+      );
+      background-size: 400% 100%;
+      animation: shimmerSkeleton 1.4s ease infinite;
+    }
+  }
+
+  .queue-preamble-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+
+    .preamble-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent, currentColor);
+      opacity: 0.4;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    &.is-active {
+      .preamble-dot {
+        opacity: 0.95;
+        background: var(--accent, currentColor);
+        animation: amllDotPulse 1.4s ease-in-out infinite;
+
+        &.dot-1 {
+          animation-delay: 0s;
+        }
+        &.dot-2 {
+          animation-delay: 0.25s;
+        }
+        &.dot-3 {
+          animation-delay: 0.5s;
+        }
+      }
+    }
+  }
+
+  .queue-lyrics-empty {
+    @apply flex flex-col items-center justify-center flex-1 gap-3 py-20 text-gray-400 dark:text-gray-500;
     i {
-      font-size: 40px;
+      font-size: 42px;
+      opacity: 0.8;
     }
     p {
-      @apply text-sm;
+      @apply text-sm font-medium;
     }
+  }
+
+  .queue-lyrics-sync-btn {
+    @apply absolute bottom-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg;
+    background: var(--accent, #6366f1);
+    color: #ffffff;
+    border: none;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+    animation: fadeIn 0.25s ease-out;
+    z-index: 10;
+
+    &:hover {
+      transform: scale(1.06);
+    }
+    &:active {
+      transform: scale(0.96);
+    }
+  }
+}
+
+@keyframes shimmerSkeleton {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+@keyframes amllDotPulse {
+  0%, 100% {
+    transform: scale(0.85);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 1;
   }
 }
 

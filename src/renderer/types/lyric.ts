@@ -1,3 +1,24 @@
+export type LyricGranularity = 'auto' | 'sentence' | 'word' | 'syllable';
+
+export type LyricAnimationStyle =
+  | 'apple_spring'
+  | 'smooth_fluid'
+  | 'bouncy_pop'
+  | 'carousel_3d'
+  | 'cyberpunk_glow'
+  | 'kinetic_slant'
+  | 'minimal_fade'
+  | 'chorusmusic_1';
+
+export type LyricProviderPreference =
+  | 'auto'
+  | 'betterlyrics'
+  | 'youlyplus'
+  | 'lrclib'
+  | 'kugou'
+  | 'paxsenix'
+  | 'simpmusic';
+
 export interface LyricConfig {
   hideCover: boolean;
   centerLyrics: boolean;
@@ -15,6 +36,15 @@ export interface LyricConfig {
   hideLyrics: boolean;
   focusCurrentLyric: boolean;
   contentWidth: number;
+
+  lyricsTextPosition?: 'LEFT' | 'CENTER' | 'RIGHT';
+  lyricsAnimationStyle?: LyricAnimationStyle | string;
+  lyricGranularity?: LyricGranularity;
+  preferredLyricProvider?: LyricProviderPreference;
+  lyricsClick?: boolean;
+  lyricsScroll?: boolean;
+  lyricsGlowEffect?: boolean;
+  appleMusicLyricsBlur?: boolean;
 
   compactLayout: 'default' | 'ios' | 'android';
   compactCoverStyle: 'record' | 'square' | 'full';
@@ -49,6 +79,15 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   hideLyrics: false,
   focusCurrentLyric: false,
   contentWidth: 75,
+
+  lyricsTextPosition: 'LEFT',
+  lyricsAnimationStyle: 'apple_spring',
+  lyricGranularity: 'auto',
+  preferredLyricProvider: 'auto',
+  lyricsClick: true,
+  lyricsScroll: true,
+  lyricsGlowEffect: true,
+  appleMusicLyricsBlur: true,
 
   compactLayout: 'ios',
   compactCoverStyle: 'full',

@@ -7,6 +7,7 @@ import type { usePlayerStore } from '@/store';
 import type { Artist, ILyricText, SongResult } from '@/types/music';
 import { isDesktop } from '@/utils';
 import { getTextColors } from '@/utils/linearColor';
+import { readLyricConfig } from '@/utils/lyricConfig';
 import { parseLyrics } from '@/utils/yrcParser';
 
 const windowData = window as any;
@@ -142,6 +143,7 @@ const getPlayerStore = () => {
   }
   return playerStore;
 };
+export const isLyricsLoading = ref(false);
 export const lrcArray = ref<ILyricText[]>([]);
 export const lrcTimeArray = ref<number[]>([]);
 export const nowTime = ref(0);
@@ -209,6 +211,85 @@ const setupKeyboardListeners = () => {
 
 let audioListenersInitialized = false;
 
+export const processLyricsDualLanguage = (lines: ILyricText[]): ILyricText[] => {
+  if (!lines || lines.length === 0) return [];
+  const result: ILyricText[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const curr = lines[i];
+    if (result.length > 0) {
+      const prev = result[result.length - 1];
+      const prevTime = prev.startTime ?? 0;
+      const currTime = curr.startTime ?? 0;
+      if (Math.abs(currTime - prevTime) <= 250 && !prev.trText && curr.text) {
+        prev.trText = curr.text;
+        continue;
+      }
+    }
+    result.push({ ...curr });
+  }
+  return result;
+};
+
+export const insertPreambleIfNeeded = (lines: ILyricText[]): ILyricText[] => {
+  if (!lines || lines.length === 0) return lines;
+
+  const result: ILyricText[] = [];
+  const first = lines[0];
+  const firstTimeMs = first.startTime ?? 0;
+  if (firstTimeMs >= 1800 && !first.isPreamble && first.text?.trim() !== '•••') {
+    result.push({
+      text: '•••',
+      trText: '',
+      romaText: '',
+      startTime: 0,
+      duration: firstTimeMs,
+      isPreamble: true,
+      hasWordByWord: false
+    });
+  }
+
+  const MIN_INTERLUDE_GAP = 5000;
+  for (let i = 0; i < lines.length; i++) {
+    const curr = lines[i];
+    const textTrimmed = curr.text ? curr.text.trim() : '';
+    if (textTrimmed === '' || textTrimmed === '•••') {
+      const duration = curr.duration ?? 0;
+      if (duration >= 2000) {
+        result.push({
+          ...curr,
+          text: '•••',
+          isPreamble: true,
+          hasWordByWord: false
+        });
+      }
+      continue;
+    }
+    result.push(curr);
+    if (i < lines.length - 1) {
+      const next = lines[i + 1];
+      const currStart = curr.startTime ?? 0;
+      const currDuration = curr.duration ?? 0;
+      const currEnd = currDuration > 0 ? currStart + currDuration : currStart + 2000;
+      const nextStart = next.startTime ?? 0;
+      const gap = nextStart - currEnd;
+
+      if (gap >= MIN_INTERLUDE_GAP && next.text?.trim() !== '' && next.text?.trim() !== '•••') {
+        result.push({
+          text: '•••',
+          trText: '',
+          romaText: '',
+          startTime: currEnd,
+          duration: gap,
+          isPreamble: true,
+          hasWordByWord: false
+        });
+      }
+    }
+  }
+
+  return result;
+};
+
 const parseLyricsString = async (
   lyricsStr: string
 ): Promise<{ lrcArray: ILyricText[]; lrcTimeArray: number[]; hasWordByWord: boolean }> => {
@@ -225,7 +306,6 @@ const parseLyricsString = async (
 
     const { lyrics } = parseResult.data;
     const lrcArray: ILyricText[] = [];
-    const lrcTimeArray: number[] = [];
     let hasWordByWord = false;
 
     for (const line of lyrics) {
@@ -246,27 +326,35 @@ const parseLyricsString = async (
         startTime: line.startTime,
         duration: line.duration
       });
-
-      lrcTimeArray.push(line.startTime / 1000);
     }
-    return { lrcArray, lrcTimeArray, hasWordByWord };
+    const dual = processLyricsDualLanguage(lrcArray);
+    const finalLines = insertPreambleIfNeeded(dual);
+    const finalTimes = finalLines.map((l) => (l.startTime ?? 0) / 1000);
+    return { lrcArray: finalLines, lrcTimeArray: finalTimes, hasWordByWord };
   } catch (error) {
     console.error('An error occurred while parsing lyrics:', error);
     return { lrcArray: [], lrcTimeArray: [], hasWordByWord: false };
   }
 };
 
-const ensureLyricsLoaded = async (force = false) => {
+export const ensureLyricsLoaded = async (force = false) => {
   const songId = playMusic.value?.id;
   if (!songId) {
     lrcArray.value = [];
     lrcTimeArray.value = [];
     nowIndex.value = 0;
+    isLyricsLoading.value = false;
     return;
   }
-  if (!force && lrcArray.value.length > 0) return;
+  if (!force && lrcArray.value.length > 0) {
+    isLyricsLoading.value = false;
+    return;
+  }
 
+  isLyricsLoading.value = true;
   await nextTick();
+
+  try {
 
   const lyricData = playMusic.value.lyric;
   if (lyricData && typeof lyricData === 'string') {
@@ -283,15 +371,18 @@ const ensureLyricsLoaded = async (force = false) => {
     }
   } else if (lyricData && typeof lyricData === 'object' && lyricData.lrcArray?.length > 0) {
     const rawLrc = lyricData.lrcArray || [];
-    lrcTimeArray.value = lyricData.lrcTimeArray || [];
 
+    let translated = rawLrc as any;
     try {
       const { translateLyrics } = await import('@/services/lyricTranslation');
-      lrcArray.value = await translateLyrics(rawLrc as any);
+      translated = await translateLyrics(rawLrc as any);
     } catch (e) {
       console.error('Failed to translate lyrics, use original lyrics:', e);
-      lrcArray.value = rawLrc as any;
     }
+    const dual = processLyricsDualLanguage(translated);
+    const finalLines = insertPreambleIfNeeded(dual);
+    lrcArray.value = finalLines;
+    lrcTimeArray.value = finalLines.map((l) => (l.startTime ?? 0) / 1000);
   } else if (playMusic.value.playMusicUrl?.startsWith('local://')) {
     try {
       let filePath = decodeURIComponent(playMusic.value.playMusicUrl.replace('local://', ''));
@@ -321,25 +412,42 @@ const ensureLyricsLoaded = async (force = false) => {
         const artist =
           playMusic.value.ar?.[0]?.name || playMusic.value.artists?.[0]?.name || '';
         const videoId = playMusic.value.id;
+        const durationSec = playMusic.value.dt
+          ? playMusic.value.dt / 1000
+          : (playMusic.value.duration || undefined);
         
-        const fetchedLyrics = await window.api.fetchBestLyrics(title, artist, videoId);
+        const config = readLyricConfig();
+        const preferredProvider = config.preferredLyricProvider || 'auto';
+        const fetchedLyrics = await window.api.fetchBestLyrics(title, artist, videoId, durationSec, preferredProvider);
         
         if (fetchedLyrics && fetchedLyrics.lines) {
-            lrcArray.value = fetchedLyrics.lines.map((line: any) => ({
+            const rawLines = fetchedLyrics.lines.map((line: any) => ({
                 text: line.text,
-                trText: '',
+                trText: line.translation || line.trText || '',
+                romaText: line.romaji || line.romaText || '',
                 startTime: line.time,
-                hasWordByWord: line.words !== null && line.words !== undefined,
-                words: line.words?.map((w: any) => ({ word: w.word, startTime: w.start, duration: w.duration }))
+                hasWordByWord: Array.isArray(line.words) && line.words.length > 0,
+                words: line.words?.map((w: any) => ({
+                    text: w.word,
+                    word: w.word,
+                    startTime: w.start,
+                    duration: w.duration
+                }))
             }));
-            lrcTimeArray.value = fetchedLyrics.lines.map((line: any) => line.time / 1000);
+            const dual = processLyricsDualLanguage(rawLines);
+            const finalLines = insertPreambleIfNeeded(dual);
+            lrcArray.value = finalLines;
+            lrcTimeArray.value = finalLines.map((l) => (l.startTime ?? 0) / 1000);
             
-            console.log(`Successfully loaded lyrics from provider: ${fetchedLyrics.provider}`);
+            console.log(`Successfully loaded lyrics from provider: ${fetchedLyrics.provider} (synced: ${fetchedLyrics.is_synced})`);
         }
     } catch (err) {
         console.error("Failed to fetch lyrics from network providers:", err);
     }
   }
+} finally {
+  isLyricsLoading.value = false;
+}
 
   if (isLyricWindowOpen.value) {
     sendLyricToWin();
@@ -354,6 +462,7 @@ const setupMusicWatchers = () => {
     () => store.playMusic.id,
     async (newId, oldId) => {
       if (newId !== oldId) {
+        isLyricsLoading.value = true;
         lrcArray.value = [];
         lrcTimeArray.value = [];
         nowTime.value = 0;

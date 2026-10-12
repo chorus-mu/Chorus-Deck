@@ -10,7 +10,7 @@
         />
       </svg>
       <div class="artwork-small" :style="{ clipPath: artworkClip }" v-if="currentTrack?.cover && failedCover !== currentTrack.cover">
-        <img :src="currentTrack.cover" referrerpolicy="no-referrer" @error="failedCover = currentTrack.cover" />
+        <img :src="currentTrack.cover" referrerpolicy="no-referrer" loading="eager" decoding="sync" @error="failedCover = currentTrack.cover" />
       </div>
       <div class="artwork-small placeholder" :style="{ clipPath: artworkClip }" v-else>
         <i class="ri-music-2-line"></i>

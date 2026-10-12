@@ -297,10 +297,11 @@ impl Read for HttpStreamSource {
                 out[..n].copy_from_slice(&buf[offset..offset + n]);
                 self.pos += n as u64;
 
-                if self.pos > s.buf_start {
-                    let drop_n = (self.pos - s.buf_start) as usize;
+                const RETAIN_BEHIND: u64 = 512 * 1024;
+                if self.pos > s.buf_start + RETAIN_BEHIND {
+                    let drop_n = (self.pos - s.buf_start - RETAIN_BEHIND) as usize;
                     s.buf.drain(..drop_n);
-                    s.buf_start = self.pos;
+                    s.buf_start += drop_n as u64;
                 }
                 drop(s);
                 self.shared.cond.notify_all();
@@ -480,6 +481,19 @@ pub async fn audio_play(
         Some(ms) if ms > 0.0 => Some((ms / 1000.0) as f32),
         _ => source.total_duration().map(|d| d.as_secs_f32()),
     };
+
+    { 
+        let mut s = shared.state.lock().unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1000);
+        while s.buf.len() < 256 * 1024 && !s.eof && s.error.is_none() && s.alive {
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            if remaining.is_zero() {
+                break;
+            }
+            let (guard, _) = shared.cond.wait_timeout(s, remaining).unwrap();
+            s = guard;
+        }
+    }
 
     let mut player_lock = state.player.lock().unwrap();
     let mut player = AudioPlayer::new()?;

@@ -1117,23 +1117,6 @@ const WEB_REMIX: YTStreamClient = {
 
 const STREAM_FALLBACK_CLIENTS: YTStreamClient[] = [
   {
-    clientName: 'ANDROID',
-    clientVersion: '21.02.35',
-    clientId: 3,
-    userAgent: 'com.google.android.youtube/21.02.35 (Linux; U; Android 11) gzip',
-    osName: 'Android',
-    osVersion: '11',
-    deviceMake: 'Google',
-    deviceModel: 'Pixel 5',
-    androidSdkVersion: 30,
-    friendlyName: 'Android 21.02',
-    loginSupported: false,
-    loginRequired: false,
-    useSignatureTimestamp: true,
-    useWebPoTokens: false,
-    isEmbedded: false
-  },
-  {
     clientName: 'IOS',
     clientVersion: '21.03.3',
     clientId: 5,
@@ -1162,6 +1145,23 @@ const STREAM_FALLBACK_CLIENTS: YTStreamClient[] = [
     loginSupported: false,
     loginRequired: false,
     useSignatureTimestamp: false,
+    useWebPoTokens: false,
+    isEmbedded: false
+  },
+  {
+    clientName: 'ANDROID',
+    clientVersion: '21.02.35',
+    clientId: 3,
+    userAgent: 'com.google.android.youtube/21.02.35 (Linux; U; Android 11) gzip',
+    osName: 'Android',
+    osVersion: '11',
+    deviceMake: 'Google',
+    deviceModel: 'Pixel 5',
+    androidSdkVersion: 30,
+    friendlyName: 'Android 21.02',
+    loginSupported: false,
+    loginRequired: false,
+    useSignatureTimestamp: true,
     useWebPoTokens: false,
     isEmbedded: false
   },

@@ -196,6 +196,8 @@
             ref="lrcSider"
             class="music-lrc"
             :native-scrollbar="false"
+            @wheel="onUserManualScroll"
+            @touchstart="onUserManualScroll"
             @mouseover="mouseOverLayout"
             @mouseleave="mouseLeaveLayout"
           >
@@ -219,47 +221,69 @@
                 </div>
               </div>
 
-              <div v-if="!supportAutoScroll" class="music-lrc-text no-scroll-tip">
-                <span>This lyrics does not support auto-scroll</span>
-              </div>
-              <div
-                v-for="(item, index) in lrcArray"
-                :id="`music-lrc-text-${index}`"
-                :key="index"
-                class="music-lrc-text"
-                :style="getFocusStyle(index)"
-                :class="{
-                  'now-text': index === nowIndex,
-                  'hover-text': item.text && item.startTime !== -1
-                }"
-                @click="item.startTime !== -1 ? setAudioTime(index) : null"
-              >
+              <div v-if="isLyricsLoading" class="music-lyrics-loading">
                 <div
-                  v-if="item.hasWordByWord && item.words && item.words.length > 0"
-                  class="word-by-word-lyric"
-                >
-                  <template v-for="(word, wordIndex) in item.words" :key="wordIndex">
-                    <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">
-                      {{ word.text ? word.text.replace('{bg}', '') : '' }} </span
-                    ><span class="lyric-word" v-if="word.space">&nbsp;</span></template
-                  >
-                </div>
-
-                <span
-                  v-else
-                  :style="getLrcStyle(index)"
-                  :class="{ 'bg-vocal': item.text ? item.text.startsWith('{bg}') : false }"
-                  >{{ item.text ? item.text.replace('{bg}', '') : '' }}</span
-                >
-                <div v-show="config.showRoma && item.romaText" class="music-lrc-text-roma">
-                  {{ item.romaText }}
-                </div>
-                <div v-show="config.showTranslation && item.trText" class="music-lrc-text-tr">
-                  {{ item.trText }}
-                </div>
+                  v-for="n in 8"
+                  :key="n"
+                  class="lyrics-skeleton-line"
+                  :style="{ width: `${40 + (n % 5) * 12}%` }"
+                ></div>
               </div>
 
-              <div v-if="!lrcArray.length" class="music-lrc-text">
+              <template v-else-if="lrcArray.length">
+                <div v-if="!supportAutoScroll" class="music-lrc-text no-scroll-tip">
+                  <span>This lyrics does not support auto-scroll</span>
+                </div>
+                <div
+                  v-for="(item, index) in lrcArray"
+                  :id="`music-lrc-text-${index}`"
+                  :key="index"
+                  class="music-lrc-text"
+                  :style="getFocusStyle(index)"
+                  :class="{
+                    'now-text': index === nowIndex,
+                    'hover-text': item.text && item.startTime !== -1,
+                    'right-side': config.lyricsTextPosition === 'RIGHT',
+                    'has-glow': config.lyricsGlowEffect !== false
+                  }"
+                  @click="config.lyricsClick !== false && item.startTime !== -1 ? setAudioTime(index) : null"
+                >
+                  <AmllInterludeDots
+                    v-if="item.isPreamble || !item.text || item.text.trim() === '•••' || item.text.trim() === ''"
+                    :start-time="item.startTime ?? 0"
+                    :duration="item.duration ?? 3000"
+                    :current-time="(nowTime + correctionTime) * 1000"
+                    :is-active="index === nowIndex"
+                    :is-first-line="index === 0"
+                  />
+
+                  <div
+                    v-else-if="shouldRenderWordByWord(item)"
+                    class="word-by-word-lyric"
+                  >
+                    <template v-for="(word, wordIndex) in item.words" :key="wordIndex">
+                      <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">
+                        {{ word.text ? word.text.replace('{bg}', '') : '' }} </span
+                      ><span class="lyric-word" v-if="word.space">&nbsp;</span></template
+                    >
+                  </div>
+
+                  <span
+                    v-else
+                    :style="getLrcStyle(index)"
+                    :class="{ 'bg-vocal': item.text ? item.text.startsWith('{bg}') : false }"
+                    >{{ item.text ? item.text.replace('{bg}', '') : '' }}</span
+                  >
+                  <div v-show="config.showRoma && item.romaText" class="music-lrc-text-roma">
+                    {{ item.romaText }}
+                  </div>
+                  <div v-show="config.showTranslation && item.trText" class="music-lrc-text-tr">
+                    {{ item.trText }}
+                  </div>
+                </div>
+              </template>
+
+              <div v-else class="music-lrc-text">
                 <span>No lyrics, please enjoy</span>
               </div>
             </div>
@@ -281,6 +305,7 @@ import { useDebounceFn } from '@vueuse/core';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 
+import AmllInterludeDots from '@/components/lyric/AmllInterludeDots.vue';
 import Cover3D from '@/components/cover/Cover3D.vue';
 import LyricCorrectionControl from '@/components/lyric/LyricCorrectionControl.vue';
 import LyricSettings from '@/components/lyric/LyricSettings.vue';
@@ -289,6 +314,7 @@ import {
   adjustCorrectionTime,
   artistList,
   correctionTime,
+  isLyricsLoading,
   lrcArray,
   nowIndex,
   nowTime,
@@ -304,6 +330,7 @@ import { useSettingsStore } from '@/store/modules/settings';
 import { DEFAULT_LYRIC_CONFIG, LyricConfig } from '@/types/lyric';
 import { isCompact, isDesktop } from '@/utils';
 import { getTextColors } from '@/utils/linearColor';
+import { computeLyricLineStyle } from '@/utils/lyricAnimation';
 import { LYRIC_CONFIG_CHANGE_EVENT, readLyricConfig, writeLyricConfig } from '@/utils/lyricConfig';
 import { thumbPlayer } from '@/utils/thumbnail';
 
@@ -475,8 +502,34 @@ const isVisible = computed({
   set: (value) => emit('update:modelValue', value)
 });
 
+let userScrollTimeout: any = null;
+
+const onUserManualScroll = () => {
+  if (isSongChanging.value) return;
+  showSyncButton.value = true;
+
+  if (userScrollTimeout) {
+    clearTimeout(userScrollTimeout);
+  }
+  userScrollTimeout = setTimeout(() => {
+    showSyncButton.value = false;
+    lrcScroll('smooth');
+  }, 3500);
+};
+
+const syncLyrics = () => {
+  if (userScrollTimeout) {
+    clearTimeout(userScrollTimeout);
+    userScrollTimeout = null;
+  }
+  showSyncButton.value = false;
+  isMouse.value = false;
+  lrcScroll('smooth');
+};
+
 const lrcScroll = (behavior: ScrollBehavior = 'smooth', forceTop: boolean = false) => {
   if (!isVisible.value || !lrcSider.value || !supportAutoScroll.value) return;
+  if (!forceTop && config.value.lyricsScroll === false) return;
 
   if (forceTop) {
     isProgrammaticScroll.value = true;
@@ -490,7 +543,7 @@ const lrcScroll = (behavior: ScrollBehavior = 'smooth', forceTop: boolean = fals
     return;
   }
 
-  if (isMouse.value) return;
+  if (showSyncButton.value) return;
 
   const nowEl = document.querySelector(`#music-lrc-text-${nowIndex.value}`) as HTMLElement;
   if (nowEl) {
@@ -498,11 +551,11 @@ const lrcScroll = (behavior: ScrollBehavior = 'smooth', forceTop: boolean = fals
     const elementTop = nowEl.offsetTop;
     const scrollTop = elementTop - containerHeight / 2 + nowEl.clientHeight / 2;
 
+    isProgrammaticScroll.value = true;
     lrcSider.value.scrollTo({
-      top: scrollTop,
+      top: Math.max(0, scrollTop),
       behavior
     });
-    isProgrammaticScroll.value = true;
     window.setTimeout(
       () => {
         isProgrammaticScroll.value = false;
@@ -512,13 +565,7 @@ const lrcScroll = (behavior: ScrollBehavior = 'smooth', forceTop: boolean = fals
   }
 };
 
-const syncLyrics = () => {
-  showSyncButton.value = false;
-  isMouse.value = false;
-  lrcScroll('instant');
-};
-
-const debouncedLrcScroll = useDebounceFn(lrcScroll, 200);
+const debouncedLrcScroll = useDebounceFn(lrcScroll, 120);
 
 const mouseOverLayout = () => {
   if (isCompact.value) {
@@ -533,8 +580,7 @@ const mouseLeaveLayout = () => {
   }
   setTimeout(() => {
     isMouse.value = false;
-    lrcScroll();
-  }, 2000);
+  }, 1000);
 };
 
 watch(nowIndex, () => {
@@ -610,29 +656,25 @@ const getLrcStyle = (index: number) => {
   };
 };
 
-const FOCUS_LINE_LEVELS = [
-  { opacity: 1, blur: 0 },
-  { opacity: 0.5, blur: 1 },
-  { opacity: 0.32, blur: 1.9 },
-  { opacity: 0.22, blur: 2.8 }
-];
+const shouldRenderWordByWord = (item: any) => {
+  if (config.value.lyricGranularity === 'sentence') return false;
+  return item.hasWordByWord && item.words && item.words.length > 0;
+};
 
 const getFocusStyle = (index: number) => {
-  if (!config.value.focusCurrentLyric) return {};
+  const alignment = config.value.centerLyrics
+    ? 'center'
+    : config.value.lyricsTextPosition === 'RIGHT'
+      ? 'right'
+      : 'left';
 
-  const colors = textColors.value || getTextColors();
-  const distance = Math.abs(index - nowIndex.value);
-  const level = FOCUS_LINE_LEVELS[Math.min(distance, FOCUS_LINE_LEVELS.length - 1)];
-
-  return {
-    opacity: level.opacity,
-
-    filter: distance === 0 ? `drop-shadow(0 0 12px ${colors.active}4d)` : `blur(${level.blur}px)`,
-    transform: `scale(${distance === 0 ? 1.06 : 1})`,
-
-    transition:
-      'opacity 0.55s cubic-bezier(0.4, 0, 0.2, 1), filter 0.55s cubic-bezier(0.4, 0, 0.2, 1), transform 0.55s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.3s ease'
-  };
+  return computeLyricLineStyle({
+    index,
+    nowIndex: nowIndex.value,
+    style: config.value.lyricsAnimationStyle || 'apple_spring',
+    alignment,
+    focusEnabled: config.value.focusCurrentLyric !== false
+  });
 };
 
 const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
@@ -641,7 +683,7 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
   if (lineIndex !== nowIndex.value) {
     return {
       color: colors.primary,
-      transition: 'color 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+      transition: 'color 0.45s cubic-bezier(0.25, 1, 0.5, 1)',
       backgroundImage: 'none',
       WebkitTextFillColor: 'initial'
     };
@@ -653,7 +695,7 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
 
   const bgOffset = word.text.startsWith('{bg}') ? 0.8 : 1;
   const isBg = word.text.startsWith('{bg}');
-  const scale = isBg ? '0.85' : '1.05';
+  const scale = isBg ? '0.9' : '1.02';
 
   if (currentTime >= wordStartTime && currentTime < wordEndTime) {
     const progress = Math.max(0, Math.min((currentTime - wordStartTime) / word.duration, 1));
@@ -667,13 +709,12 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
       backgroundClip: 'text',
       WebkitBackgroundClip: 'text',
       WebkitTextFillColor: 'transparent',
-      textShadow: isBg ? `0 0 10px ${colors.active}40` : `0 0 16px ${colors.active}60`,
       opacity: bgOffset,
       transform: `scale(${scale})`,
       transformOrigin: 'left center',
       display: 'inline-block',
       fontStyle: isBg ? 'italic' : 'normal',
-      transition: 'background-image 0.05s linear, transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+      transition: 'background-image 0.05s linear, transform 0.2s cubic-bezier(0.25, 1, 0.5, 1)'
     };
   } else if (currentTime >= wordEndTime) {
     return {
@@ -683,17 +724,17 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
       transform: 'scale(1)',
       display: 'inline-block',
       fontStyle: isBg ? 'italic' : 'normal',
-      transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+      transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)'
     };
   } else {
     return {
       color: colors.primary,
       WebkitTextFillColor: 'initial',
-      opacity: bgOffset * 0.5,
+      opacity: bgOffset * 0.6,
       transform: 'scale(1)',
       display: 'inline-block',
       fontStyle: isBg ? 'italic' : 'normal',
-      transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+      transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)'
     };
   }
 };
@@ -747,9 +788,6 @@ const handleScroll = () => {
   if (config.value.hideCover) {
     showStickyHeader.value = scrollTop > 100;
   }
-  if (!isProgrammaticScroll.value && !isSongChanging.value) {
-    showSyncButton.value = true;
-  }
 };
 
 const playerStore = usePlayerStore();
@@ -801,6 +839,7 @@ const handleFullScreenChange = () => {
 };
 
 onMounted(() => {
+  config.value = readLyricConfig();
   if (lrcSider.value?.$el) {
     lrcSider.value.$el.addEventListener('scroll', handleScroll);
   }
@@ -809,6 +848,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  if (userScrollTimeout) {
+    clearTimeout(userScrollTimeout);
+    userScrollTimeout = null;
+  }
   if (lrcSider.value?.$el) {
     lrcSider.value.$el.removeEventListener('scroll', handleScroll);
   }
@@ -824,39 +867,33 @@ watch(
   () => config.value.fontSize,
   (newSize) => {
     document.documentElement.style.setProperty('--lyric-font-size', `${newSize}px`);
-  }
+  },
+  { immediate: true }
 );
 
 watch(
   () => config.value.fontWeight,
   (newWeight) => {
     document.documentElement.style.setProperty('--lyric-font-weight', newWeight.toString());
-  }
+  },
+  { immediate: true }
 );
 
 watch(
   () => config.value.letterSpacing,
   (newSpacing) => {
     document.documentElement.style.setProperty('--lyric-letter-spacing', `${newSpacing}px`);
-  }
+  },
+  { immediate: true }
 );
 
 watch(
   () => config.value.lineHeight,
   (newLineHeight) => {
     document.documentElement.style.setProperty('--lyric-line-height', newLineHeight.toString());
-  }
+  },
+  { immediate: true }
 );
-
-onMounted(() => {
-  const savedConfig = localStorage.getItem('music-full-config');
-  if (savedConfig) {
-    config.value = readLyricConfig();
-  }
-  if (lrcSider.value?.$el) {
-    lrcSider.value.$el.addEventListener('scroll', handleScroll);
-  }
-});
 
 watch(
   () => playMusic.value.id,
@@ -890,6 +927,26 @@ defineExpose({
 
   100% {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmerSkeleton {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+@keyframes amllDotPulse {
+  0%, 100% {
+    transform: scale(0.85);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 1;
   }
 }
 
@@ -1049,7 +1106,7 @@ defineExpose({
       @apply text-2xl cursor-pointer font-bold px-4 py-3;
       font-family: var(--current-font-family);
       font-weight: var(--lyric-font-weight, bold) !important;
-      transition: all 0.3s ease;
+      transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.45s cubic-bezier(0.25, 1, 0.5, 1);
       background-color: transparent;
       font-size: var(--lyric-font-size, 22px) !important;
       letter-spacing: var(--lyric-letter-spacing, 0) !important;
@@ -1079,8 +1136,6 @@ defineExpose({
       }
 
       span {
-        background-clip: text !important;
-        -webkit-background-clip: text !important;
         padding-right: 30px;
       }
 
@@ -1088,6 +1143,38 @@ defineExpose({
         @apply font-normal;
         opacity: 0.7;
         color: var(--text-color-primary);
+      }
+
+      .music-preamble-dots {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 0;
+
+        .preamble-dot {
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: currentColor;
+          opacity: 0.35;
+          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        &.is-active {
+          .preamble-dot {
+            animation: amllDotPulse 1.4s ease-in-out infinite;
+
+            &.dot-1 {
+              animation-delay: 0s;
+            }
+            &.dot-2 {
+              animation-delay: 0.25s;
+            }
+            &.dot-3 {
+              animation-delay: 0.5s;
+            }
+          }
+        }
       }
 
       .word-by-word-lyric {
@@ -1107,6 +1194,27 @@ defineExpose({
             background-color: rgba(255, 255, 255, 0.1);
           }
         }
+      }
+    }
+
+    .music-lyrics-loading {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      padding: 20px 16px;
+      width: 100%;
+
+      .lyrics-skeleton-line {
+        height: 36px;
+        border-radius: 12px;
+        background: linear-gradient(
+          90deg,
+          rgba(255, 255, 255, 0.08) 25%,
+          rgba(255, 255, 255, 0.18) 37%,
+          rgba(255, 255, 255, 0.08) 63%
+        );
+        background-size: 400% 100%;
+        animation: shimmerSkeleton 1.4s ease infinite;
       }
     }
 

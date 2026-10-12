@@ -10,17 +10,16 @@
         :class="[currentState, { 'is-active': isPlaying }]"
         @mouseenter="handleIslandEnter"
       >
-        <Transition name="island-content" mode="out-in">
-          <div v-if="currentState === 'hidden'" key="hidden" class="hidden-trigger-zone"></div>
+        <div v-show="currentState === 'hidden'" class="hidden-trigger-zone"></div>
 
-          <div v-else-if="currentState === 'playing'" key="playing" class="notch-container w-full h-full">
-            <Transition name="notch-swap" mode="out-in">
-              <playing-state v-if="isPlaying" key="ps" :currentTrack="currentTrack" :progressPercent="progressPercent" :isDark="isDark" :accentColor="accentColor" />
-              <idle-state v-else key="is" :isDark="isDark" />
-            </Transition>
-          </div>
+        <div v-show="currentState === 'playing'" class="notch-container w-full h-full">
+          <KeepAlive>
+            <playing-state v-if="isPlaying" key="ps" :currentTrack="currentTrack" :progressPercent="progressPercent" :isDark="isDark" :accentColor="accentColor" />
+            <idle-state v-else key="is" :isDark="isDark" />
+          </KeepAlive>
+        </div>
 
-          <div v-else-if="currentState === 'expanded'" key="expanded" class="island expanded-island">
+        <div v-show="currentState === 'expanded'" class="island expanded-island">
             <div class="expanded-top">
               <div class="artwork-ring-wrap" v-if="currentTrack.cover && !coverFailed">
                 <svg class="artwork-ring" viewBox="0 0 76 76">
@@ -75,7 +74,6 @@
               <span class="time">{{ formatTime(duration) }}</span>
             </div>
           </div>
-        </Transition>
       </div>
     </div>
   </div>
@@ -278,6 +276,15 @@ watch(
   () => currentTrack.value.cover,
   async (cover) => {
     coverFailed.value = false;
+    if (cover) {
+      try {
+        const preloadImg = new Image();
+        preloadImg.src = cover;
+        if ('decode' in preloadImg) {
+          await preloadImg.decode().catch(() => {});
+        }
+      } catch {}
+    }
     const color = await extractCoverColor(cover);
     if (cover === currentTrack.value.cover) currentTrack.value.backgroundColor = color;
   },

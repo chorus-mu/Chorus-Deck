@@ -20,8 +20,6 @@ bun.lock
 
 .env.*.local
 
-out
-
 .cursorrules
 
 .github/deploy_keys
