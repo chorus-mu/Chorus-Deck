@@ -1,20 +1,22 @@
+import {
+  parseYrc,
+  parseTTML,
+  parseLrcLike,
+  parseQrc,
+  type LyricLine as AmllLyricLine
+} from '@applemusic-like-lyrics/lyric';
+
 export interface WordData {
   readonly text: string;
-
   readonly startTime: number;
-
   readonly duration: number;
-
   readonly space?: boolean;
 }
 
 export interface LyricLine {
   readonly startTime: number;
-
   readonly duration: number;
-
   readonly fullText: string;
-
   readonly words: readonly WordData[];
 }
 
@@ -41,13 +43,8 @@ export class LyricParseError extends Error {
 }
 
 export type ParseResult<T> =
-  { success: true; data: T } | { success: false; error: LyricParseError };
-
-const METADATA_PATTERN = /^\{("t":|"c":)/;
-const LINE_TIME_PATTERN = /^\[(\d+),(\d+)\](.+)$/;
-const LRC_TIME_PATTERN = /^\[(\d{2,}):(\d{2})(?:\.(\d{2,3}))?\](.*)$/;
-const LRC_META_PATTERN = /^\[(ti|ar|al|by|offset|length|re|ve):(.*)\]$/i;
-const WORD_PATTERN = /\((\d+),(\d+)(?:,\d+)?\)([^(]*?)(?=\(|$)/g;
+  | { success: true; data: T }
+  | { success: false; error: LyricParseError };
 
 export const formatTime = (ms: number): string => {
   const minutes = Math.floor(ms / 60000);
@@ -56,249 +53,69 @@ export const formatTime = (ms: number): string => {
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
 };
 
-const parseMetadata = (line: string): ParseResult<MetaData> => {
-  try {
-    const data = JSON.parse(line);
+/**
+ * Transforms AMLL parsed LyricLine array into Chorus-Deck's LyricLine structure
+ */
+const convertAmllLines = (amllLines: AmllLyricLine[]): LyricLine[] => {
+  const result: LyricLine[] = [];
 
-    if (typeof data !== 'object' || data === null) {
-      return {
-        success: false,
-        error: new LyricParseError('Invalid metadata format: not a valid object', line)
-      };
-    }
+  for (let i = 0; i < amllLines.length; i++) {
+    const line = amllLines[i];
+    const startTime = line.startTime ?? 0;
+    let duration = line.endTime && line.endTime > startTime ? line.endTime - startTime : 0;
 
-    if (!Array.isArray(data.c)) {
-      return {
-        success: false,
-        error: new LyricParseError('Invalid metadata format: missing c Field', line)
-      };
-    }
-
-    if (data.t !== undefined && typeof data.t !== 'number') {
-      return {
-        success: false,
-        error: new LyricParseError('Invalid metadata format:t Field must be numeric', line)
-      };
-    }
-
-    const content = data.c
-      .filter((item: any) => item && typeof item.tx === 'string')
-      .map((item: any) => item.tx)
-      .join('');
-
-    return {
-      success: true,
-      data: {
-        time: data.t,
-        content
+    // Fallback duration if missing
+    if (duration <= 0) {
+      if (i < amllLines.length - 1 && amllLines[i + 1].startTime > startTime) {
+        duration = amllLines[i + 1].startTime - startTime;
+      } else {
+        duration = 3000;
       }
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: new LyricParseError(
-        `JSONParsing failed: ${error instanceof Error ? error.message : 'unknown error'}`,
-        line
-      )
-    };
-  }
-};
-
-const parseLrcLine = (line: string): ParseResult<LyricLine> => {
-  const lrcMatch = line.match(LRC_TIME_PATTERN);
-  if (!lrcMatch) {
-    return {
-      success: false,
-      error: new LyricParseError(
-        'LRCInvalid lyric line format: Unable to match time information',
-        line
-      )
-    };
-  }
-
-  const minutes = parseInt(lrcMatch[1], 10);
-  const seconds = parseInt(lrcMatch[2], 10);
-  const milliseconds = lrcMatch[3] ? parseInt(lrcMatch[3].padEnd(3, '0'), 10) : 0;
-  const text = lrcMatch[4].trim();
-
-  if (
-    isNaN(minutes) ||
-    isNaN(seconds) ||
-    isNaN(milliseconds) ||
-    minutes < 0 ||
-    seconds < 0 ||
-    milliseconds < 0 ||
-    seconds >= 60
-  ) {
-    return {
-      success: false,
-      error: new LyricParseError('LRCInvalid lyric line format: invalid time value', line)
-    };
-  }
-
-  const startTime = minutes * 60000 + seconds * 1000 + milliseconds;
-
-  return {
-    success: true,
-    data: {
-      startTime,
-      duration: 0,
-      fullText: text,
-      words: []
-    }
-  };
-};
-
-const parseWordByWordLine = (line: string): ParseResult<LyricLine> => {
-  const lineTimeMatch = line.match(LINE_TIME_PATTERN);
-  if (!lineTimeMatch) {
-    return {
-      success: false,
-      error: new LyricParseError(
-        'Invalid verbatim lyric line format: Unable to match time information',
-        line
-      )
-    };
-  }
-
-  const startTime = parseInt(lineTimeMatch[1], 10);
-  const duration = parseInt(lineTimeMatch[2], 10);
-  const content = lineTimeMatch[3];
-
-  if (isNaN(startTime) || isNaN(duration) || startTime < 0 || duration < 0) {
-    return {
-      success: false,
-      error: new LyricParseError('Invalid verbatim lyric line format: Invalid time value', line)
-    };
-  }
-
-  WORD_PATTERN.lastIndex = 0;
-
-  const words: WordData[] = [];
-  let match: RegExpExecArray | null;
-
-  const rawTextParts: string[] = [];
-  const tempWords: Array<{ startTime: number; duration: number; text: string }> = [];
-
-  while ((match = WORD_PATTERN.exec(content)) !== null) {
-    const wordStartTime = parseInt(match[1], 10);
-    const wordDuration = parseInt(match[2], 10);
-    const rawWordText = match[3];
-    const wordText = rawWordText.trim();
-
-    if (isNaN(wordStartTime) || isNaN(wordDuration)) {
-      continue;
     }
 
-    if (wordText) {
-      tempWords.push({
-        text: wordText,
-        startTime: wordStartTime,
-        duration: wordDuration
-      });
-      rawTextParts.push(rawWordText);
+    const words: WordData[] = [];
+    let fullText = '';
+
+    if (line.words && line.words.length > 0) {
+      const rawText = line.words.map((w) => w.word).join('');
+      fullText = rawText.trim();
+
+      for (let wIdx = 0; wIdx < line.words.length; wIdx++) {
+        const w = line.words[wIdx];
+        const wDuration =
+          w.endTime && w.endTime > w.startTime ? w.endTime - w.startTime : Math.max(duration, 200);
+
+        // Check if next word has leading space or current word trailing space
+        const hasSpace =
+          w.word.endsWith(' ') ||
+          (wIdx < line.words.length - 1 && line.words[wIdx + 1].word.startsWith(' '));
+
+        words.push({
+          text: w.word.trim(),
+          startTime: w.startTime ?? startTime,
+          duration: wDuration,
+          space: hasSpace
+        });
+      }
+    } else {
+      fullText = (line.romanLyric || line.translatedLyric || '').trim();
     }
-  }
 
-  const fullText = rawTextParts.join('').trim();
-
-  let currentPos = 0;
-  for (const word of tempWords) {
-    const wordIndex = fullText.indexOf(word.text, currentPos);
-    if (wordIndex === -1) {
-      words.push(word);
-      continue;
-    }
-
-    const wordEndPos = wordIndex + word.text.length;
-
-    const hasSpace = wordEndPos < fullText.length && fullText[wordEndPos] === ' ';
-    words.push({
-      ...word,
-      space: hasSpace
-    });
-
-    currentPos = wordEndPos;
-  }
-
-  return {
-    success: true,
-    data: {
+    result.push({
       startTime,
       duration,
       fullText,
       words
-    }
-  };
-};
-
-const parseLyricLine = (line: string): ParseResult<LyricLine> => {
-  if (LINE_TIME_PATTERN.test(line)) {
-    return parseWordByWordLine(line);
-  }
-
-  if (LRC_TIME_PATTERN.test(line)) {
-    return parseLrcLine(line);
-  }
-
-  return {
-    success: false,
-    error: new LyricParseError('Invalid lyric line format: does not match any known format', line)
-  };
-};
-
-const calculateLrcDurations = (lyrics: LyricLine[]): LyricLine[] => {
-  if (lyrics.length === 0) return lyrics;
-
-  const updatedLyrics: LyricLine[] = [];
-
-  for (let i = 0; i < lyrics.length; i++) {
-    const currentLine = lyrics[i];
-
-    if (currentLine.duration > 0) {
-      updatedLyrics.push(currentLine);
-      continue;
-    }
-
-    let duration = 0;
-    if (i < lyrics.length - 1) {
-      duration = lyrics[i + 1].startTime - currentLine.startTime;
-    } else {
-      duration = 3000;
-    }
-
-    duration = Math.max(duration, 0);
-
-    updatedLyrics.push({
-      ...currentLine,
-      duration
     });
   }
 
-  return updatedLyrics;
+  return result;
 };
 
-const parsePlainTextLine = (line: string): ParseResult<LyricLine> => {
-  const text = line.replace(/\r/g, '').trim();
-
-  if (!text) {
-    return {
-      success: false,
-      error: new LyricParseError('Plain text lyrics line is empty', line)
-    };
-  }
-
-  return {
-    success: true,
-    data: {
-      startTime: -1,
-      duration: 0,
-      fullText: text,
-      words: []
-    }
-  };
-};
-
+/**
+ * Parses lyrics using official @applemusic-like-lyrics/lyric parser
+ * Supports TTML (XML), YRC (Netease syllable format), QRC, and LRC-like (SPL/enhanced/plain)
+ */
 export const parseLyrics = (lyricsStr: string): ParseResult<ParsedLyrics> => {
   if (typeof lyricsStr !== 'string') {
     return {
@@ -307,69 +124,88 @@ export const parseLyrics = (lyricsStr: string): ParseResult<ParsedLyrics> => {
     };
   }
 
+  const trimmed = lyricsStr.trim();
+  if (!trimmed) {
+    return {
+      success: true,
+      data: {
+        metadata: [],
+        lyrics: [],
+        offset: 0
+      }
+    };
+  }
+
   try {
-    const lines = lyricsStr.trim().split('\n');
+    let amllLines: AmllLyricLine[] = [];
     const metadata: MetaData[] = [];
-    const lyrics: LyricLine[] = [];
-    const errors: LyricParseError[] = [];
     let offset = 0;
 
-    for (let i = 0; i < lines.length; i++) {
-      const trimmedLine = lines[i].trim();
-      if (!trimmedLine) continue;
-
-      if (LRC_META_PATTERN.test(trimmedLine)) {
-        const match = trimmedLine.match(LRC_META_PATTERN);
-        if (match) {
-          const key = match[1].toLowerCase();
-          const value = match[2].trim();
-          if (key === 'offset') {
-            offset = parseInt(value, 10) || 0;
+    // 1. TTML format check (e.g. <?xml or <tt ...>)
+    if (trimmed.startsWith('<?xml') || trimmed.startsWith('<tt') || trimmed.includes('<tt xmlns=')) {
+      try {
+        const ttmlResult = parseTTML(trimmed);
+        amllLines = ttmlResult.lines;
+        if (ttmlResult.metadata) {
+          for (const [k, v] of ttmlResult.metadata) {
+            metadata.push({ key: k, content: v.join(', ') });
           }
-          metadata.push({ key, content: value });
         }
-      } else if (METADATA_PATTERN.test(trimmedLine)) {
-        const result = parseMetadata(trimmedLine);
-        if (result.success) {
-          metadata.push(result.data);
-        } else {
-          errors.push(result.error);
-        }
-      } else if (LINE_TIME_PATTERN.test(trimmedLine) || LRC_TIME_PATTERN.test(trimmedLine)) {
-        const result = parseLyricLine(trimmedLine);
-        if (result.success) {
-          lyrics.push(result.data);
-        } else {
-          errors.push(result.error);
-        }
-      } else {
-        const result = parsePlainTextLine(trimmedLine);
-        if (result.success) {
-          lyrics.push(result.data);
-        } else {
-          errors.push(result.error);
-        }
+      } catch (ttmlErr) {
+        console.warn('AMLL TTML parse failed, trying other parsers:', ttmlErr);
       }
     }
 
-    if (errors.length > 0 && errors.length > lines.length * 0.5) {
-      return {
-        success: false,
-        error: new LyricParseError(
-          `Parse failed: Too many error lines (${errors.length}/${lines.length}), the file format may be incorrect ${JSON.stringify(errors)}`
-        )
-      };
+    // 2. YRC format check (Netease verbatim [start,dur](start,dur)text)
+    if (amllLines.length === 0 && /^\[\d+,\d+\]/m.test(trimmed)) {
+      try {
+        amllLines = parseYrc(trimmed);
+      } catch (yrcErr) {
+        console.warn('AMLL YRC parse failed, falling back to LRC-like:', yrcErr);
+      }
     }
 
-    lyrics.sort((a, b) => {
-      if (a.startTime === -1 && b.startTime === -1) return 0;
-      if (a.startTime === -1) return -1;
-      if (b.startTime === -1) return 1;
-      return a.startTime - b.startTime;
-    });
+    // 3. QRC format check (QQ Music xml / syllable format)
+    if (amllLines.length === 0 && (trimmed.includes('<?xml') || trimmed.includes('<Lyric_1'))) {
+      try {
+        amllLines = parseQrc(trimmed);
+      } catch (qrcErr) {
+        console.warn('AMLL QRC parse failed, falling back to LRC-like:', qrcErr);
+      }
+    }
 
-    const finalLyrics = calculateLrcDurations(lyrics).map((line) => {
-      if (line.startTime === -1) return line;
+    // 4. Fallback to parseLrcLike (supports plain LRC, enhanced LRC, SPL)
+    if (amllLines.length === 0) {
+      try {
+        const lrcResult = parseLrcLike(trimmed);
+        amllLines = lrcResult.lines;
+        if (lrcResult.metadata) {
+          for (const [k, v] of lrcResult.metadata) {
+            const val = v.join(', ');
+            if (k.toLowerCase() === 'offset') {
+              offset = parseInt(val, 10) || 0;
+            }
+            metadata.push({ key: k, content: val });
+          }
+        }
+      } catch (lrcErr) {
+        console.error('AMLL parseLrcLike failed:', lrcErr);
+        return {
+          success: false,
+          error: new LyricParseError(
+            `AMLL failed to parse lyrics: ${lrcErr instanceof Error ? lrcErr.message : 'unknown error'}`
+          )
+        };
+      }
+    }
+
+    const convertedLyrics = convertAmllLines(amllLines);
+
+    // Sort by startTime
+    convertedLyrics.sort((a, b) => a.startTime - b.startTime);
+
+    // Apply offset if any
+    const finalLyrics = convertedLyrics.map((line) => {
       const newStartTime = Math.max(0, line.startTime - offset);
       const newWords = line.words.map((w) => ({
         ...w,
@@ -390,7 +226,7 @@ export const parseLyrics = (lyricsStr: string): ParseResult<ParsedLyrics> => {
     return {
       success: false,
       error: new LyricParseError(
-        `An error occurred during parsing: ${error instanceof Error ? error.message : 'unknown error'}`
+        `An error occurred during AMLL parsing: ${error instanceof Error ? error.message : 'unknown error'}`
       )
     };
   }

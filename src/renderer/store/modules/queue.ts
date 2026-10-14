@@ -665,7 +665,7 @@ export const useQueueStore = defineStore(
             try {
               const duration = await window.api.audioGetDuration();
               if (duration === null) throw new Error("Native player is not running");
-              await window.api.audioResume();
+              await audioService.resume();
             } catch {
               // Native player is not running; restart the track from scratch.
               const { playTrack } = await import('@/services/playbackController');

@@ -99,6 +99,7 @@
         <div class="music-buttons-play play-animated" @click.stop>
           <animated-play-pause
             :is-playing="play"
+            :loading="Boolean(playMusic?.playLoading)"
             @click="playMusicEvent"
             :bg-color="playMusic?.primaryColor"
           />

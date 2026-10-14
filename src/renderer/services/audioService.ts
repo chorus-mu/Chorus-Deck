@@ -328,6 +328,7 @@ class AudioService {
         window.api.audioResume();
         this._isPlayingNative = true;
         this.updateMediaSessionState(true);
+        this.emit('play');
       }
       this.updateMediaSessionMetadata(track);
       this.releaseOperationLock();
@@ -464,6 +465,18 @@ class AudioService {
       this.emit('pause');
     } catch (error) {
       console.error('Failed to pause audio:', error);
+    }
+  }
+
+  public async resume(): Promise<void> {
+    this.forceResetOperationLock();
+    try {
+      await window.api.audioResume();
+      this._isPlayingNative = true;
+      this.updateMediaSessionState(true);
+      this.emit('play');
+    } catch (error) {
+      console.error('Failed to resume audio:', error);
     }
   }
 

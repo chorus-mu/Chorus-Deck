@@ -311,16 +311,16 @@ export const createGradientString = (
 
 const PRESET_LYRIC_COLORS: LyricThemeColor[] = [
   {
-    id: 'spotify-green',
-    name: 'Spotify Green',
-    light: '#1db954',
-    dark: '#1ed760'
-  },
-  {
     id: 'apple-blue',
     name: 'Apple Blue',
     light: '#007aff',
     dark: '#0a84ff'
+  },
+  {
+    id: 'slate-white',
+    name: 'Slate Minimal',
+    light: '#475569',
+    dark: '#f8fafc'
   },
   {
     id: 'youtube-red',

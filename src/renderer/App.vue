@@ -289,7 +289,7 @@ onMounted(async () => {
       applyThemeFromColor(argbFromHex(brandColor));
     } catch (e) {
       console.error('Failed to apply brand color', e);
-      const brandColor = '#22c55e';
+      const brandColor = '#6366f1';
       applyThemeFromColor(argbFromHex(brandColor));
     }
   };

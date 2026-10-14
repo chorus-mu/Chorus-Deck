@@ -68,7 +68,7 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   centerLyrics: false,
   fontSize: 22,
   letterSpacing: 0,
-  fontWeight: 500,
+  fontWeight: 700,
   lineHeight: 2,
   showTranslation: true,
   showRoma: true,

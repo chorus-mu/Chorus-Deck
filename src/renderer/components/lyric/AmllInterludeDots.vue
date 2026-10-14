@@ -116,8 +116,8 @@ function breathingProgress(t: number): number {
 
 // Reactive frame state
 const scale = ref(1);
-const opacity = ref(props.isActive ? 1 : 0.35);
-const dotOpacities = ref<[number, number, number]>([0.35, 0.35, 0.35]);
+const opacity = ref(props.isActive ? 1 : 0);
+const dotOpacities = ref<[number, number, number]>(props.isActive ? [0.35, 0.35, 0.35] : [0, 0, 0]);
 
 let animFrameId: number | null = null;
 let lastSyncMediaTime = props.currentTime;
@@ -133,8 +133,8 @@ const containerStyle = computed(() => {
 function calculateSnapshot(currentMs: number) {
   if (!props.isActive) {
     scale.value = 1;
-    opacity.value = 0.35;
-    dotOpacities.value = [0.35, 0.35, 0.35];
+    opacity.value = 0;
+    dotOpacities.value = [0, 0, 0];
     return;
   }
 

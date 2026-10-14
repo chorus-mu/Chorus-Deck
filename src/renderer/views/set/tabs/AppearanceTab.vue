@@ -616,6 +616,7 @@ const lyricsAnimationOptions = [
   { label: 'Cyberpunk Glow (Neon Aura Snap)', value: 'cyberpunk_glow' },
   { label: 'Kinetic Slant (Directional Skew)', value: 'kinetic_slant' },
   { label: 'Minimal Fade (Pure Crossfade)', value: 'minimal_fade' },
+  { label: 'ChorusMusic Fluid (Legacy)', value: 'chorusmusic_1' },
   { label: 'None', value: 'NONE' },
   { label: 'Legacy Slide', value: 'SLIDE' },
   { label: 'Legacy Karaoke', value: 'KARAOKE' }
@@ -769,6 +770,18 @@ watch(
     () => setData.value.lyricsAnimationStyle
   ],
   ([granularity, provider, size, spacing, pos, glow, blur, click, scroll, anim]) => {
+    settingsStore.setSetData({
+      lyricGranularity: granularity,
+      preferredLyricProvider: provider,
+      lyricsTextSize: size,
+      lyricsLineSpacing: spacing,
+      lyricsTextPosition: pos,
+      lyricsGlowEffect: glow,
+      appleMusicLyricsBlur: blur,
+      lyricsClick: click,
+      lyricsScroll: scroll,
+      lyricsAnimationStyle: anim
+    });
     const current = readLyricConfig();
     const updated = {
       ...current,

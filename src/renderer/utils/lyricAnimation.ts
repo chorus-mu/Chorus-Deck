@@ -26,21 +26,34 @@ export function computeLyricLineStyle(options: LyricLineStyleOptions): Record<st
 
   switch (style) {
     case 'apple_spring': {
-      let transform = 'translateY(0) scale(1.05)';
+      let transform = 'translateY(0px) scale(1.05)';
       let opacity = 1;
+      let filter = 'none';
+
       if (isPast) {
-        transform = 'translateY(-10px) scale(0.96)';
-        opacity = 0.35;
+        // Smooth logarithmic decay upwards
+        const offset = Math.min(distance * 8, 28);
+        const scale = Math.max(0.88, 1 - distance * 0.035);
+        transform = `translateY(-${offset}px) scale(${scale})`;
+        opacity = distance === 1 ? 0.42 : Math.max(0.18, 0.3 - distance * 0.04);
+        filter = distance === 1 ? 'blur(0.6px)' : `blur(${Math.min(distance * 0.9, 2.4)}px)`;
       } else if (isUpcoming) {
-        transform = 'translateY(8px) scale(0.98)';
-        opacity = 0.45;
+        // Natural Apple Music bottom-up lead-in
+        const offset = Math.min(distance * 10, 36);
+        const scale = Math.max(0.9, 1 - distance * 0.03);
+        transform = `translateY(${offset}px) scale(${scale})`;
+        opacity = distance === 1 ? 0.5 : Math.max(0.2, 0.36 - distance * 0.05);
+        filter = distance === 1 ? 'blur(0.5px)' : `blur(${Math.min(distance * 0.8, 2.2)}px)`;
       }
+
       return {
         opacity,
+        filter,
         transform,
         transformOrigin: origin,
+        willChange: 'transform, opacity, filter',
         transition:
-          'transform 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.45s ease'
+          'transform 0.65s cubic-bezier(0.2, 0.9, 0.25, 1), opacity 0.5s cubic-bezier(0.2, 0.9, 0.25, 1), filter 0.5s ease'
       };
     }
 

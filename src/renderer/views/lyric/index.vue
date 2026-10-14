@@ -328,7 +328,7 @@ let removeReceiveLyricListener: (() => void) | null = null;
 const isHovering = ref(false);
 
 const showThemeColorPanel = ref(false);
-const currentHighlightColor = ref('#1db954');
+const currentHighlightColor = ref('#6366f1');
 
 const showControls = computed(() => {
   if (lyricSetting.value.isLock) {
@@ -1109,7 +1109,7 @@ body,
   &.dark {
     --text-color: #e6e6e6;
     --text-secondary: #ffffffea;
-    --highlight-color: var(--lyric-highlight-color, #1ed760);
+    --highlight-color: var(--lyric-highlight-color, #ffffff);
     --control-bg: rgba(124, 124, 124, 0.3);
     &:hover:not(.lyric_lock) {
       background: rgba(44, 44, 44, 0.466) !important;
@@ -1119,7 +1119,7 @@ body,
   &.light {
     --text-color: #383838;
     --text-secondary: #282828ae;
-    --highlight-color: var(--lyric-highlight-color, #1db954);
+    --highlight-color: var(--lyric-highlight-color, #0f172a);
     --control-bg: rgba(38, 38, 38, 0.532);
     &:hover:not(.lyric_lock) {
       background: rgba(0, 0, 0, 0.434) !important;

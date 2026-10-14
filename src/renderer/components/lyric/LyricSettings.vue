@@ -414,7 +414,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, inject, isRef, onMounted, onUnmounted, reactive, ref, unref, watch } from 'vue';
 
 import { playMusic } from '@/hooks/MusicHook';
 import { DEFAULT_LYRIC_CONFIG, type LyricConfig } from '@/types/lyric';
@@ -424,10 +424,13 @@ const accentColor = computed(
   () => playMusic.value?.primaryColor || 'var(--primary-color, #6366f1)'
 );
 
-const config = inject<LyricConfig>(
-  'lyricSetting',
-  reactive<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG })
-);
+const injected = inject<any>('lyricSetting');
+const initialConfig = readLyricConfig();
+const config = reactive<LyricConfig>({
+  ...DEFAULT_LYRIC_CONFIG,
+  ...initialConfig,
+  ...(injected?.value || (injected && !isRef(injected) ? injected : {}))
+});
 
 let isInternalSync = false;
 
@@ -448,10 +451,10 @@ onUnmounted(() => {
 });
 
 watch(
-  () => config,
+  config,
   (newConfig) => {
     isInternalSync = true;
-    writeLyricConfig(newConfig);
+    writeLyricConfig(JSON.parse(JSON.stringify(newConfig)));
     setTimeout(() => {
       isInternalSync = false;
     }, 50);

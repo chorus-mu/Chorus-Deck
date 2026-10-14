@@ -236,7 +236,8 @@ export const insertPreambleIfNeeded = (lines: ILyricText[]): ILyricText[] => {
   const result: ILyricText[] = [];
   const first = lines[0];
   const firstTimeMs = first.startTime ?? 0;
-  if (firstTimeMs >= 1800 && !first.isPreamble && first.text?.trim() !== '•••') {
+  // Intro preamble only if the first vocal line starts after at least 5.0 seconds
+  if (firstTimeMs >= 5000 && !first.isPreamble && first.text?.trim() !== '•••') {
     result.push({
       text: '•••',
       trText: '',
@@ -248,13 +249,15 @@ export const insertPreambleIfNeeded = (lines: ILyricText[]): ILyricText[] => {
     });
   }
 
-  const MIN_INTERLUDE_GAP = 5000;
+  const MIN_INTERLUDE_GAP = 7000; // Genuine instrumental break (>= 7 seconds)
   for (let i = 0; i < lines.length; i++) {
     const curr = lines[i];
     const textTrimmed = curr.text ? curr.text.trim() : '';
-    if (textTrimmed === '' || textTrimmed === '•••') {
+
+    // If this line already represents explicit instrumental dots or preamble
+    if (curr.isPreamble || textTrimmed === '•••') {
       const duration = curr.duration ?? 0;
-      if (duration >= 2000) {
+      if (duration >= 3000) {
         result.push({
           ...curr,
           text: '•••',
@@ -264,25 +267,63 @@ export const insertPreambleIfNeeded = (lines: ILyricText[]): ILyricText[] => {
       }
       continue;
     }
+
+    // Never convert a line that has words or lyrics into dots
+    if (textTrimmed === '') {
+      continue;
+    }
+
     result.push(curr);
+
+    // Check gap to the next vocal line
     if (i < lines.length - 1) {
       const next = lines[i + 1];
-      const currStart = curr.startTime ?? 0;
-      const currDuration = curr.duration ?? 0;
-      const currEnd = currDuration > 0 ? currStart + currDuration : currStart + 2000;
-      const nextStart = next.startTime ?? 0;
-      const gap = nextStart - currEnd;
+      const nextTrimmed = next.text ? next.text.trim() : '';
+      if (!nextTrimmed || nextTrimmed === '•••') continue;
 
-      if (gap >= MIN_INTERLUDE_GAP && next.text?.trim() !== '' && next.text?.trim() !== '•••') {
-        result.push({
-          text: '•••',
-          trText: '',
-          romaText: '',
-          startTime: currEnd,
-          duration: gap,
-          isPreamble: true,
-          hasWordByWord: false
-        });
+      const currStart = curr.startTime ?? 0;
+      const nextStart = next.startTime ?? 0;
+      const totalGap = nextStart - currStart;
+
+      // Calculate actual end of vocals in the current line
+      let vocalEnd = currStart;
+      if (curr.words && curr.words.length > 0) {
+        const lastWord = curr.words[curr.words.length - 1];
+        const lastWordEnd = (lastWord.startTime ?? 0) + (lastWord.duration ?? 0);
+        vocalEnd = Math.max(vocalEnd, lastWordEnd);
+      }
+      if (curr.duration && curr.duration > 0) {
+        vocalEnd = Math.max(vocalEnd, currStart + curr.duration);
+      }
+
+      // If vocalEnd wasn't explicitly determined (e.g. standard line LRC without duration),
+      // we must give the singer enough time so dots never overlap their singing.
+      // An average sung line takes 3.5s - 4.5s.
+      if (vocalEnd <= currStart) {
+        vocalEnd = currStart + Math.min(Math.max(totalGap * 0.65, 3500), 5500);
+      }
+
+      const breakDuration = nextStart - vocalEnd;
+
+      // Only insert interlude dots if there is a substantial instrumental gap (>= 7s)
+      // and ensure the dots start after the singer has finished with a safety buffer.
+      // In genuine Apple Music, dots appear as a lead-in / countdown (3-5s before the next line).
+      if (totalGap >= MIN_INTERLUDE_GAP && breakDuration >= 4000) {
+        const dotDuration = Math.min(breakDuration, 5000);
+        const dotStartTime = nextStart - dotDuration;
+
+        // Verify dots start strictly after the singer finished singing
+        if (dotStartTime >= vocalEnd) {
+          result.push({
+            text: '•••',
+            trText: '',
+            romaText: '',
+            startTime: dotStartTime,
+            duration: dotDuration,
+            isPreamble: true,
+            hasWordByWord: false
+          });
+        }
       }
     }
   }
@@ -427,12 +468,21 @@ export const ensureLyricsLoaded = async (force = false) => {
                 romaText: line.romaji || line.romaText || '',
                 startTime: line.time,
                 hasWordByWord: Array.isArray(line.words) && line.words.length > 0,
-                words: line.words?.map((w: any) => ({
-                    text: w.word,
-                    word: w.word,
-                    startTime: w.start,
-                    duration: w.duration
-                }))
+                words: Array.isArray(line.words)
+                  ? line.words.map((w: any, wIdx: number) => {
+                      const wordText = String(w.word || '');
+                      const nextWord = line.words[wIdx + 1];
+                      const nextText = nextWord ? String(nextWord.word || '') : '';
+                      const hasTrailingSpace = wordText.endsWith(' ') || nextText.startsWith(' ');
+                      return {
+                        text: wordText.trim(),
+                        word: wordText.trim(),
+                        startTime: w.start,
+                        duration: w.duration,
+                        space: hasTrailingSpace || (wIdx < line.words.length - 1 && !/[\u4e00-\u9fa5\u3040-\u30ff]/.test(wordText))
+                      };
+                    })
+                  : undefined
             }));
             const dual = processLyricsDualLanguage(rawLines);
             const finalLines = insertPreambleIfNeeded(dual);
@@ -739,7 +789,7 @@ const setupAudioListeners = () => {
 };
 
 export const play = () => {
-  window.api.audioResume();
+  audioService.resume();
 };
 
 export const pause = async () => {
@@ -880,7 +930,7 @@ export const setAudioTime = (index: number) => {
   nowTime.value = time;
   nowIndex.value = index;
   audioService.seek(time);
-  window.api.audioResume();
+  audioService.resume();
 };
 
 export const getCurrentLrc = () => {

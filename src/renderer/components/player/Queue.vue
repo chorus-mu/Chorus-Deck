@@ -29,6 +29,7 @@
           Queue
         </div>
         <div
+          v-if="!isFullView"
           class="tab"
           :class="{ active: activeTab === 'lyrics' }"
           :style="activeTab === 'lyrics' ? activeTabStyle : {}"
@@ -265,7 +266,7 @@
               @click="lyricConfig.lyricsClick !== false && item.startTime !== -1 ? handleLyricClick(index) : null"
             >
               <AmllInterludeDots
-                v-if="item.isPreamble || !item.text || item.text.trim() === '•••' || item.text.trim() === ''"
+                v-if="item.isPreamble || item.text?.trim() === '•••'"
                 :start-time="item.startTime ?? 0"
                 :duration="item.duration ?? 3000"
                 :current-time="(nowTime + correctionTime) * 1000"
@@ -277,7 +278,7 @@
                 v-else-if="shouldRenderWordByWord(item)"
                 class="queue-word-by-word-lyric"
               >
-                <template v-for="(word, wordIndex) in item.words" :key="wordIndex">
+                <template v-for="(word, wordIndex) in getQueueLineDisplayWords(item)" :key="wordIndex">
                   <span
                     class="queue-lyric-word"
                     :style="getQueueWordStyle(index, wordIndex, word)"
@@ -355,6 +356,7 @@ import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import type { SongResult } from '@/types/music';
 import { getImgUrl, isCompact, secondToMinute } from '@/utils';
+import type { LyricGranularity } from '@/types/lyric';
 import { computeLyricLineStyle } from '@/utils/lyricAnimation';
 import { LYRIC_CONFIG_CHANGE_EVENT, readLyricConfig } from '@/utils/lyricConfig';
 import logoImg from '@/assets/logo.png';
@@ -386,13 +388,24 @@ const themeVars = useThemeVars();
 
 const internalVisible = ref(false);
 const closing = ref(false);
+const isFullView = computed(() => !!playerStore.musicFull);
 const activeTab = ref<'queue' | 'lyrics'>('queue');
-const isShellLayout = computed(() => !isCompact.value);
+const isShellLayout = computed(() => !isCompact.value && !isFullView.value);
 const repeatMode = computed(() => playerStore.repeatMode);
 const shuffleEnabled = computed(() => playerStore.shuffleEnabled);
 const isDarkTheme = computed(() => {
   return settingsStore.theme === 'dark' || document.documentElement.classList.contains('dark');
 });
+
+watch(
+  isFullView,
+  (full) => {
+    if (full) {
+      activeTab.value = 'queue';
+    }
+  },
+  { immediate: true }
+);
 
 const rawAlbumColor = computed(
   () =>
@@ -564,9 +577,51 @@ const isLineActive = (index: number) => {
   return index === nowIndex.value;
 };
 
+const currentGranularity = computed<LyricGranularity>(() => {
+  return (settingsStore.setData?.lyricGranularity || lyricConfig.value?.lyricGranularity || 'auto') as LyricGranularity;
+});
+
 const shouldRenderWordByWord = (item: any) => {
-  if (lyricConfig.value.lyricGranularity === 'sentence') return false;
+  if (currentGranularity.value === 'sentence') return false;
   return !!(item?.hasWordByWord && item?.words && item?.words.length > 0);
+};
+
+const getQueueLineDisplayWords = (item: any) => {
+  if (!item?.words || item.words.length === 0) return [];
+  const granularity = currentGranularity.value;
+  if (granularity === 'sentence') return [];
+
+  if (granularity === 'word') {
+    const combined: any[] = [];
+    let curText = '';
+    let curStartTime = 0;
+    let curEndTime = 0;
+
+    for (let i = 0; i < item.words.length; i++) {
+      const w = item.words[i];
+      if (!curText) {
+        curText = w.text || '';
+        curStartTime = w.startTime;
+        curEndTime = w.startTime + (w.duration || 0);
+      } else {
+        curText += w.text || '';
+        curEndTime = Math.max(curEndTime, w.startTime + (w.duration || 0));
+      }
+
+      if (w.space || i === item.words.length - 1) {
+        combined.push({
+          text: curText,
+          startTime: curStartTime,
+          duration: Math.max(50, curEndTime - curStartTime),
+          space: !!w.space
+        });
+        curText = '';
+      }
+    }
+    return combined;
+  }
+
+  return item.words;
 };
 
 const getQueueLineStyle = (index: number) => {
@@ -585,21 +640,14 @@ const getQueueLineStyle = (index: number) => {
     nowIndex: nowIndex.value,
     style: lyricConfig.value.lyricsAnimationStyle || 'apple_spring',
     alignment: userAlign,
-    focusEnabled: lyricConfig.value.focusCurrentLyric !== false
+    focusEnabled: true
   });
 
   if (active) {
-    const hasGlow = lyricConfig.value.lyricsGlowEffect !== false;
     return {
       ...animStyle,
       fontSize: userFontSize,
-      lineHeight: userLineHeight,
-      background: `color-mix(in srgb, ${accentColor.value} 14%, transparent)`,
-      boxShadow: hasGlow
-        ? isDarkTheme.value
-          ? `0 0 20px color-mix(in srgb, ${accentColor.value} 28%, transparent)`
-          : `0 2px 10px color-mix(in srgb, ${accentColor.value} 18%, transparent)`
-        : 'none'
+      lineHeight: userLineHeight
     };
   }
 
@@ -614,27 +662,48 @@ const getQueueLrcStyle = (index: number) => {
   const activeClr = accentColor.value;
   const inactiveClr = inactiveLyricColor.value;
 
-  if (index === nowIndex.value) {
-    const originalStyle = originalLrcStyle(index);
-    if (originalStyle.backgroundImage) {
-      return {
-        ...originalStyle,
-        backgroundImage: originalStyle.backgroundImage
-          .replace(/#ffffff/g, activeClr)
-          .replace(/#ffffff8a/g, inactiveClr),
-        backgroundClip: 'text',
-        WebkitBackgroundClip: 'text',
-        color: 'transparent'
-      };
-    }
+  if (index !== nowIndex.value) {
     return {
-      color: activeClr
+      color: inactiveClr
     };
   }
 
-  return {
-    color: inactiveClr
-  };
+  const currentTime = (nowTime.value + correctionTime.value) * 1000;
+  const item = lrcArray.value[index];
+  if (!item) return { color: inactiveClr };
+
+  const start = item.startTime ?? 0;
+  const nextItem = lrcArray.value[index + 1];
+  const nextStart = nextItem?.startTime;
+  const duration = (item.duration && item.duration > 0)
+    ? item.duration
+    : (nextStart && nextStart > start ? nextStart - start : 3000);
+  const end = start + Math.max(duration, 500);
+
+  if (currentTime >= start && currentTime < end) {
+    const progress = Math.min(Math.max((currentTime - start) / Math.max(duration, 500), 0), 1);
+    const progressPercent = Math.round(progress * 100);
+    return {
+      backgroundImage: `linear-gradient(to right, ${activeClr} 0%, ${activeClr} ${progressPercent}%, ${inactiveClr} ${progressPercent}%, ${inactiveClr} 100%)`,
+      backgroundClip: 'text',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+      color: 'transparent',
+      transition: 'none'
+    };
+  } else if (currentTime >= end) {
+    return {
+      color: activeClr,
+      WebkitTextFillColor: 'initial',
+      transition: 'none'
+    };
+  } else {
+    return {
+      color: inactiveClr,
+      WebkitTextFillColor: 'initial',
+      transition: 'color 0.25s ease'
+    };
+  }
 };
 
 const getQueueWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
@@ -721,8 +790,12 @@ watch(
 
 const handleOpenTab = (e: CustomEvent) => {
   if (e.detail) {
-    activeTab.value = e.detail;
-    if (e.detail === 'queue') {
+    if (isFullView.value && e.detail === 'lyrics') {
+      activeTab.value = 'queue';
+    } else {
+      activeTab.value = e.detail;
+    }
+    if (activeTab.value === 'queue') {
       scrollToCurrentSong(true);
     }
   }
@@ -926,6 +999,7 @@ const handleClearQueue = () => {
   @apply fixed inset-0;
   pointer-events: auto;
   cursor: default;
+  z-index: 9999998;
   display: v-bind('isShellLayout ? "none" : "block"');
 }
 
@@ -1238,20 +1312,7 @@ const handleClearQueue = () => {
       color: var(--accent, #6366f1) !important;
       font-size: 1.35rem;
       font-weight: 800;
-      filter: drop-shadow(var(--lyric-glow));
       position: relative;
-
-      &::before {
-        content: '';
-        position: absolute;
-        left: -4px;
-        top: 18%;
-        bottom: 18%;
-        width: 3.5px;
-        border-radius: 4px;
-        background: var(--accent, #6366f1);
-        box-shadow: 0 0 10px var(--accent, #6366f1);
-      }
 
       .queue-lyric-text {
         color: var(--accent, #6366f1);
@@ -1307,41 +1368,6 @@ const handleClearQueue = () => {
     }
   }
 
-  .queue-preamble-dots {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 0;
-
-    .preamble-dot {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--accent, currentColor);
-      opacity: 0.4;
-      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
-
-    &.is-active {
-      .preamble-dot {
-        opacity: 0.95;
-        background: var(--accent, currentColor);
-        animation: amllDotPulse 1.4s ease-in-out infinite;
-
-        &.dot-1 {
-          animation-delay: 0s;
-        }
-        &.dot-2 {
-          animation-delay: 0.25s;
-        }
-        &.dot-3 {
-          animation-delay: 0.5s;
-        }
-      }
-    }
-  }
-
   .queue-lyrics-empty {
     @apply flex flex-col items-center justify-center flex-1 gap-3 py-20 text-gray-400 dark:text-gray-500;
     i {
@@ -1379,17 +1405,6 @@ const handleClearQueue = () => {
   }
   100% {
     background-position: 0 50%;
-  }
-}
-
-@keyframes amllDotPulse {
-  0%, 100% {
-    transform: scale(0.85);
-    opacity: 0.35;
-  }
-  50% {
-    transform: scale(1.35);
-    opacity: 1;
   }
 }
 

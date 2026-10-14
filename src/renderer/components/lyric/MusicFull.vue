@@ -28,7 +28,13 @@
         class="control-right absolute top-8 right-8 z-[9999]"
         :class="{ 'pure-mode': config.pureModeEnabled }"
       >
-        <n-popover v-model:show="settingsPopoverVisible" trigger="click" placement="bottom" raw>
+        <n-popover
+          v-model:show="settingsPopoverVisible"
+          trigger="click"
+          placement="bottom-end"
+          :show-arrow="false"
+          raw
+        >
           <template #trigger>
             <div class="control-btn" title="Lyrics Settings">
               <i class="ri-settings-3-line"></i>
@@ -249,7 +255,7 @@
                   @click="config.lyricsClick !== false && item.startTime !== -1 ? setAudioTime(index) : null"
                 >
                   <AmllInterludeDots
-                    v-if="item.isPreamble || !item.text || item.text.trim() === '•••' || item.text.trim() === ''"
+                    v-if="item.isPreamble || item.text?.trim() === '•••'"
                     :start-time="item.startTime ?? 0"
                     :duration="item.duration ?? 3000"
                     :current-time="(nowTime + correctionTime) * 1000"
@@ -261,11 +267,12 @@
                     v-else-if="shouldRenderWordByWord(item)"
                     class="word-by-word-lyric"
                   >
-                    <template v-for="(word, wordIndex) in item.words" :key="wordIndex">
+                    <template v-for="(word, wordIndex) in getLineDisplayWords(item)" :key="wordIndex">
                       <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">
-                        {{ word.text ? word.text.replace('{bg}', '') : '' }} </span
-                      ><span class="lyric-word" v-if="word.space">&nbsp;</span></template
-                    >
+                        {{ word.text ? word.text.replace('{bg}', '') : '' }}
+                      </span>
+                      <span v-if="word.space" class="lyric-space">&nbsp;</span>
+                    </template>
                   </div>
 
                   <span
@@ -302,8 +309,9 @@
 
 <script setup lang="ts">
 import { useDebounceFn } from '@vueuse/core';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import tinycolor from 'tinycolor2';
 
 import AmllInterludeDots from '@/components/lyric/AmllInterludeDots.vue';
 import Cover3D from '@/components/cover/Cover3D.vue';
@@ -314,6 +322,7 @@ import {
   adjustCorrectionTime,
   artistList,
   correctionTime,
+  ensureLyricsLoaded,
   isLyricsLoading,
   lrcArray,
   nowIndex,
@@ -327,18 +336,58 @@ import { useArtist } from '@/hooks/useArtist';
 import { useLyricBackground } from '@/hooks/useLyricBackground';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
-import { DEFAULT_LYRIC_CONFIG, LyricConfig } from '@/types/lyric';
+import { DEFAULT_LYRIC_CONFIG, LyricConfig, LyricGranularity } from '@/types/lyric';
 import { isCompact, isDesktop } from '@/utils';
 import { getTextColors } from '@/utils/linearColor';
 import { computeLyricLineStyle } from '@/utils/lyricAnimation';
 import { LYRIC_CONFIG_CHANGE_EVENT, readLyricConfig, writeLyricConfig } from '@/utils/lyricConfig';
 import { thumbPlayer } from '@/utils/thumbnail';
 
+const playerStore = usePlayerStore();
+const settingsStore = useSettingsStore();
+const setData = computed(() => settingsStore.setData);
+
 const lrcSider = ref<any>(null);
 const isMouse = ref(false);
 const showSyncButton = ref(false);
 const isProgrammaticScroll = ref(false);
 const { currentBackground, applyBackground } = useLyricBackground();
+
+const isDarkTheme = computed(() => {
+  return settingsStore.theme === 'dark' || document.documentElement.classList.contains('dark');
+});
+
+const rawAlbumColor = computed(
+  () => playMusic.value?.primaryColor || '#6366f1'
+);
+
+const accentColor = computed(() => {
+  const base = rawAlbumColor.value;
+  const tc = tinycolor(base);
+  if (!tc.isValid()) return isDarkTheme.value ? '#c7d2fe' : '#1e1b4b';
+  const hsl = tc.toHsl();
+  if (isDarkTheme.value) {
+    const sat = Math.min(Math.max(hsl.s, 0.5) * 1.1, 1);
+    const lum = Math.min(Math.max(hsl.l, 0.72), 0.88);
+    return tinycolor({ h: hsl.h, s: sat, l: lum }).toRgbString();
+  } else {
+    const sat = Math.min(Math.max(hsl.s, 0.6) * 1.25, 1);
+    const lum = Math.min(Math.max(hsl.l, 0.14), 0.26);
+    return tinycolor({ h: hsl.h, s: sat, l: lum }).toRgbString();
+  }
+});
+
+const inactiveLyricColor = computed(() => {
+  const base = rawAlbumColor.value;
+  const tc = tinycolor(base);
+  const h = tc.isValid() ? tc.toHsl().h : 230;
+  if (isDarkTheme.value) {
+    return tinycolor({ h, s: 0.12, l: 0.52 }).toRgbString();
+  } else {
+    return tinycolor({ h, s: 0.18, l: 0.55 }).setAlpha(0.65).toRgbString();
+  }
+});
+// -----------------------------------------------------------------
 
 const customBackgroundStyle = computed(() => {
   if (!config.value.useCustomBackground) {
@@ -387,7 +436,8 @@ const lyricSettingsRef = ref<InstanceType<typeof LyricSettings>>();
 const isSongChanging = ref(false);
 const isFullScreen = ref(false);
 
-const config = ref<LyricConfig>({ ...DEFAULT_LYRIC_CONFIG });
+const config = ref<LyricConfig>(readLyricConfig());
+provide('lyricSetting', config);
 
 watch(
   () => lyricSettingsRef.value?.config,
@@ -626,39 +676,101 @@ watch(
   { immediate: true }
 );
 
-const { getLrcStyle: originalLrcStyle } = useLyricProgress();
+const currentGranularity = computed<LyricGranularity>(() => {
+  return (settingsStore.setData?.lyricGranularity || config.value?.lyricGranularity || 'auto') as LyricGranularity;
+});
 
 const getLrcStyle = (index: number) => {
   const colors = textColors.value || getTextColors();
-  const originalStyle = originalLrcStyle(index);
-  const focusOn = config.value.focusCurrentLyric;
+  const activeClr = colors.active || '#ffffff';
+  const inactiveClr = colors.primary || 'rgba(255, 255, 255, 0.54)';
 
-  if (index === nowIndex.value) {
-    if (originalStyle.backgroundImage) {
-      return {
-        ...originalStyle,
-        backgroundImage: originalStyle.backgroundImage
-          .replace(/#ffffff/g, colors.active)
-          .replace(/#ffffff8a/g, `${colors.primary}`),
-        backgroundClip: 'text',
-        WebkitBackgroundClip: 'text',
-        color: 'transparent'
-      };
-    } else {
-      return {
-        color: focusOn ? colors.active : colors.primary
-      };
-    }
+  if (index !== nowIndex.value) {
+    return {
+      color: inactiveClr
+    };
   }
 
-  return {
-    color: colors.primary
-  };
+  const currentTime = (nowTime.value + correctionTime.value) * 1000;
+  const item = lrcArray.value[index];
+  if (!item) return { color: inactiveClr };
+
+  const start = item.startTime ?? 0;
+  const nextItem = lrcArray.value[index + 1];
+  const nextStart = nextItem?.startTime;
+  const duration = (item.duration && item.duration > 0)
+    ? item.duration
+    : (nextStart && nextStart > start ? nextStart - start : 3000);
+  const end = start + Math.max(duration, 500);
+
+  if (currentTime >= start && currentTime < end) {
+    const progress = Math.min(Math.max((currentTime - start) / Math.max(duration, 500), 0), 1);
+    const progressPercent = Math.round(progress * 100);
+    return {
+      backgroundImage: `linear-gradient(to right, ${activeClr} 0%, ${activeClr} ${progressPercent}%, ${inactiveClr} ${progressPercent}%, ${inactiveClr} 100%)`,
+      backgroundClip: 'text',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+      color: 'transparent',
+      transition: 'none'
+    };
+  } else if (currentTime >= end) {
+    return {
+      color: activeClr,
+      WebkitTextFillColor: 'initial',
+      transition: 'none'
+    };
+  } else {
+    return {
+      color: inactiveClr,
+      WebkitTextFillColor: 'initial',
+      transition: 'color 0.25s ease'
+    };
+  }
 };
 
 const shouldRenderWordByWord = (item: any) => {
-  if (config.value.lyricGranularity === 'sentence') return false;
-  return item.hasWordByWord && item.words && item.words.length > 0;
+  if (currentGranularity.value === 'sentence') return false;
+  return !!(item?.hasWordByWord && item?.words && item?.words.length > 0);
+};
+
+const getLineDisplayWords = (item: any) => {
+  if (!item?.words || item.words.length === 0) return [];
+  const granularity = currentGranularity.value;
+  if (granularity === 'sentence') return [];
+
+  if (granularity === 'word') {
+    const combined: any[] = [];
+    let curText = '';
+    let curStartTime = 0;
+    let curEndTime = 0;
+
+    for (let i = 0; i < item.words.length; i++) {
+      const w = item.words[i];
+      if (!curText) {
+        curText = w.text || '';
+        curStartTime = w.startTime;
+        curEndTime = w.startTime + (w.duration || 0);
+      } else {
+        curText += w.text || '';
+        curEndTime = Math.max(curEndTime, w.startTime + (w.duration || 0));
+      }
+
+      if (w.space || i === item.words.length - 1) {
+        combined.push({
+          text: curText,
+          startTime: curStartTime,
+          duration: Math.max(50, curEndTime - curStartTime),
+          space: !!w.space
+        });
+        curText = '';
+      }
+    }
+    return combined;
+  }
+
+  // 'syllable' or 'auto'
+  return item.words;
 };
 
 const getFocusStyle = (index: number) => {
@@ -668,24 +780,40 @@ const getFocusStyle = (index: number) => {
       ? 'right'
       : 'left';
 
-  return computeLyricLineStyle({
+  const baseStyle = computeLyricLineStyle({
     index,
     nowIndex: nowIndex.value,
     style: config.value.lyricsAnimationStyle || 'apple_spring',
     alignment,
-    focusEnabled: config.value.focusCurrentLyric !== false
+    focusEnabled: true
   });
+
+  const isCurrent = index === nowIndex.value;
+  const userFontSize = config.value.fontSize ? `${config.value.fontSize}px` : undefined;
+  const userLineHeight = config.value.lineHeight ? `${config.value.lineHeight}` : undefined;
+  const userLetterSpacing = config.value.letterSpacing !== undefined ? `${config.value.letterSpacing}px` : undefined;
+  const userFontWeight = isCurrent
+    ? Math.min(900, (config.value.fontWeight || 700) + 100)
+    : config.value.fontWeight || 700;
+
+  return {
+    ...baseStyle,
+    ...(userFontSize ? { fontSize: userFontSize } : {}),
+    ...(userLineHeight ? { lineHeight: userLineHeight } : {}),
+    ...(userLetterSpacing ? { letterSpacing: userLetterSpacing } : {}),
+    fontWeight: userFontWeight
+  };
 };
 
 const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
   const colors = textColors.value || getTextColors();
+  const activeClr = colors.active || '#ffffff';
+  const inactiveClr = colors.primary || 'rgba(255, 255, 255, 0.54)';
 
   if (lineIndex !== nowIndex.value) {
     return {
-      color: colors.primary,
-      transition: 'color 0.45s cubic-bezier(0.25, 1, 0.5, 1)',
-      backgroundImage: 'none',
-      WebkitTextFillColor: 'initial'
+      color: inactiveClr,
+      transition: 'color 0.25s ease'
     };
   }
 
@@ -693,53 +821,32 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
   const wordStartTime = word.startTime;
   const wordEndTime = word.startTime + word.duration;
 
-  const bgOffset = word.text.startsWith('{bg}') ? 0.8 : 1;
-  const isBg = word.text.startsWith('{bg}');
-  const scale = isBg ? '0.9' : '1.02';
-
   if (currentTime >= wordStartTime && currentTime < wordEndTime) {
-    const progress = Math.max(0, Math.min((currentTime - wordStartTime) / word.duration, 1));
-    const progressPercent = progress * 100;
-    const feather = config.value.featherEdge ? 2 : 0;
-    const startPercent = Math.max(0, progressPercent - feather);
-    const endPercent = Math.min(100, progressPercent + feather);
+    const progress = Math.min(Math.max((currentTime - wordStartTime) / word.duration, 0), 1);
+    const progressPercent = Math.round(progress * 100);
 
     return {
-      backgroundImage: `linear-gradient(to right, ${colors.active} 0%, ${colors.active} ${startPercent}%, ${colors.primary}66 ${endPercent}%, ${colors.primary}66 100%)`,
+      backgroundImage: `linear-gradient(to right, ${activeClr} 0%, ${activeClr} ${progressPercent}%, ${inactiveClr} ${progressPercent}%, ${inactiveClr} 100%)`,
       backgroundClip: 'text',
       WebkitBackgroundClip: 'text',
       WebkitTextFillColor: 'transparent',
-      opacity: bgOffset,
-      transform: `scale(${scale})`,
-      transformOrigin: 'left center',
-      display: 'inline-block',
-      fontStyle: isBg ? 'italic' : 'normal',
-      transition: 'background-image 0.05s linear, transform 0.2s cubic-bezier(0.25, 1, 0.5, 1)'
+      transition: 'all 0.1s ease'
     };
   } else if (currentTime >= wordEndTime) {
     return {
-      color: colors.active,
+      color: activeClr,
       WebkitTextFillColor: 'initial',
-      opacity: bgOffset,
-      transform: 'scale(1)',
-      display: 'inline-block',
-      fontStyle: isBg ? 'italic' : 'normal',
-      transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)'
+      transition: 'none'
     };
   } else {
     return {
-      color: colors.primary,
+      color: inactiveClr,
       WebkitTextFillColor: 'initial',
-      opacity: bgOffset * 0.6,
-      transform: 'scale(1)',
-      display: 'inline-block',
-      fontStyle: isBg ? 'italic' : 'normal',
-      transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)'
+      transition: 'color 0.25s ease'
     };
   }
 };
 
-const settingsStore = useSettingsStore();
 const router = useRouter();
 
 const { navigateToArtist } = useArtist();
@@ -748,8 +855,6 @@ const handleArtistClick = (id: string | undefined) => {
   isVisible.value = false;
   navigateToArtist(id);
 };
-
-const setData = computed(() => settingsStore.setData);
 
 watch(
   () => [setData.value.fontFamily, setData.value.fontScope],
@@ -789,8 +894,6 @@ const handleScroll = () => {
     showStickyHeader.value = scrollTop > 100;
   }
 };
-
-const playerStore = usePlayerStore();
 
 const closeMusicFull = () => {
   if (isFullScreen.value && document.fullscreenElement) {
@@ -896,6 +999,15 @@ watch(
 );
 
 watch(
+  () => config.value.preferredLyricProvider,
+  (newProvider, oldProvider) => {
+    if (newProvider !== oldProvider && playMusic.value?.id) {
+      void ensureLyricsLoaded(true);
+    }
+  }
+);
+
+watch(
   () => playMusic.value.id,
   (newId, oldId) => {
     if (newId !== oldId && newId) {
@@ -936,17 +1048,6 @@ defineExpose({
   }
   100% {
     background-position: 0 50%;
-  }
-}
-
-@keyframes amllDotPulse {
-  0%, 100% {
-    transform: scale(0.85);
-    opacity: 0.35;
-  }
-  50% {
-    transform: scale(1.35);
-    opacity: 1;
   }
 }
 
@@ -1106,19 +1207,16 @@ defineExpose({
       @apply text-2xl cursor-pointer font-bold px-4 py-3;
       font-family: var(--current-font-family);
       font-weight: var(--lyric-font-weight, bold) !important;
-      transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.45s cubic-bezier(0.25, 1, 0.5, 1);
       background-color: transparent;
       font-size: var(--lyric-font-size, 22px) !important;
       letter-spacing: var(--lyric-letter-spacing, 0) !important;
       line-height: var(--lyric-line-height, 2) !important;
-      opacity: 0.6;
       transform-origin: left center;
 
       max-width: 94.3%;
 
       &.now-text {
         opacity: 1;
-        transform: scale(1.05);
       }
 
       &.no-scroll-tip {
@@ -1135,7 +1233,7 @@ defineExpose({
         }
       }
 
-      span {
+      > span {
         padding-right: 30px;
       }
 
@@ -1145,54 +1243,24 @@ defineExpose({
         color: var(--text-color-primary);
       }
 
-      .music-preamble-dots {
-        display: inline-flex;
-        align-items: center;
-        gap: 12px;
-        padding: 8px 0;
-
-        .preamble-dot {
-          width: 14px;
-          height: 14px;
-          border-radius: 50%;
-          background: currentColor;
-          opacity: 0.35;
-          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        &.is-active {
-          .preamble-dot {
-            animation: amllDotPulse 1.4s ease-in-out infinite;
-
-            &.dot-1 {
-              animation-delay: 0s;
-            }
-            &.dot-2 {
-              animation-delay: 0.25s;
-            }
-            &.dot-3 {
-              animation-delay: 0.5s;
-            }
-          }
-        }
-      }
-
       .word-by-word-lyric {
-        @apply flex flex-wrap;
+        display: inline;
+        word-break: break-word;
 
         .lyric-word {
-          @apply inline-block;
-          padding-right: 0;
+          display: inline;
+          padding-right: 0 !important;
           font-weight: inherit;
           font-size: inherit;
           letter-spacing: inherit;
           line-height: inherit;
           cursor: inherit;
           position: relative;
+        }
 
-          &:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-          }
+        .lyric-space {
+          display: inline;
+          padding-right: 0 !important;
         }
       }
     }

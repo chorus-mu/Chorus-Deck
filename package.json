@@ -31,6 +31,7 @@
     ]
   },
   "dependencies": {
+    "@applemusic-like-lyrics/lyric": "^1.1.0",
     "@material/material-color-utilities": "^0.4.0",
     "@tauri-apps/plugin-dialog": "^2.8.0",
     "crypto-js": "^4.2.0",

@@ -65,7 +65,7 @@
   --text-color-100: #e9ecef;
   --text-color-200: #dee2e6;
   --text-color-300: #dde0e3;
-  --primary-color: #22c55e;
+  --primary-color: #6366f1;
 
   /* Outer canvas revealed through every shell gap. */
   --shell-canvas: #000;
@@ -82,7 +82,7 @@
   --text-color-100: #161616;
   --text-color-200: #2d2d2d;
   --text-color-300: #3d3d3d;
-  --primary-color: #22c55e;
+  --primary-color: #6366f1;
 
   /* Use a darker gray for the canvas to make white surfaces stand out */
   --shell-canvas: #e9ecef;
@@ -99,7 +99,7 @@
   --text-color-100: #161616;
   --text-color-200: #2d2d2d;
   --text-color-300: #3d3d3d;
-  --primary-color: #22c55e;
+  --primary-color: #6366f1;
 
   --shell-canvas: #e9ecef;
   --shell-surface: #f8f9fa;

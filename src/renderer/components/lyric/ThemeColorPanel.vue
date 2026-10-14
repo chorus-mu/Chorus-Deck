@@ -54,7 +54,7 @@
               v-model="colorInput"
               type="text"
               class="color-input"
-              placeholder="#1db954"
+              placeholder="#6366f1"
               @input="handleColorInput"
               @keyup.enter="handleColorInputConfirm"
             />
@@ -109,7 +109,7 @@ interface Emits {
 
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
-  currentColor: '#1db954',
+  currentColor: '#6366f1',
   theme: 'dark'
 });
 

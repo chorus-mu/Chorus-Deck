@@ -68,7 +68,8 @@ pub struct AudioState {
     pub eq: Mutex<EqState>,
 }
 
-const STREAM_BUFFER_LIMIT: usize = 4 * 1024 * 1024;
+const STREAM_BUFFER_LIMIT: usize = 16 * 1024 * 1024;
+const INITIAL_PREBUFFER_BYTES: usize = 512 * 1024;
 
 struct StreamState {
     buf: VecDeque<u8>,
@@ -484,8 +485,8 @@ pub async fn audio_play(
 
     { 
         let mut s = shared.state.lock().unwrap();
-        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1000);
-        while s.buf.len() < 256 * 1024 && !s.eof && s.error.is_none() && s.alive {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(3000);
+        while s.buf.len() < INITIAL_PREBUFFER_BYTES && !s.eof && s.error.is_none() && s.alive {
             let remaining = deadline.saturating_duration_since(std::time::Instant::now());
             if remaining.is_zero() {
                 break;

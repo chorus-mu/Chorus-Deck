@@ -57,6 +57,7 @@
         <div class="mini-control-btn play play-animated">
           <animated-play-pause
             :is-playing="play"
+            :loading="Boolean(playMusic?.playLoading)"
             @click.stop="playMusicEvent"
             :bg-color="playMusic?.primaryColor"
           />

@@ -15,7 +15,16 @@
       </svg>
     </div>
     <div class="icon-container">
-      <i :class="isPlaying ? pauseIcon : playIcon" :style="{ color: computedIconColor }"></i>
+      <i
+        v-if="loading"
+        class="ri-loader-4-line loading-icon"
+        :style="{ color: computedIconColor }"
+      ></i>
+      <i
+        v-else
+        :class="isPlaying ? pauseIcon : playIcon"
+        :style="{ color: computedIconColor }"
+      ></i>
     </div>
   </div>
 </template>
@@ -25,6 +34,10 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
 const props = defineProps({
   isPlaying: {
+    type: Boolean,
+    default: false
+  },
+  loading: {
     type: Boolean,
     default: false
   },
@@ -177,6 +190,19 @@ const pathData = computed(() => {
   align-items: center;
   justify-content: center;
   font-size: 24px;
+}
+
+.loading-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes spin-slow {

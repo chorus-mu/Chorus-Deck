@@ -51,6 +51,7 @@
           >
             <animated-play-pause
               :is-playing="play"
+              :loading="Boolean(playerStore.playMusic?.playLoading)"
               :bg-color="playerStore.playMusic?.primaryColor"
             />
           </div>
@@ -199,7 +200,6 @@ const formatTime = (seconds: number) => {
 };
 
 const openQueue = () => {
-  playerStore.setMusicFull(false);
   playerStore.setQueueVisible(true);
 };
 
@@ -252,10 +252,11 @@ const applyThemeColor = (colorValue: string) => {
     const lightenedColor = `rgb(${Math.min(255, r + 40)}, ${Math.min(255, g + 40)}, ${Math.min(255, b + 40)})`;
     playBarElement.style.setProperty('--fill-color-light', lightenedColor);
   } else {
-    playBarElement.style.setProperty('--fill-color', colorValue);
-    playBarElement.style.setProperty('--fill-color-transparent', `${colorValue}40`);
-    playBarElement.style.setProperty('--fill-color-light', `${colorValue}80`);
-    playBarElement.style.setProperty('--fill-color-alt', colorValue);
+    const fallbackColor = colorValue || '#6366f1';
+    playBarElement.style.setProperty('--fill-color', fallbackColor);
+    playBarElement.style.setProperty('--fill-color-transparent', `${fallbackColor}40`);
+    playBarElement.style.setProperty('--fill-color-light', `${fallbackColor}80`);
+    playBarElement.style.setProperty('--fill-color-alt', fallbackColor);
     playBarElement.style.setProperty('--text-on-fill', '#ffffff');
     playBarElement.style.setProperty('--high-contrast-color', '#ffffff');
   }
