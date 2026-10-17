@@ -63,11 +63,13 @@ const loadAndPlayAudio = async (song: SongResult, shouldPlay: boolean): Promise<
     throw new Error('Song is not playingURL');
   }
 
-  let initialPosition = 0;
-  const savedProgress = JSON.parse(localStorage.getItem('playProgress') || '{}');
-  if (savedProgress.songId === song.id) {
-    initialPosition = savedProgress.progress;
-    console.log('[playbackController] Resume playback progress:', initialPosition);
+  let initialPosition = (song as any).seekTargetTime || 0;
+  if (!initialPosition) {
+    const savedProgress = JSON.parse(localStorage.getItem('playProgress') || '{}');
+    if (savedProgress.songId === song.id) {
+      initialPosition = savedProgress.progress;
+      console.log('[playbackController] Resume playback progress:', initialPosition);
+    }
   }
 
   console.log(`[playbackController] Start playing: ${song.name}`);
@@ -122,7 +124,19 @@ export const playTrack = async (
   );
 
   const playerCore = await getPlayerCoreStore();
+  playerCore.playMusic = music;
+  await audioService.pause();
   await audioService.stop();
+
+  try {
+    const { nowTime, allTime, nowIndex, lrcArray } = await import('@/hooks/MusicHook');
+    nowTime.value = 0;
+    allTime.value = 0;
+    nowIndex.value = 0;
+    lrcArray.value = [];
+  } catch (e) {
+    // non-critical
+  }
 
   if (!playbackRequestManager.isRequestValid(requestId)) {
     console.log(`[playbackController] The request expires after it is created: ${requestId}`);
@@ -134,13 +148,14 @@ export const playTrack = async (
   }
 
   playerCore.play = shouldPlay;
-  playerCore.isPlay = shouldPlay;
+  playerCore.isPlay = false; // Still loading/buffering, not playing yet
   playerCore.userPlayIntent = shouldPlay;
 
   music.playLoading = true;
-  playerCore.playMusic = music;
   updateDocumentTitle(music);
-  window.api.sendSong({ ...music, is_playing: shouldPlay });
+  // Send song metadata with is_playing: false until audio actually starts
+  window.api.sendSong({ ...music, is_playing: false });
+  window.api.updatePlayState(false);
 
   const originalMusic = { ...music };
 
@@ -187,7 +202,7 @@ export const playTrack = async (
     playerCore.playMusic = updatedPlayMusic;
     playerCore.playMusicUrl = updatedPlayMusic.playMusicUrl as string;
     music.playMusicUrl = updatedPlayMusic.playMusicUrl as string;
-    window.api.sendSong({ ...updatedPlayMusic, is_playing: shouldPlay });
+    window.api.sendSong({ ...updatedPlayMusic, is_playing: false });
 
     if (originalMusic.urlRejectedAt) {
       playerCore.playMusic.urlRejectedAt = originalMusic.urlRejectedAt;
@@ -348,19 +363,20 @@ export const setupUrlExpiredHandler = (): void => {
       return;
     }
 
-    let seekPosition = 0;
-    try {
-      seekPosition = await window.api.audioGetTime();
-      const duration = audioService.getDuration();
-      if (duration > 0 && seekPosition > 0 && duration - seekPosition < 5) {
-        console.log(
-          '[playbackController] The song is nearing the end, skipURLExpiration processing'
-        );
-        return;
+    let seekPosition = (expiredTrack as any)?.seekTargetTime || 0;
+    if (!seekPosition) {
+      try {
+        seekPosition = await window.api.audioGetTime();
+        const duration = audioService.getDuration();
+        if (duration > 0 && seekPosition > 0 && duration - seekPosition < 5) {
+          console.log(
+            '[playbackController] The song is nearing the end, skipURLExpiration processing'
+          );
+          return;
+        }
+      } catch (error) {
+        console.warn('[playbackController] Could not read playback position', error);
       }
-    } catch (error) {
-      // No position yet (fresh source); recovering from 0 is still correct.
-      console.warn('[playbackController] Could not read playback position', error);
     }
 
     try {
@@ -368,14 +384,8 @@ export const setupUrlExpiredHandler = (): void => {
         ...expiredTrack,
         isFirstPlay: true,
         playMusicUrl: undefined,
-        // Cleared alongside the URL: the container hint and the resolving client
-        // both describe the URL that just failed, and the replacement may be a
-        // different container from a different client.
         mimeType: undefined,
         streamUserAgent: undefined,
-        // The replacement has not been tried yet, so this rejection marker has
-        // to be dropped along with the URL it described. Leaving it set would
-        // make the next lookup discard a URL it has never seen.
         urlRejectedAt: undefined
       };
 
@@ -398,11 +408,7 @@ export const setupUrlExpiredHandler = (): void => {
 
 let lastYtmRequestKey: string | null = null;
 
-/**
- * YouTube Music views (home / search / charts) queue a track and dispatch a
- * `ytm:play` window event instead of calling the player directly. This is the
- * single consumer that turns that event into real playback.
- */
+
 export const setupYTMusicPlayHandler = (): void => {
   const handler = async (event: Event): Promise<void> => {
     const detail = (event as CustomEvent).detail as SongResult | undefined;
@@ -414,7 +420,6 @@ export const setupYTMusicPlayHandler = (): void => {
 
     const requestKey = `${detail.source ?? 'ytmusic'}:${detail.id}`;
 
-    // Guard against duplicate dispatches for the same track within a short window.
     if (lastYtmRequestKey === requestKey) return;
     lastYtmRequestKey = requestKey;
     setTimeout(() => {
@@ -466,6 +471,9 @@ export const initializePlayState = async (): Promise<void> => {
       playerCore.play = false;
       playerCore.isPlay = false;
       playerCore.userPlayIntent = false;
+      if (playerCore.playMusic) {
+        playerCore.playMusic.playLoading = false;
+      }
 
       updateDocumentTitle(playerCore.playMusic);
 

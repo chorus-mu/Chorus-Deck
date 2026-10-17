@@ -670,6 +670,13 @@ const setupAudioListeners = () => {
 
   startRecoveryMonitor();
 
+  audioService.on('timeupdate', (timeSecs: number) => {
+    nowTime.value = timeSecs;
+    if (!allTime.value || allTime.value <= 0) {
+      allTime.value = audioService.getDuration() || 0;
+    }
+  });
+
   audioService.on('seek_start', (time: number) => {
     nowTime.value = time;
   });
@@ -716,7 +723,9 @@ const setupAudioListeners = () => {
 
   audioService.on('play', () => {
     getPlayerStore().setPlayMusic(true);
-    window.api.sendSong(cloneDeep(getPlayerStore().playMusic));
+    const curr = getPlayerStore().playMusic;
+    window.api.sendSong({ ...cloneDeep(curr), is_playing: true });
+    window.api.updatePlayState(true);
 
     if (lrcArray.value.length === 0 && playMusic.value?.id) {
       ensureLyricsLoaded();
@@ -727,6 +736,9 @@ const setupAudioListeners = () => {
   audioService.on('pause', () => {
     console.log('Audio pause event triggered');
     getPlayerStore().setPlayMusic(false);
+    const curr = getPlayerStore().playMusic;
+    window.api.sendSong({ ...cloneDeep(curr), is_playing: false });
+    window.api.updatePlayState(false);
     clearInterval();
     if (isLyricWindowOpen.value) {
       sendLyricToWin();
@@ -739,6 +751,10 @@ const setupAudioListeners = () => {
     nowIndex.value = 0;
     lrcArray.value = [];
     lrcTimeArray.value = [];
+    getPlayerStore().setPlayMusic(false);
+    const curr = getPlayerStore().playMusic;
+    window.api.sendSong({ ...cloneDeep(curr), is_playing: false });
+    window.api.updatePlayState(false);
     if (isLyricWindowOpen.value) {
       sendLyricToWin();
     }

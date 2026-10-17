@@ -10,6 +10,7 @@ pub mod store;
 pub mod stream_decoder;
 pub mod system;
 pub mod window;
+pub mod lossless;
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

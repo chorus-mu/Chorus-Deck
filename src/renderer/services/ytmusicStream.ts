@@ -1,5 +1,6 @@
 import { getYTMStream } from '@/api/ytmusic';
 import type { SongResult } from '@/types/music';
+import { matchLosslessStream } from './losslessService';
 
 const VIDEO_ID_PATTERN = /^[\w-]{6,20}$/;
 
@@ -21,6 +22,7 @@ export interface ResolvedYTMStream {
   userAgent: string;
   bitrate: number;
   expiresAt: number;
+  qualityBadge?: string;
 }
 
 export const resolveYTMusicStream = async (song: SongResult): Promise<ResolvedYTMStream> => {
@@ -31,6 +33,31 @@ export const resolveYTMusicStream = async (song: SongResult): Promise<ResolvedYT
   }
 
   const artistName = (song.ar || song.artists)?.[0]?.name || (song as any).artist || '';
+
+  try {
+    const losslessMatch = await matchLosslessStream(song.name, artistName, song.dt);
+    if (losslessMatch?.url) {
+      song.videoId = videoId;
+      song.mimeType = losslessMatch.mimeType;
+      (song as any).qualityBadge = losslessMatch.qualityBadge;
+
+      return {
+        url: losslessMatch.url,
+        videoId,
+        durationMs: song.dt,
+        thumbnail: song.picUrl,
+        album: song.album,
+        mimeType: losslessMatch.mimeType,
+        userAgent: '',
+        bitrate: losslessMatch.bitrate,
+        expiresAt: Date.now() + 3600 * 1000,
+        qualityBadge: losslessMatch.qualityBadge
+      };
+    }
+  } catch (err) {
+    console.debug('[ytmusicStream] Lossless match fallback to YouTube AAC:', err);
+  }
+
   const stream = await getYTMStream(videoId, undefined, {
     title: song.name,
     artist: artistName

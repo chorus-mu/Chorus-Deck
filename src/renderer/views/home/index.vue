@@ -316,6 +316,11 @@ onMounted(() => {
 
 .ytm-card {
   animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1), transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.home-section {
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 @keyframes fadeInUp {
@@ -331,8 +336,23 @@ onMounted(() => {
 
 .home-section-scroll {
   scrollbar-width: none;
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+.ytm-home {
+  animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

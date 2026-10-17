@@ -17,12 +17,12 @@
         ? playMusic.primaryColor + '99'
         : 'var(--primary-color)'
     }"
-    @click="handleBarClick"
   >
     <div class="play-bar-left">
       <div class="play-bar-img-wrapper" @click.stop="setMusicFull">
         <img
           v-if="playMusic?.picUrl"
+          :key="playMusic?.id"
           :src="getImgUrl(playMusic?.picUrl, '100y100')"
           class="play-bar-img"
           alt=""
@@ -30,10 +30,7 @@
           @error="handleImgError($event, playMusic, 'song')"
           style="object-fit: cover"
         />
-        <img v-else :src="logoImg" class="play-bar-img" alt="" style="object-fit: cover" />
-        <div v-if="playMusic?.playLoading" class="loading-overlay">
-          <i class="ri-loader-4-line loading-icon"></i>
-        </div>
+        <img v-else :key="'logo'" :src="logoImg" class="play-bar-img" alt="" style="object-fit: cover" />
         <div class="hover-arrow">
           <div class="hover-content">
             <i
@@ -49,6 +46,9 @@
           <n-ellipsis class="text-ellipsis" line-clamp="1">
             <p v-html="playMusic?.name || ''"></p>
           </n-ellipsis>
+          <span v-if="(playMusic as any)?.qualityBadge" class="lossless-quality-badge">
+            {{ (playMusic as any).qualityBadge }}
+          </span>
           <span v-if="playbackRate !== 1.0" class="playback-rate-badge"> {{ playbackRate }}x </span>
         </div>
         <div class="music-content-name">
@@ -98,8 +98,8 @@
         </div>
         <div class="music-buttons-play play-animated" @click.stop>
           <animated-play-pause
-            :is-playing="play"
-            :loading="Boolean(playMusic?.playLoading)"
+            :is-playing="hasSong && play && !isBuffering"
+            :loading="hasSong && isBuffering"
             @click="playMusicEvent"
             :bg-color="playMusic?.primaryColor"
           />
@@ -132,11 +132,19 @@
 
       <div class="playback-timeline custom-slider">
         <span class="time-text">{{ secondToMinute(nowTime) }}</span>
-        <div class="timeline-slider" @click.stop>
+        <div
+          class="timeline-slider"
+          :class="{ 'is-buffering': isBuffering }"
+          @click.stop
+        >
+          <div v-if="isBuffering" class="buffer-loading-track">
+            <div class="buffer-shimmer-bar"></div>
+          </div>
           <n-slider
+            v-else
             v-model:value="timeSlider"
             :step="1"
-            :max="allTime"
+            :max="allTime > 0 ? allTime : 100"
             :min="0"
             :tooltip="false"
             @dragstart="handleSliderDragStart"
@@ -285,6 +293,35 @@ const throttledSeek = useThrottleFn((value: number) => {
 
 const dragValue = ref(0);
 const isDragging = ref(false);
+const isSeeking = ref(false);
+const targetSeekTime = ref<number | null>(null);
+let seekTimeout: any = null;
+
+watch(nowTime, (newTime) => {
+  if (isSeeking.value && targetSeekTime.value !== null) {
+    if (Math.abs(newTime - targetSeekTime.value) <= 0.8) {
+      isSeeking.value = false;
+      targetSeekTime.value = null;
+      if (seekTimeout) {
+        clearTimeout(seekTimeout);
+        seekTimeout = null;
+      }
+    }
+  }
+});
+
+const hasSong = computed(() => {
+  const m = playMusic?.value;
+  return Boolean(m && (m.id !== undefined && m.id !== null && m.id !== '') && (m.name || m.title));
+});
+
+const isBuffering = computed(() => {
+  if (!hasSong.value) return false;
+  if (isSeeking.value) return true;
+  if (audioService.isBuffering() || Boolean(playMusic?.value?.playLoading)) return true;
+  if (!audioService.isActuallyPlaying() && Boolean(playerStore.play)) return true;
+  return false;
+});
 
 const timeSlider = computed({
   get: () => (isDragging.value ? dragValue.value : nowTime.value),
@@ -293,9 +330,22 @@ const timeSlider = computed({
       dragValue.value = value;
       return;
     }
-    throttledSeek(value);
+    executeSeek(value);
   }
 });
+
+const executeSeek = (targetTime: number) => {
+  if (isSeeking.value && Math.abs(nowTime.value - targetTime) < 0.5) return;
+  isSeeking.value = true;
+  targetSeekTime.value = targetTime;
+  if (seekTimeout) clearTimeout(seekTimeout);
+  nowTime.value = targetTime;
+  audioService.seek(targetTime);
+  seekTimeout = setTimeout(() => {
+    isSeeking.value = false;
+    targetSeekTime.value = null;
+  }, 1500);
+};
 
 const handleSliderDragStart = () => {
   isDragging.value = true;
@@ -304,11 +354,11 @@ const handleSliderDragStart = () => {
 
 const handleSliderDragEnd = () => {
   isDragging.value = false;
-  if (allTime.value > 5 && dragValue.value >= allTime.value - 0.5) {
-    audioService.seek(allTime.value);
+  const target = dragValue.value;
+  if (allTime.value > 5 && target >= allTime.value - 0.5) {
+    executeSeek(allTime.value);
   } else {
-    audioService.seek(dragValue.value);
-    nowTime.value = dragValue.value;
+    executeSeek(target);
   }
 };
 
@@ -331,6 +381,7 @@ const setMusicFull = () => {
   playerStore.setMusicFull(musicFullVisible.value);
   if (musicFullVisible.value) {
     settingsStore.showArtistDrawer = false;
+    playerStore.setQueueVisible(false);
   }
 };
 
@@ -355,8 +406,12 @@ const handleArtistClick = (id: string | undefined) => {
   navigateToArtist(id);
 };
 
-const openQueue = () => {
-  playerStore.setQueueVisible(true);
+const openQueue = (e?: Event) => {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  playerStore.setQueueVisible(!playerStore.queueVisible);
 };
 </script>
 
@@ -374,15 +429,18 @@ const openQueue = () => {
   width: calc(100% - calc(var(--shell-gap, 12px) * 2));
   z-index: var(--shell-z-player, 20);
   animation-duration: 0.5s !important;
-  cursor: pointer;
+  cursor: default;
+  transition: opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1), transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.35s ease;
 
   &.play-bar-opcity {
-    background-color: transparent !important;
+    opacity: 0 !important;
+    pointer-events: none;
+    transform: translateY(12px);
     box-shadow: none !important;
   }
 
   &.animate__slideOutDown {
-    animation-duration: 0.3s !important;
+    animation-duration: 0.35s !important;
     pointer-events: none;
   }
 }
@@ -538,6 +596,48 @@ const openQueue = () => {
       }
     }
   }
+
+  .buffer-loading-track {
+    @apply w-full relative overflow-hidden rounded-full;
+    height: 5px;
+    background: rgba(128, 128, 128, 0.22);
+    pointer-events: none;
+
+    .buffer-shimmer-bar {
+      @apply absolute inset-0 rounded-full;
+      background: linear-gradient(
+        90deg,
+        rgba(128, 128, 128, 0.2) 0%,
+        var(--fill-color, var(--primary-color)) 50%,
+        rgba(128, 128, 128, 0.2) 100%
+      );
+      background-size: 200% 100%;
+      animation: buffer-rail-shimmer 1.4s ease-in-out infinite, buffer-rail-pulse 1.4s ease-in-out infinite;
+    }
+  }
+
+  .timeline-slider.is-buffering {
+    pointer-events: none !important;
+    cursor: wait !important;
+  }
+}
+
+@keyframes buffer-rail-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes buffer-rail-pulse {
+  0%, 100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
 .play-bar-img-wrapper {
@@ -607,6 +707,14 @@ const openQueue = () => {
   @apply ml-2 px-1.5 h-4 flex items-center text-xs rounded text-primary bg-opacity-15 text-primary dark:text-primary;
   font-weight: 500;
   vertical-align: 1px;
+}
+
+.lossless-quality-badge {
+  @apply ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded tracking-wider uppercase border border-current;
+  color: var(--fill-color, var(--primary-color));
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(4px);
+  line-height: 1;
 }
 
 .compact {

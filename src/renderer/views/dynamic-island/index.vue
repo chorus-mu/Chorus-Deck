@@ -7,14 +7,14 @@
     <div class="trigger-zone" @mouseenter="handleZoneEnter" @mouseleave="handleZoneLeave">
       <div
         class="dynamic-island"
-        :class="[currentState, { 'is-active': isPlaying }]"
+        :class="[currentState, { 'is-active': isActuallyPlaying }]"
         @mouseenter="handleIslandEnter"
       >
         <div v-show="currentState === 'hidden'" class="hidden-trigger-zone"></div>
 
         <div v-show="currentState === 'playing'" class="notch-container w-full h-full">
           <KeepAlive>
-            <playing-state v-if="isPlaying" key="ps" :currentTrack="currentTrack" :progressPercent="progressPercent" :isDark="isDark" :accentColor="accentColor" />
+            <playing-state v-if="isActuallyPlaying" key="ps" :currentTrack="currentTrack" :progressPercent="progressPercent" :isDark="isDark" :accentColor="accentColor" />
             <idle-state v-else key="is" :isDark="isDark" />
           </KeepAlive>
         </div>
@@ -51,7 +51,7 @@
                 </button>
                 <div class="scalloped-btn play-pause-btn" style="background: transparent; padding: 0; transform: scale(1.15);" @click.stop>
                   <animated-play-pause
-                    :is-playing="isPlaying"
+                    :is-playing="isActuallyPlaying"
                     @click="togglePlay"
                     :bg-color="btnBg"
                     :icon-color="btnFg"
@@ -112,6 +112,12 @@ const currentTrack = ref({
   artist: '',
   cover: '',
   backgroundColor: ''
+});
+const hasTrack = computed(() => {
+  return Boolean(currentTrack.value.title && currentTrack.value.title.trim() && currentTrack.value.title !== 'Chorus Deck');
+});
+const isActuallyPlaying = computed(() => {
+  return Boolean(hasTrack.value && isPlaying.value);
 });
 const currentTime = ref(0);
 const duration = ref(0);
@@ -421,10 +427,11 @@ const formatTime = (seconds: number) => {
 
 const syncFromStore = (parsed: any) => {
   if (!parsed) return;
-  if (parsed.isPlay !== undefined) {
-    isPlaying.value = !!parsed.isPlay;
-  }
-  if (parsed.playMusic && (parsed.playMusic.name || parsed.playMusic.title)) {
+  const hasValidSong = parsed.playMusic && (parsed.playMusic.id !== undefined && parsed.playMusic.id !== null && parsed.playMusic.id !== '') && (parsed.playMusic.name || parsed.playMusic.title);
+  if (hasValidSong) {
+    if (parsed.isPlay !== undefined) {
+      isPlaying.value = !!parsed.isPlay;
+    }
     const meta = extractCleanSongMeta(parsed.playMusic);
     const dt = parsed.playMusic.dt || parsed.playMusic.duration;
     if (dt) duration.value = dt > 10000 ? dt / 1000 : dt;
@@ -441,6 +448,16 @@ const syncFromStore = (parsed: any) => {
       cover: getImgUrl(rawCover, '300y300'),
       backgroundColor: currentTrack.value.backgroundColor
     };
+  } else {
+    isPlaying.value = false;
+    currentTrack.value = {
+      title: '',
+      artist: '',
+      cover: '',
+      backgroundColor: ''
+    };
+    currentTime.value = 0;
+    duration.value = 0;
   }
 };
 
@@ -593,8 +610,9 @@ onMounted(async () => {
   } catch (e) {}
 
   listen('update-play-state', (event: any) => {
-    if (isPlaying.value !== event.payload) {
-      isPlaying.value = event.payload;
+    const playState = Boolean(event.payload && hasTrack.value);
+    if (isPlaying.value !== playState) {
+      isPlaying.value = playState;
       showConfirmation();
     }
   });
@@ -602,18 +620,31 @@ onMounted(async () => {
   listen('update-current-song', (event: any) => {
     const payload = event.payload;
     coverFailed.value = false;
+    if (!payload || !payload.title || payload.title === 'Chorus Deck') {
+      currentTrack.value = {
+        title: '',
+        artist: '',
+        cover: '',
+        backgroundColor: ''
+      };
+      isPlaying.value = false;
+      currentTime.value = 0;
+      duration.value = 0;
+      showConfirmation();
+      return;
+    }
     const coverUrl = payload.cover_url || currentTrack.value.cover || '';
     currentTrack.value = {
-      title: payload.title || currentTrack.value.title || '',
-      artist: payload.artist || currentTrack.value.artist || '',
+      title: payload.title || '',
+      artist: payload.artist || '',
       cover: getImgUrl(coverUrl, '300y300'),
       backgroundColor: currentTrack.value.backgroundColor
     };
     if (payload.duration) {
       duration.value = payload.duration > 10000 ? payload.duration / 1000 : payload.duration;
     }
-    if (payload.is_playing !== undefined && isPlaying.value !== payload.is_playing) {
-      isPlaying.value = payload.is_playing;
+    if (payload.is_playing !== undefined) {
+      isPlaying.value = Boolean(payload.is_playing && hasTrack.value);
     }
     showConfirmation();
   });
@@ -621,7 +652,7 @@ onMounted(async () => {
   listen('playback-progress', (event: any) => {
     if (typeof event.payload === 'number') {
       currentTime.value = event.payload;
-      if (!isPlaying.value && event.payload > 0) {
+      if (!isPlaying.value && event.payload > 0.05 && hasTrack.value) {
         isPlaying.value = true;
         showConfirmation();
       }

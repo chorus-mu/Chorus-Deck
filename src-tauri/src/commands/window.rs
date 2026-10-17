@@ -173,3 +173,16 @@ pub fn set_content_zoom(
 pub fn get_content_zoom(state: tauri::State<'_, crate::commands::AppState>) -> Result<f64, String> {
     Ok(*state.zoom.lock().map_err(|_| "zoom lock poisoned")?)
 }
+
+#[tauri::command(rename = "toggle-fullscreen")]
+pub fn toggle_fullscreen(window: WebviewWindow) -> Result<bool, String> {
+    let current = window.is_fullscreen().map_err(|e| e.to_string())?;
+    let target = !current;
+    window.set_fullscreen(target).map_err(|e| e.to_string())?;
+    Ok(target)
+}
+
+#[tauri::command(rename = "is-fullscreen")]
+pub fn is_fullscreen(window: WebviewWindow) -> Result<bool, String> {
+    window.is_fullscreen().map_err(|e| e.to_string())
+}

@@ -154,7 +154,7 @@ const triggerSmoothSplashDismiss = () => {
     requestAnimationFrame(() => {
       setTimeout(() => {
         dismissSplashScreen();
-      }, 160);
+      }, 50);
     });
   });
 };
@@ -362,7 +362,10 @@ onMounted(async () => {
     await nextTick();
     initAudioListeners();
     if (window.api && window.api.sendSong) {
-      window.api.sendSong(cloneDeep(playerStore.playMusic));
+      window.api.sendSong({ ...cloneDeep(playerStore.playMusic), is_playing: false });
+    }
+    if (window.api && window.api.updatePlayState) {
+      window.api.updatePlayState(false);
     }
   }
 

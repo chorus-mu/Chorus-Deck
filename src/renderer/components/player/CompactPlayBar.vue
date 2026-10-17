@@ -56,8 +56,8 @@
         </div>
         <div class="mini-control-btn play play-animated">
           <animated-play-pause
-            :is-playing="play"
-            :loading="Boolean(playMusic?.playLoading)"
+            :is-playing="play && !isBuffering"
+            :loading="isBuffering"
             @click.stop="playMusicEvent"
             :bg-color="playMusic?.primaryColor"
           />
@@ -69,7 +69,7 @@
         >
           <i class="ri-skip-forward-line"></i>
         </div>
-        <i class="ri-play-list-line mini-list-icon ml-2" @click="openQueue"></i>
+        <i class="ri-play-list-line mini-list-icon ml-2" @click.stop="openQueue"></i>
       </div>
     </div>
 
@@ -83,13 +83,13 @@
 
 <script lang="ts" setup>
 import { useSwipe } from '@vueuse/core';
-import type { Ref } from 'vue';
-import { inject, onMounted, ref, watch } from 'vue';
+import { computed, inject, onMounted, ref, watch } from 'vue';
 
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import AnimatedPlayPause from '@/components/player/AnimatedPlayPause.vue';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { usePlaybackControl } from '@/hooks/usePlaybackControl';
+import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl, setAnimationClass } from '@/utils';
@@ -110,6 +110,10 @@ const settingsStore = useSettingsStore();
 
 const { isPlaying: play, playMusicEvent, handleNext, handlePrev } = usePlaybackControl();
 
+const isBuffering = computed(() => {
+  return audioService.isBuffering() || Boolean(playMusic.value?.playLoading);
+});
+
 const background = ref('#000');
 
 const MusicFullRef = ref<any>(null);
@@ -126,8 +130,12 @@ watch(
   (_newVal) => {}
 );
 
-const openQueue = () => {
-  playerStore.setQueueVisible(true);
+const openQueue = (e?: Event) => {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  playerStore.setQueueVisible(!playerStore.queueVisible);
 };
 
 const playBarRef = ref<HTMLElement | null>(null);

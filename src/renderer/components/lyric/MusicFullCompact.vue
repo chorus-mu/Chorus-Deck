@@ -428,8 +428,8 @@
               @click="togglePlay"
             >
               <animated-play-pause
-                :is-playing="play"
-                :loading="Boolean(playMusic?.playLoading)"
+                :is-playing="play && !isBuffering"
+                :loading="isBuffering"
                 :bg-color="playMusic?.primaryColor"
               />
             </div>
@@ -499,8 +499,8 @@
             @click="togglePlay"
           >
             <animated-play-pause
-              :is-playing="play"
-              :loading="Boolean(playMusic?.playLoading)"
+              :is-playing="play && !isBuffering"
+              :loading="isBuffering"
               :bg-color="playMusic?.primaryColor"
             />
           </div>
@@ -562,6 +562,10 @@ const settingsStore = useSettingsStore();
 
 const play = computed(() => playerStore.isPlay);
 const playIcon = computed(() => (play.value ? 'ri-pause-fill' : 'ri-play-fill'));
+
+const isBuffering = computed(() => {
+  return audioService.isBuffering() || Boolean(playMusic.value?.playLoading);
+});
 
 const showPlayerSettings = ref(false);
 const showLyricSettings = ref(false);

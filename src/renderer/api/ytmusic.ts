@@ -1297,15 +1297,34 @@ const pickBestAudioFormat = (
       return currentBitrate > bestBitrate ? current : best;
     }, mp4Audio[0]);
   }
+
+  const webmAudio = audioOnlyWithUrl.filter((f) => f?.mimeType?.startsWith('audio/webm'));
+  if (webmAudio.length > 0) {
+    return webmAudio.reduce((best, current) => {
+      const bestBitrate = best?.averageBitrate ?? best?.bitrate ?? 0;
+      const currentBitrate = current?.averageBitrate ?? current?.bitrate ?? 0;
+      return currentBitrate > bestBitrate ? current : best;
+    }, webmAudio[0]);
+  }
+
+  const anyAudioWithUrl = audioOnlyWithUrl.sort((a, b) => {
+    const bitA = a?.averageBitrate ?? a?.bitrate ?? 0;
+    const bitB = b?.averageBitrate ?? b?.bitrate ?? 0;
+    return bitB - bitA;
+  });
+  if (anyAudioWithUrl.length > 0) {
+    return anyAudioWithUrl[0];
+  }
+
   const progWithUrl = (Array.isArray(progressiveFormats) ? progressiveFormats : []).filter(
     (f) => typeof f?.url === 'string' && f.url.startsWith('http')
   );
-  const itag18 = progWithUrl.find((f) => f.itag === 18);
-  if (itag18) {
-    return itag18;
-  }
+  const itag22 = progWithUrl.find((f) => f.itag === 22); 
+  if (itag22) return itag22;
 
-  // 3. Any format with direct URL containing audio
+  const itag18 = progWithUrl.find((f) => f.itag === 18);
+  if (itag18) return itag18;
+
   const otherWithUrl = allFormats.filter(
     (f) =>
       typeof f?.url === 'string' &&
@@ -1370,7 +1389,9 @@ export async function getYTMStream(
     const playerBody: Record<string, any> = {
       videoId: targetId,
       contentCheckOk: true,
-      racyCheckOk: true
+      racyCheckOk: true,
+      audioQuality: 'AUDIO_QUALITY_HIGH',
+      preferAudioOnly: true
     };
     if (client.useSignatureTimestamp || client.clientName === 'ANDROID') {
       playerBody.playbackContext = {

@@ -53,9 +53,12 @@ const GENERIC_INVOKE_CHANNELS = [
   'lyric-drag-move',
   'lyric-drag-end',
   'control-back',
+  'is-fullscreen',
+  'toggle-fullscreen',
   'ytm:request',
   'ytm:validate-stream',
-  'fetch_best_lyrics'
+  'fetch_best_lyrics',
+  'lossless:resolve-track'
 ] as const;
 
 const EVENT_CHANNELS = [
@@ -78,7 +81,8 @@ const EVENT_CHANNELS = [
   'download:batch-complete',
   'download:request-url',
   'playback-progress',
-  'playback-ended'
+  'playback-ended',
+  'playback-buffering'
 ] as const;
 
 export type Unlisten = () => void;
@@ -243,7 +247,16 @@ async function rawInvoke<T>(channel: string, args?: unknown): Promise<T> {
     return null as unknown as T;
   }
   console.debug(`[bridge] rawInvoke ${channel}`, args);
-  return tauriInvoke<T>(channel, args as Record<string, unknown> | undefined);
+  try {
+    return await tauriInvoke<T>(channel, args as Record<string, unknown> | undefined);
+  } catch (ipcErr: any) {
+    const msg = String(ipcErr?.message || ipcErr || '');
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('custom protocol')) {
+      await new Promise((r) => setTimeout(r, 150));
+      return await tauriInvoke<T>(channel, args as Record<string, unknown> | undefined);
+    }
+    throw ipcErr;
+  }
 }
 
 function assertAllowed(channel: string, allowed: readonly string[]): void {
@@ -288,6 +301,8 @@ export const bridge = {
   minimize: () => rawInvoke<void>('minimize-window'),
   maximize: () => rawInvoke<void>('maximize-window'),
   close: () => rawInvoke<void>('close-window'),
+  toggleFullscreen: () => rawInvoke<boolean>('toggle-fullscreen'),
+  isFullscreen: () => rawInvoke<boolean>('is-fullscreen'),
   quitApp: () => rawInvoke<void>('quit-app'),
   restore: () => rawInvoke<void>('restore-window'),
   restart: () => rawInvoke<void>('restart'),
@@ -319,7 +334,7 @@ export const bridge = {
       album: meta.album && meta.album !== 'Unknown Album' ? meta.album : '',
       cover_url: getImgUrl(coverUrl, '300y300'),
       duration: data?.dt || data?.duration || 0,
-      is_playing: data?.is_playing !== undefined ? !!data.is_playing : true
+      is_playing: data?.is_playing !== undefined ? !!data.is_playing : false
     };
     return rawInvoke<void>('update-current-song', { data: mappedData });
   },
@@ -538,18 +553,25 @@ export const bridge = {
     }
     return listenChannel<void>('playback-ended', cb);
   },
+  onPlaybackBuffering: (cb: (isBuffering: boolean) => void) => {
+    if (!isTauriAvailable()) {
+      return () => {};
+    }
+    return listenChannel<boolean>('playback-buffering', cb);
+  },
 
   audioPlay: (
     url: string,
     cookie?: string,
     durationMs?: number,
     container?: string,
-    userAgent?: string
+    userAgent?: string,
+    startTimeSecs?: number
   ) => {
     if (!isTauriAvailable()) {
       return webAudio.play(url, cookie, durationMs, container, userAgent);
     }
-    return rawInvoke<void>('audio-play', { url, cookie, durationMs, container, userAgent });
+    return rawInvoke<void>('audio-play', { url, cookie, durationMs, container, userAgent, startTimeSecs });
   },
   audioPause: () => {
     if (!isTauriAvailable()) {

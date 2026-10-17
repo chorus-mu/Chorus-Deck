@@ -66,10 +66,16 @@
             </div>
           </div>
 
-          <queue />
+          <div
+            class="shell-queue-col"
+            :class="{ 'is-open': !playerStore.musicFull && playerStore.queueVisible }"
+          >
+            <queue mode="shell" />
+          </div>
         </div>
       </div>
       <play-bar v-show="isPlay" />
+      <queue v-if="playerStore.musicFull" mode="full" />
     </div>
     <update-modal v-if="isDesktop()" />
     <sleep-timer-top />
@@ -139,13 +145,9 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-/*
- * Outer application canvas. Its colour is what shows through every
- * shell gap, so it must stay distinct from the shell surfaces.
- */
 .layout-page {
   @apply w-screen h-screen overflow-hidden;
-  background-color: var(--shell-canvas, #fff);
+  background-color: var(--shell-canvas, #e9ecef);
 }
 
 .layout-main {
@@ -166,17 +168,43 @@ onMounted(() => {
   gap: var(--shell-gap);
   padding: var(--shell-gap);
 }
-
-/* Sidebar / Main / Queue share one row and one horizontal gap. */
 .shell-row {
   @apply flex flex-1 min-h-0;
   gap: var(--shell-gap);
+  overflow: hidden;
+  transition: gap 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-/* Major shell surfaces: independent, rounded, never touching. */
+.shell-queue-col {
+  height: 100%;
+  flex-shrink: 0;
+  overflow: hidden;
+  width: clamp(260px, 28vw, 360px);
+  margin-right: calc(-1 * clamp(260px, 28vw, 360px) - var(--shell-gap));
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+  isolation: isolate;
+  contain: paint;
+  transition:
+    transform 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+    margin-right 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+    opacity 0.25s ease;
+  will-change: transform, margin-right;
+  backface-visibility: hidden;
+
+  &.is-open {
+    transform: translateY(0);
+    margin-right: 0;
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 .shell-surface {
   background-color: var(--shell-surface, #fff);
   border-radius: var(--shell-radius);
+  transition: width 0.35s cubic-bezier(0.25, 1, 0.5, 1), flex 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .shell-sidebar {
@@ -189,6 +217,7 @@ onMounted(() => {
 
 .shell-main {
   @apply flex-1 min-w-0 flex flex-col overflow-hidden;
+  transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .main {
@@ -197,6 +226,7 @@ onMounted(() => {
 
 .main-viewport {
   @apply flex-1 min-h-0 overflow-auto;
+  transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .main-page {

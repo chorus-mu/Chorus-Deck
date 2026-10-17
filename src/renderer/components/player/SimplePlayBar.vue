@@ -4,7 +4,7 @@
       <div class="top-section">
         <div
           class="progress-bar"
-          :class="{ 'is-dragging': isDragging }"
+          :class="{ 'is-dragging': isDragging, 'is-buffering': isBuffering }"
           @mousedown="handleProgressMouseDown"
           @click.stop="handleProgressClick"
         >
@@ -16,6 +16,9 @@
 
         <div class="time-display">
           <span class="current-time">{{ formatTime(displayTime) }}</span>
+          <span v-if="(playerStore.playMusic as any)?.qualityBadge" class="simple-lossless-badge">
+            {{ (playerStore.playMusic as any).qualityBadge }}
+          </span>
           <span class="total-time">{{ formatTime(allTime) }}</span>
         </div>
       </div>
@@ -39,6 +42,7 @@
 
           <div
             class="control-btn play-btn play-animated"
+            :class="{ disabled: !hasSong }"
             style="
               width: 64px;
               height: 64px;
@@ -50,8 +54,8 @@
             @click="playMusicEvent"
           >
             <animated-play-pause
-              :is-playing="play"
-              :loading="Boolean(playerStore.playMusic?.playLoading)"
+              :is-playing="hasSong && play && !isBuffering"
+              :loading="hasSong && isBuffering"
               :bg-color="playerStore.playMusic?.primaryColor"
             />
           </div>
@@ -67,7 +71,7 @@
         </div>
 
         <div class="right-controls">
-          <button class="control-btn small-btn" @click="openQueue">
+          <button class="control-btn small-btn" @click.stop="openQueue">
             <i class="ri-play-list-fill"></i>
           </button>
         </div>
@@ -136,7 +140,9 @@ const progressPercentage = computed(() => {
   if (isDragging.value) {
     return dragProgress.value;
   }
-  if (allTime.value === 0) return 0;
+  if (allTime.value === 0) {
+    return isBuffering.value ? 100 : 0;
+  }
   return (nowTime.value / allTime.value) * 100;
 });
 
@@ -147,6 +153,36 @@ const displayTime = computed(() => {
   return nowTime.value;
 });
 
+const isSeeking = ref(false);
+const targetSeekTime = ref<number | null>(null);
+let seekTimeout: any = null;
+
+watch(nowTime, (newTime) => {
+  if (isSeeking.value && targetSeekTime.value !== null) {
+    if (Math.abs(newTime - targetSeekTime.value) <= 0.8) {
+      isSeeking.value = false;
+      targetSeekTime.value = null;
+      if (seekTimeout) {
+        clearTimeout(seekTimeout);
+        seekTimeout = null;
+      }
+    }
+  }
+});
+
+const hasSong = computed(() => {
+  const m = playerStore.playMusic;
+  return Boolean(m && (m.id !== undefined && m.id !== null && m.id !== '') && (m.name || m.title));
+});
+
+const isBuffering = computed(() => {
+  if (!hasSong.value) return false;
+  if (isSeeking.value) return true;
+  if (audioService.isBuffering() || Boolean(playerStore.playMusic?.playLoading)) return true;
+  if (!audioService.isActuallyPlaying() && Boolean(playerStore.play)) return true;
+  return false;
+});
+
 const calculateProgress = (clientX: number, element: HTMLElement): number => {
   const rect = element.getBoundingClientRect();
   const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
@@ -155,11 +191,19 @@ const calculateProgress = (clientX: number, element: HTMLElement): number => {
 
 const seekToProgress = (percentage: number) => {
   const targetTime = (percentage / 100) * allTime.value;
+  isSeeking.value = true;
+  targetSeekTime.value = targetTime;
+  if (seekTimeout) clearTimeout(seekTimeout);
+  nowTime.value = targetTime;
   audioService.seek(targetTime);
+  seekTimeout = setTimeout(() => {
+    isSeeking.value = false;
+    targetSeekTime.value = null;
+  }, 1500);
 };
 
 const handleProgressMouseDown = (e: MouseEvent) => {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || isBuffering.value) return;
 
   const target = e.currentTarget as HTMLElement;
   isDragging.value = true;
@@ -188,7 +232,7 @@ const handleProgressMouseDown = (e: MouseEvent) => {
 };
 
 const handleProgressClick = (e: MouseEvent) => {
-  if (isDragging.value) return;
+  if (isDragging.value || isBuffering.value) return;
 
   const target = e.currentTarget as HTMLElement;
   const percentage = calculateProgress(e.clientX, target);
@@ -199,8 +243,12 @@ const formatTime = (seconds: number) => {
   return secondToMinute(seconds);
 };
 
-const openQueue = () => {
-  playerStore.setQueueVisible(true);
+const openQueue = (e?: Event) => {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  playerStore.setQueueVisible(!playerStore.queueVisible);
 };
 
 const isDarkMode = computed(() => props.isDark);
@@ -405,11 +453,71 @@ onMounted(() => {
         transform: translate(50%, -50%) scale(1);
       }
     }
+
+    &.is-buffering {
+      pointer-events: none !important;
+      cursor: wait !important;
+
+      .progress-track {
+        animation: simple-buffer-pulse 1.2s ease-in-out infinite;
+      }
+      .progress-fill {
+        background: linear-gradient(
+          90deg,
+          var(--fill-color),
+          var(--fill-color-light),
+          #ffffff,
+          var(--fill-color-light),
+          var(--fill-color)
+        );
+        background-size: 250% 100%;
+        animation: simple-buffer-shimmer 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        box-shadow: 0 0 14px var(--fill-color-transparent);
+      }
+      .progress-handle {
+        opacity: 0 !important;
+      }
+    }
+  }
+
+  @keyframes simple-buffer-shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes simple-buffer-pulse {
+    0%, 100% {
+      opacity: 0.95;
+    }
+    50% {
+      opacity: 0.35;
+    }
   }
 
   .time-display {
-    @apply flex justify-between text-base;
+    @apply flex justify-between items-center text-base;
     color: var(--muted-color);
+
+    .simple-lossless-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      border-radius: 6px;
+      text-transform: uppercase;
+      line-height: 1;
+      color: var(--fill-color, var(--text-color, #ffffff)) !important;
+      background: color-mix(in srgb, var(--fill-color, #ffffff) 18%, rgba(255, 255, 255, 0.08)) !important;
+      border: 1px solid color-mix(in srgb, var(--fill-color, #ffffff) 45%, rgba(255, 255, 255, 0.25)) !important;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2), 0 0 12px var(--fill-color-transparent, rgba(255, 255, 255, 0.15));
+      backdrop-filter: blur(10px);
+    }
 
     .time-separator {
       @apply mx-1;
@@ -440,7 +548,7 @@ onMounted(() => {
 }
 
 .bottom-section {
-  @apply flex items-center justify-between mt-2;
+  @apply flex items-center justify-center mt-3 pb-1 w-full;
 }
 
 .control-btn {

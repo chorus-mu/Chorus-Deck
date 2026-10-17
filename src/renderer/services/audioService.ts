@@ -10,6 +10,7 @@ class AudioService {
   private playbackRate = 1.0;
   private currentSinkId: string = 'default';
   private _isLoading = false;
+  private _isBuffering = false;
   private _isPlayingNative = false;
   private currentUrl: string | null = null;
   private _currentNativeDuration: number | null = null;
@@ -73,6 +74,13 @@ class AudioService {
       console.log('[audioService] Native playback-ended event received');
       this.triggerPlaybackEnded();
     });
+
+    if (window.api.onPlaybackBuffering) {
+      window.api.onPlaybackBuffering((isBuffering: boolean) => {
+        this._isBuffering = isBuffering;
+        this.emit('buffering', isBuffering);
+      });
+    }
   }
 
   public triggerPlaybackEnded() {
@@ -271,7 +279,7 @@ class AudioService {
     this.operationLockTimer = setTimeout(() => {
       console.warn('Automatic release of operation lock upon timeout');
       this.releaseOperationLock();
-    }, 5000);
+    }, 10000);
 
     return true;
   }
@@ -322,7 +330,7 @@ class AudioService {
 
     const isSameUrl = this.currentUrl === url;
 
-    if (isSameUrl) {
+    if (isSameUrl && seekTime <= 0) {
       this.currentTrack = track;
       if (isPlay) {
         window.api.audioResume();
@@ -369,7 +377,8 @@ class AudioService {
               undefined,
               durationMs || undefined,
               container,
-              userAgent
+              userAgent,
+              seekTime > 0 ? seekTime : undefined
             );
             this._isPlayingNative = true;
             try {
@@ -456,10 +465,10 @@ class AudioService {
     })();
   }
 
-  public pause() {
+  public async pause(): Promise<void> {
     this.forceResetOperationLock();
     try {
-      window.api.audioPause();
+      await window.api.audioPause();
       this._isPlayingNative = false;
       this.updateMediaSessionState(false);
       this.emit('pause');
@@ -483,6 +492,7 @@ class AudioService {
   public async stop(): Promise<void> {
     this.forceResetOperationLock();
     this.hasEmittedEndForCurrentSong = false;
+    this._currentNativeDuration = null;
     if (this.endWatchdogTimer) {
       clearTimeout(this.endWatchdogTimer);
       this.endWatchdogTimer = null;
@@ -507,7 +517,7 @@ class AudioService {
     }
   }
 
-  public seek(time: number) {
+  public async seek(time: number): Promise<void> {
     this.forceResetOperationLock();
     this.hasEmittedEndForCurrentSong = false;
     if (this.endWatchdogTimer) {
@@ -523,12 +533,25 @@ class AudioService {
     }
 
     try {
-      window.api.audioSeek(time);
       this.emit('seek_start', time);
+      await window.api.audioSeek(time);
       this.emit('seek', time);
       this.updateMediaSessionPositionState();
     } catch (error) {
       console.error('SeekOperation failed:', error);
+      if (this.currentTrack && this.currentUrl) {
+        console.warn('[audioService] Seek failed, attempting reload at seek position:', time);
+        try {
+          await this.play(this.currentUrl, this.currentTrack, true, time);
+        } catch (playErr) {
+          console.error('[audioService] Seek reload failed, emitting url_expired to re-resolve:', playErr);
+          this.markUrlRejected(this.currentTrack);
+          this.emit('url_expired', { ...this.currentTrack, seekTargetTime: time });
+        }
+      } else if (this.currentTrack) {
+        this.markUrlRejected(this.currentTrack);
+        this.emit('url_expired', { ...this.currentTrack, seekTargetTime: time });
+      }
     }
   }
 
@@ -569,6 +592,10 @@ class AudioService {
 
   isLoading(): boolean {
     return this._isLoading || this.operationLock;
+  }
+
+  isBuffering(): boolean {
+    return this._isBuffering || this.isLoading();
   }
 
   isActuallyPlaying(): boolean {

@@ -8,6 +8,7 @@
   >
     <div ref="coverImage" class="cover-wrapper" :style="coverTransformStyle">
       <n-image
+        :key="currentSrc"
         :src="currentSrc"
         class="cover-image"
         :class="{ 'has-black-bars': hasBlackBars }"
@@ -138,8 +139,8 @@ const shineStyle = computed(() => {
   const shineY = Math.round(mouseY.value * 100);
 
   return {
-    opacity: props.shineIntensity,
-    background: `radial-gradient(200px circle at ${shineX}% ${shineY}%, rgba(255,255,255,0.3), transparent 50%)`,
+    opacity: props.shineIntensity * 0.7,
+    background: `radial-gradient(280px circle at ${shineX}% ${shineY}%, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.08) 40%, transparent 70%)`,
     transition: 'none'
   };
 });
@@ -196,6 +197,7 @@ onBeforeUnmount(() => {
 <style scoped lang="scss">
 .cover-3d-container {
   @apply w-full h-full;
+  isolation: isolate;
 }
 
 .cover-wrapper {
@@ -203,14 +205,24 @@ onBeforeUnmount(() => {
   transform-style: preserve-3d;
   will-change: transform;
   backface-visibility: hidden;
-  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.3s ease;
 }
 
 .cover-image {
   @apply w-full h-full;
   border-radius: inherit;
-  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
   transition: transform 0.2s ease;
+
+  :deep(img) {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
 }
 
 .cover-image.has-black-bars :deep(img) {
@@ -225,14 +237,14 @@ onBeforeUnmount(() => {
 
 .cover-shine {
   @apply absolute inset-0 pointer-events-none rounded-xl;
-  mix-blend-mode: overlay;
   z-index: 1;
   will-change: background, opacity;
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .cover-3d-container:hover .cover-wrapper {
-  filter: drop-shadow(0 15px 30px rgba(0, 0, 0, 0.25));
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.4);
 }
 
 @keyframes spin {

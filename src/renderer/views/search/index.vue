@@ -938,14 +938,17 @@ onMounted(() => {
 
 .search-result-row {
   animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .mood-pill {
   animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: transform 0.2s ease, width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .ytm-playlist-card {
   animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 @keyframes fadeInUp {

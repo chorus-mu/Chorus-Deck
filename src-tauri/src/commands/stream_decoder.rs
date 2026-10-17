@@ -1,20 +1,3 @@
-//! Decoding for remote media that rodio cannot probe.
-//!
-//! rodio 0.19 wraps every reader in its own `ReadSeekSource`, whose
-//! `byte_len()` is hardcoded to `None`, and calls symphonia without an
-//! extension hint. That is fine for wav/flac/mp3, but symphonia's MP4 reader
-//! needs the stream length to lay out its boxes, so every MP4/M4A URL fails
-//! inside `Decoder::new` with a seek error.
-//!
-//! YouTube Music serves all audio as MP4 (AAC, itag 140/139) or WebM (Opus,
-//! itag 251/250/249), and WebM is undecodable here because symphonia 0.5 has no
-//! Opus decoder. So for hinted MP4 we drive symphonia directly and supply the
-//! real length through `MediaSource::byte_len`. Everything else keeps using
-//! rodio's `Decoder`.
-//!
-//! The init and seek paths deliberately mirror rodio's own symphonia backend
-//! (rodio-0.19.0/src/decoder/symphonia.rs) so the two behave identically.
-
 use std::io::{Read, Seek};
 use std::time::Duration;
 
@@ -30,17 +13,10 @@ use symphonia::core::probe::Hint;
 use symphonia::core::units;
 use symphonia::default::{get_codecs, get_probe};
 
-/// A single undecodable packet is usually survivable, so retry a few times
-/// before giving up on the stream.
 const MAX_DECODE_RETRIES: usize = 3;
 
-/// Two front channels; only used as a placeholder before the real spec is known.
 const STEREO: Channels = Channels::from_bits_truncate(0x3);
 
-/// Wraps a reader so symphonia can be told the stream length.
-///
-/// The length closure is called from inside the container probe, before any
-/// byte has been read, so it must block until the response headers have landed.
 struct LengthSource<R, F> {
     inner: R,
     len: F,
@@ -78,12 +54,6 @@ where
     }
 }
 
-/// Names the container the bytes actually look like, so a probe failure says
-/// what arrived instead of leaving the reader to guess.
-///
-/// symphonia's error is the same for "wrong hint", "unsupported codec" and
-/// "not audio at all", which makes it impossible to tell a bad container hint
-/// apart from a CDN error page without this.
 fn sniff_note<R, F>(source: &mut LengthSource<R, F>) -> String
 where
     R: Read + Seek + Send + Sync + 'static,
@@ -91,14 +61,9 @@ where
 {
     use std::io::{Read, Seek, SeekFrom};
 
-    // The probe consumed the head of the stream; remember the position so this
-    // inspection does not consume anything the decoder still needs.
     let saved = source.stream_position().unwrap_or(0);
     let mut head = [0u8; 16];
 
-    // Propagate the read error rather than discarding it: `HttpStreamSource`
-    // reports a failed HTTP request through `read`, and collapsing that to "no
-    // bytes" hides the actual reason playback failed.
     let read = match source.read(&mut head) {
         Ok(n) => n,
         Err(e) => {
@@ -134,7 +99,6 @@ where
     )
 }
 
-/// A `rodio::Source` that decodes a remote MP4/M4A stream with symphonia.
 pub struct StreamDecoder {
     format: Box<dyn FormatReader>,
     codec: Box<dyn CodecDecoder>,
@@ -146,19 +110,12 @@ pub struct StreamDecoder {
 }
 
 impl StreamDecoder {
-    /// Probes `source` and decodes its first packet so playback can start
-    /// immediately and the duration is already known.
-    ///
-    /// `extension` feeds symphonia's probe hint (`"m4a"` for YouTube audio) and
-    /// `len` must block until the stream length is known.
     pub fn new<R, F>(source: R, extension: &str, len: F) -> Result<Self, String>
     where
         R: Read + Seek + Send + Sync + 'static,
         F: Fn() -> Option<u64> + Send + Sync + 'static,
     {
         let mut wrapped = LengthSource { inner: source, len };
-        // Captured before `MediaSourceStream` takes ownership, so a probe
-        // failure can still report what the stream actually contained.
         let on_probe_failure = sniff_note(&mut wrapped);
         let stream = MediaSourceStream::new(Box::new(wrapped), Default::default());
 
@@ -182,8 +139,6 @@ impl StreamDecoder {
             .default_track()
             .ok_or_else(|| "audio stream contains no tracks".to_string())?;
 
-        // MP4 containers can carry tracks this build cannot decode, so pick the
-        // first one symphonia actually has a codec for.
         let track_id = probed
             .format
             .tracks()
@@ -221,15 +176,11 @@ impl StreamDecoder {
             total_time,
         };
 
-        // Decode up front: this surfaces container/codec errors at creation time
-        // instead of halfway through playback, and fills in the real sample rate
-        // and channel count.
         decoder.prime()?;
 
         Ok(decoder)
     }
 
-    /// Decodes until the sample buffer holds real audio.
     fn prime(&mut self) -> Result<(), String> {
         let mut decode_errors = 0usize;
 
@@ -272,7 +223,6 @@ impl StreamDecoder {
         Ok(())
     }
 
-    /// Pulls the next decodable packet into the sample buffer.
     fn advance(&mut self) -> Result<(), SymphoniaError> {
         let mut decode_errors = 0usize;
 
@@ -296,14 +246,14 @@ impl StreamDecoder {
         }
     }
 
-    /// Decodes forward until the reader reaches the timestamp it actually landed
-    /// on, so playback resumes where the user asked.
     fn refine_position(&mut self, seeked: SeekedTo) -> Result<(), SeekError> {
         let mut to_pass = seeked.required_ts - seeked.actual_ts;
 
+        let mut scanned = 0;
         let packet = loop {
             let candidate = self.format.next_packet().map_err(other)?;
-            if candidate.dur() > to_pass {
+            scanned += 1;
+            if candidate.dur() > to_pass || scanned >= 16 {
                 break candidate;
             }
             to_pass -= candidate.dur();
@@ -335,7 +285,6 @@ impl Iterator for StreamDecoder {
 
     fn next(&mut self) -> Option<i16> {
         while self.frame_offset >= self.buffer.samples().len() {
-            // Any error here ends playback rather than looping on bad packets.
             self.advance().ok()?;
         }
 
@@ -370,25 +319,36 @@ impl Source for StreamDecoder {
             .is_some_and(|t| seconds >= t.seconds as f64 + t.frac - 0.001);
 
         let time = if past_end {
-            // Some decoders refuse to land exactly on the end of the stream.
             skip_back_a_tiny_bit(units::Time::from(seconds))
         } else {
             units::Time::from(seconds)
         };
 
-        // Keep the next sample aligned to the start of a channel frame.
         let to_skip = self.frame_offset % self.channels() as usize;
 
-        let seeked = self
+        let seek_res = self
             .format
             .seek(
-                SeekMode::Accurate,
+                SeekMode::Coarse,
                 SeekTo::Time {
                     time,
                     track_id: None,
                 },
-            )
-            .map_err(other)?;
+            );
+
+        let seeked = match seek_res {
+            Ok(s) => s,
+            Err(_) => self
+                .format
+                .seek(
+                    SeekMode::Accurate,
+                    SeekTo::Time {
+                        time,
+                        track_id: None,
+                    },
+                )
+                .map_err(other)?,
+        };
 
         self.refine_position(seeked)?;
         self.frame_offset += to_skip;

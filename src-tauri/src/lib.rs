@@ -28,10 +28,7 @@ pub fn run() {
             let state = AppState::new(&handle)
                 .map_err(|e| format!("failed to initialise application state: {e}"))?;
             app.manage(state);
-            app.manage(AudioState {
-                player: std::sync::Mutex::new(None),
-                eq: std::sync::Mutex::new(commands::audio::EqState::default()),
-            });
+            app.manage(AudioState::default());
 
             let progress_handle = handle.clone();
             std::thread::spawn(move || {
@@ -40,7 +37,7 @@ pub fn run() {
                 loop {
                     std::thread::sleep(std::time::Duration::from_millis(200));
                     let state = progress_handle.state::<AudioState>();
-                    let Ok(guard) = state.player.lock() else {
+                    let Ok(guard) = state.player.try_lock() else {
                         continue;
                     };
 
@@ -169,6 +166,8 @@ pub fn run() {
             commands::window::update_play_state,
             commands::window::set_content_zoom,
             commands::window::get_content_zoom,
+            commands::window::toggle_fullscreen,
+            commands::window::is_fullscreen,
             commands::store::get_store_value,
             commands::store::set_store_value,
             commands::store::get_disk_cache_config,
@@ -257,6 +256,7 @@ pub fn run() {
             commands::audio::audio_set_playback_rate,
             commands::audio::audio_clear_cache,
             commands::lyrics::fetch_best_lyrics,
+            commands::lossless::lossless_resolve_track,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Chorus Deck");

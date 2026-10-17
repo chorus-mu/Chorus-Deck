@@ -1,10 +1,10 @@
 <template>
   <n-drawer
     v-model:show="isVisible"
-    height="100%"
+    :height="isFullScreen ? '100%' : '100%'"
     placement="bottom"
     :style="drawerBaseStyle"
-    :to="`#layout-main`"
+    to="#layout-main"
     :z-index="9998"
   >
     <div
@@ -50,32 +50,7 @@
           ></i>
         </div>
 
-        <template v-if="isDesktop()">
-          <div class="control-btn" title="Maximize" @click="maximizeWindow">
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <rect x="3" y="3" width="10" height="10" rx="1.5" />
-            </svg>
-          </div>
-          <div class="control-btn" title="Minimize" @click="minimizeWindow">
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M3 8h10v1.5H3z" />
-            </svg>
-          </div>
-          <div class="control-btn close-window-btn" title="Close" @click="handleCloseApp">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-              <path
-                d="M4.29 4.29a1 1 0 0 1 1.42 0L8 6.59l2.29-2.3a1 1 0 0 1 1.42 1.42L9.41 8l2.3 2.29a1 1 0 0 1-1.42 1.42L8 9.41l-2.29 2.3a1 1 0 0 1-1.42-1.42L6.59 8 4.29 5.71a1 1 0 0 1 0-1.42z"
-              />
-            </svg>
-          </div>
-        </template>
+
       </div>
 
       <transition name="fade">
@@ -144,15 +119,18 @@
           <div class="img-container">
             <cover3-d
               ref="PicImgRef"
+              :key="playMusic?.id"
               :src="thumbPlayer(playMusic?.picUrl)"
-              :loading="playMusic?.playLoading"
+              :loading="false"
               :max-tilt="12"
               :scale="1.03"
               :shine-intensity="0.25"
             />
           </div>
           <div class="music-info">
-            <div class="music-content-name" v-html="playMusic.name"></div>
+            <div class="music-content-name flex items-center gap-2">
+              <span v-html="playMusic.name"></span>
+            </div>
             <div class="music-content-singer">
               <n-ellipsis
                 class="text-ellipsis"
@@ -412,15 +390,58 @@ const customBackgroundStyle = computed(() => {
   }
 });
 
+const isQueueVisibleInFull = computed(() => {
+  return !isFullScreen.value && playerStore.queueVisible;
+});
+
 const drawerBaseStyle = computed(() => {
+  if (isFullScreen.value) {
+    const fullStyle = {
+      borderRadius: '0',
+      overflow: 'hidden',
+      top: '0',
+      bottom: '0',
+      left: '0',
+      right: '0',
+      width: '100%',
+      height: '100%'
+    };
+    if (config.value.useCustomBackground && config.value.backgroundMode === 'image') {
+      return { ...fullStyle, background: 'transparent' };
+    }
+    if (config.value.useCustomBackground && customBackgroundStyle.value) {
+      return { ...fullStyle, background: customBackgroundStyle.value };
+    }
+    return { ...fullStyle, background: currentBackground.value || props.background };
+  }
+
+  const queueWidth = 'clamp(260px, 28vw, 360px)';
+  const queueOffset = isQueueVisibleInFull.value
+    ? `calc(${queueWidth} + var(--shell-gap, 12px))`
+    : '0px';
+
+  const shellStyle = {
+    borderRadius: 'var(--shell-radius, 12px)',
+    overflow: 'hidden',
+    top: 'var(--shell-gap, 12px)',
+    bottom: 'var(--shell-gap, 12px)',
+    left: 'var(--shell-gap, 12px)',
+    right: `calc(var(--shell-gap, 12px) + ${queueOffset})`,
+    height: 'calc(100% - calc(var(--shell-gap, 12px) * 2))',
+    maxHeight: 'calc(100% - calc(var(--shell-gap, 12px) * 2))',
+    boxSizing: 'border-box',
+    transition: 'right 0.35s cubic-bezier(0.25, 1, 0.5, 1)',
+    willChange: 'right'
+  };
+
   if (config.value.useCustomBackground && config.value.backgroundMode === 'image') {
-    return { background: 'transparent' };
+    return { ...shellStyle, background: 'transparent' };
   }
 
   if (config.value.useCustomBackground && customBackgroundStyle.value) {
-    return { background: customBackgroundStyle.value };
+    return { ...shellStyle, background: customBackgroundStyle.value };
   }
-  return { background: currentBackground.value || props.background };
+  return { ...shellStyle, background: currentBackground.value || props.background };
 });
 
 const backgroundImageStyle = computed(() => {
@@ -642,6 +663,7 @@ watch(
   () => isVisible.value,
   () => {
     if (isVisible.value) {
+      playerStore.setQueueVisible(false);
       if (config.value.pureModeEnabled) {
         showPureModeOnboarding();
       }
@@ -895,42 +917,34 @@ const handleScroll = () => {
   }
 };
 
-const closeMusicFull = () => {
-  if (isFullScreen.value && document.fullscreenElement) {
-    document.exitFullscreen();
+const closeMusicFull = async () => {
+  if (isFullScreen.value) {
+    if (isDesktop()) {
+      await window.api.toggleFullscreen();
+    } else if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    }
+    isFullScreen.value = false;
   }
   isVisible.value = false;
   playerStore.setMusicFull(false);
 };
 
-const minimizeWindow = () => {
-  if (!isDesktop()) return;
-  window.api.minimize();
-};
 
-const maximizeWindow = () => {
-  if (!isDesktop()) return;
-  window.api.maximize();
-};
-
-const handleCloseApp = () => {
-  if (!isDesktop()) return;
-  const { closeAction } = settingsStore.setData;
-  if (closeAction === 'minimize' || closeAction === 'close') {
-    window.api.close();
-  } else {
-    window.api.close();
-  }
-};
 
 const toggleFullScreen = async () => {
   try {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen();
-      isFullScreen.value = true;
+    if (isDesktop()) {
+      const nextState = await window.api.toggleFullscreen();
+      isFullScreen.value = !!nextState;
     } else {
-      await document.exitFullscreen();
-      isFullScreen.value = false;
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        isFullScreen.value = true;
+      } else {
+        await document.exitFullscreen();
+        isFullScreen.value = false;
+      }
     }
   } catch (error) {
     console.error('Full screen switch failed:', error);
@@ -1077,7 +1091,8 @@ defineExpose({
 }
 
 #drawer-target {
-  @apply top-0 left-0 absolute overflow-hidden rounded w-full h-full;
+  @apply top-0 left-0 absolute overflow-hidden w-full h-full;
+  border-radius: inherit;
   animation-duration: 300ms;
 
   .content-wrapper {
@@ -1086,7 +1101,7 @@ defineExpose({
     gap: 4rem;
     max-width: 1600px;
     padding: 2rem;
-    transition: width 0.3s ease;
+    transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 
     @media (max-width: 1024px) {
       grid-template-columns: 1fr;
@@ -1096,14 +1111,14 @@ defineExpose({
   }
 
   .left-side {
-    @apply flex flex-col items-center justify-center h-full;
-    transition: all 0.3s ease;
+    @apply flex flex-col items-center justify-center h-full min-h-0;
+    transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 
     &.only-cover {
       @apply col-span-2;
 
       .img-container {
-        @apply w-[60vh] aspect-square;
+        @apply w-[50vh] max-h-[50vh] aspect-square;
       }
 
       .music-info {
@@ -1112,7 +1127,7 @@ defineExpose({
     }
 
     .img-container {
-      @apply relative w-[45vh] mb-8 aspect-square;
+      @apply relative w-[36vh] max-h-[36vh] mb-5 aspect-square flex-shrink-0;
       max-width: 100%;
     }
 
@@ -1340,8 +1355,12 @@ defineExpose({
   }
 }
 
-.music-drawer {
-  transition: none;
+:deep(.n-drawer) {
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease !important;
+}
+
+:deep(.n-drawer-mask) {
+  transition: opacity 0.35s ease !important;
 }
 
 :root {
@@ -1494,13 +1513,38 @@ defineExpose({
 }
 
 .control-btn {
-  @apply flex items-center justify-center cursor-pointer transition-all duration-200;
+  @apply flex items-center justify-center cursor-pointer;
   width: 36px;
   height: 28px;
   border-radius: 8px;
-  background: rgba(142, 142, 142, 0.18);
-  backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   color: var(--text-color-active);
+  transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+
+  .dark & {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.15);
+    transform: scale(1.05);
+
+    .dark & {
+      background: rgba(255, 255, 255, 0.16);
+    }
+
+    svg {
+      opacity: 1;
+    }
+
+    i {
+      opacity: 1;
+    }
+  }
 
   i {
     font-size: 16px;
@@ -1511,18 +1555,6 @@ defineExpose({
     flex-shrink: 0;
     opacity: 0.85;
     transition: opacity 0.15s ease;
-  }
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.18);
-
-    svg {
-      opacity: 1;
-    }
-
-    i {
-      opacity: 1;
-    }
   }
 }
 
@@ -1547,5 +1579,28 @@ defineExpose({
   font-size: 0.85em !important;
   font-style: italic !important;
   opacity: 0.85 !important;
+}
+</style>
+
+<style lang="scss">
+.n-drawer-container {
+  .n-drawer.n-drawer--bottom-placement {
+    transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1) !important;
+    box-sizing: border-box !important;
+  }
+
+  &.n-drawer-transition-enter-from .n-drawer.n-drawer--bottom-placement,
+  &.n-drawer-transition-leave-to .n-drawer.n-drawer--bottom-placement {
+    transform: translateY(100%) !important;
+  }
+
+  &.n-drawer-transition-enter-to .n-drawer.n-drawer--bottom-placement,
+  &.n-drawer-transition-leave-from .n-drawer.n-drawer--bottom-placement {
+    transform: translateY(0) !important;
+  }
+
+  .n-drawer-mask {
+    transition: opacity 0.35s ease !important;
+  }
 }
 </style>

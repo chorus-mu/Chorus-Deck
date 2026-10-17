@@ -651,13 +651,14 @@ export const useQueueStore = defineStore(
           }
         }
 
-        if (
-          playerCore.playMusic.id === song.id &&
-          playerCore.playMusic.playMusicUrl === song.playMusicUrl
-        ) {
+        const isSameSong =
+          Boolean(playerCore.playMusic?.id) &&
+          String(playerCore.playMusic.id) === String(song.id);
+
+        if (isSameSong) {
           if (playerCore.play) {
             playerCore.setPlayMusic(false);
-            audioService.pause();
+            await audioService.pause();
             playerCore.userPlayIntent = false;
           } else {
             playerCore.setPlayMusic(true);
@@ -687,6 +688,8 @@ export const useQueueStore = defineStore(
         }
 
         if (song.isFirstPlay) song.isFirstPlay = false;
+
+        playerCore.playMusic = song;
 
         let songIndex = queueItems.value.findIndex(
           (item: SongResult) => String(item.id) === String(song.id)

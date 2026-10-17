@@ -154,6 +154,7 @@
   "resumeOnBluetoothConnect": false,
   "keepScreenOn": false,
   "downloadQuality": "YOUTUBE",
+  "enableLosslessStreaming": true,
   "enableExportAsMp3": false,
   "enableGoogleCast": true,
   "lyricsRomanizeAsMain": false,
