@@ -12,7 +12,6 @@ pinia.use(({ store }) => {
   store.router = markRaw(router);
 });
 
-export * from './modules/download';
 export * from './modules/favorite';
 export * from './modules/localMusic';
 export * from './modules/menu';

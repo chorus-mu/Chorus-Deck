@@ -35,6 +35,14 @@ class PreloadService {
       const validatedUrl = await loadPromise;
       this.validatedUrls.set(song.id, validatedUrl);
 
+      if (typeof window !== 'undefined' && window.api?.invoke) {
+        window.api.invoke('audio:prewarm-stream', {
+          url: validatedUrl,
+          container: song.mimeType || (song as any).container || 'm4a',
+          userAgent: song.streamUserAgent || (song as any)?.userAgent
+        }).catch(() => {});
+      }
+
       if (this.validatedUrls.size > PreloadService.MAX_VALIDATED_URLS) {
         const oldestKey = this.validatedUrls.keys().next().value;
         if (oldestKey !== undefined) {

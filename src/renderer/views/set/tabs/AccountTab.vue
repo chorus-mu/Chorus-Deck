@@ -11,13 +11,12 @@
         class="cursor-pointer"
       />
     </setting-section>
-
   </div>
 </template>
 
 <script setup lang="ts">
-import SettingSection from '../SettingSection.vue';
 import SettingItem from '../SettingItem.vue';
+import SettingSection from '../SettingSection.vue';
 
 const emit = defineEmits(['navigate']);
 
@@ -25,4 +24,3 @@ const handleLoginClick = () => {
   // Logic for login
 };
 </script>
-

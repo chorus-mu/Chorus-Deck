@@ -73,5 +73,6 @@ export interface SongResult {
   urlRejectedAt?: number;
 
   duration?: number;
+  qualityBadge?: string;
   isFirstPlay?: boolean;
 }

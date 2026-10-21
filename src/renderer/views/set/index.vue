@@ -1,64 +1,107 @@
 <template>
   <div class="h-full w-full flex flex-col">
-    <div v-if="currentSection === 'main'" class="flex-shrink-0 z-10 pt-6 pb-2 px-[var(--content-padding-x)]">
-      <h1 class="text-3xl font-bold tracking-tight text-neutral-900 dark:text-white mb-6">Settings</h1>
-      <div class="relative mb-4">
-        <i class="ri-search-line absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 text-lg pointer-events-none" />
+    <!-- Top Header & Search Bar -->
+    <div class="flex-shrink-0 z-10 pt-5 pb-3 px-[var(--content-padding-x)]">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <div
+            v-if="currentSection !== 'main'"
+            class="w-8 h-8 rounded-full hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center cursor-pointer transition-colors"
+            @click="currentSection = 'main'"
+          >
+            <i class="ri-arrow-left-line text-lg text-neutral-900 dark:text-white"></i>
+          </div>
+          <h1 class="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            {{ currentSection === 'main' ? 'Settings' : currentSectionTitle }}
+          </h1>
+        </div>
+      </div>
+
+      <!-- Search Input -->
+      <div class="relative mb-3">
+        <i
+          class="ri-search-line absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500 text-base pointer-events-none"
+        />
         <input
           v-model="searchQuery"
           type="text"
           placeholder="Search settings..."
-          class="w-full pl-12 pr-12 py-3.5 rounded-2xl bg-neutral-100 dark:bg-neutral-800/80 border-transparent text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-0 focus:border-transparent text-sm font-medium transition-all duration-200"
+          class="w-full pl-10 pr-10 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800/80 border-transparent text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-0 focus:border-transparent text-sm font-medium transition-all duration-200"
         />
         <button
           v-if="searchQuery"
-          class="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
+          class="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 transition-colors"
           @click="searchQuery = ''"
         >
-          <i class="ri-close-line text-lg" />
+          <i class="ri-close-line text-base" />
+        </button>
+      </div>
+
+      <!-- Category Filter Pills -->
+      <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+        <button
+          class="px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer flex-shrink-0"
+          :class="
+            currentSection === 'main'
+              ? 'bg-primary text-white shadow-sm'
+              : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+          "
+          @click="currentSection = 'main'"
+        >
+          All
+        </button>
+        <button
+          v-for="item in allSettingsItems"
+          :key="item.id"
+          class="px-3 py-1 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 flex-shrink-0 cursor-pointer"
+          :class="
+            currentSection === item.id
+              ? 'bg-primary text-white shadow-sm'
+              : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+          "
+          @click="currentSection = item.id"
+        >
+          <i :class="item.icon"></i>
+          <span>{{ item.title }}</span>
         </button>
       </div>
     </div>
 
-    <div
-      v-else
-      class="flex-shrink-0 z-10 px-[var(--content-padding-x)] pt-6 pb-2 flex items-center gap-4 mb-4"
-    >
-      <div
-        class="w-10 h-10 rounded-full hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center cursor-pointer transition-colors"
-        @click="currentSection = 'main'"
-      >
-        <i class="ri-arrow-left-line text-xl text-neutral-900 dark:text-white"></i>
-      </div>
-      <h1 class="text-xl md:text-2xl font-bold text-neutral-900 dark:text-white">
-        {{ currentSectionTitle }}
-      </h1>
-    </div>
-
     <n-scrollbar class="flex-1">
-        <div class="w-full mx-auto pb-32 pt-6 px-[var(--content-padding-x)]">
-          <!-- Main Settings Menu -->
-          <div v-show="currentSection === 'main'" class="animate-fade-in grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="w-full mx-auto pb-32 pt-2 px-[var(--content-padding-x)]">
+        <!-- Main Settings Menu -->
+        <div
+          v-show="currentSection === 'main'"
+          class="animate-fade-in grid grid-cols-1 md:grid-cols-2 gap-3"
+        >
           <div
             v-for="item in filteredSettings"
             :key="item.id"
-            class="group flex items-center gap-4 p-4 rounded-xl bg-neutral-50/50 dark:bg-neutral-900/30 hover:bg-neutral-50 dark:hover:bg-neutral-900/60 cursor-pointer transition-all duration-200"
+            class="group flex items-center gap-3.5 p-3.5 rounded-xl bg-neutral-50/70 dark:bg-neutral-900/40 border border-black/5 dark:border-white/5 hover:bg-neutral-100 dark:hover:bg-neutral-850 cursor-pointer transition-all duration-200"
             @click="currentSection = item.id"
           >
             <div
-              class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary flex-shrink-0"
+              class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary flex-shrink-0"
             >
-              <i v-if="!item.customIcon" :class="item.icon + ' text-2xl'"></i>
-              <span v-else class="text-xl font-bold font-sans">{{ item.customIcon }}</span>
+              <i v-if="!item.customIcon" :class="item.icon + ' text-xl'"></i>
+              <span v-else class="text-lg font-bold font-sans">{{ item.customIcon }}</span>
             </div>
             <div class="flex-1 min-w-0">
-              <div class="text-sm font-semibold text-neutral-900 dark:text-white mb-0.5 group-hover:text-primary transition-colors">
+              <div
+                class="text-sm font-semibold text-neutral-900 dark:text-white mb-0.5 group-hover:text-primary transition-colors"
+              >
                 {{ item.title }}
               </div>
-              <div v-if="item.description" class="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-1">
+              <div
+                v-if="item.description"
+                class="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-1"
+              >
                 {{ item.description }}
               </div>
             </div>
+            <i
+              class="ri-arrow-right-s-line text-neutral-400 group-hover:text-primary transition-colors"
+            ></i>
           </div>
         </div>
 
@@ -203,9 +246,9 @@ const allSettingsItems = computed<SettingsItem[]>(() => [
   },
   {
     id: 'player',
-    title: 'Player and Audio',
-    icon: 'ri-play-circle-line',
-    description: 'Playback settings, equalizer, and quality'
+    title: 'Audio and Player',
+    icon: 'ri-headphone-line',
+    description: 'Audio quality (Opus / Lossless), lyrics, dynamic island, equalizer, and playback settings'
   },
   {
     id: 'storage',

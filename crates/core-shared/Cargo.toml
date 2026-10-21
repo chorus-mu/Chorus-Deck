@@ -1,0 +1,14 @@
+[package]
+name = "core-shared"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+parking_lot.workspace = true
+bytes = { workspace = true, optional = false }
+rodio.workspace = true
+symphonia.workspace = true
+log.workspace = true

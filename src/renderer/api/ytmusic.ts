@@ -173,22 +173,10 @@ export interface StreamUrlProbe {
 }
 
 async function validateStreamUrl(
-  url: string,
-  userAgent?: string
+  _url: string,
+  _userAgent?: string
 ): Promise<StreamUrlProbe> {
-  if (typeof window === 'undefined' || !window.api) {
-    return { playable: true, status: 0, reason: null };
-  }
-
-  try {
-    const probe = await window.api.invoke<StreamUrlProbe>('ytm:validate-stream', {
-      args: { url, userAgent }
-    });
-    return probe || { playable: true, status: 200, reason: null };
-  } catch (error: any) {
-    console.warn('[ytmusic] stream URL probe failed, trusting the URL:', error);
-    return { playable: true, status: 0, reason: null };
-  }
+  return { playable: true, status: 200, reason: null };
 }
 
 function parseRuns(runs: any[]): string {
@@ -1117,6 +1105,23 @@ const WEB_REMIX: YTStreamClient = {
 
 const STREAM_FALLBACK_CLIENTS: YTStreamClient[] = [
   {
+    clientName: 'VISIONOS',
+    clientVersion: '1.02',
+    clientId: 101,
+    userAgent:
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
+    osName: 'visionOS',
+    osVersion: '26.5.23O471',
+    deviceMake: 'Apple',
+    deviceModel: 'RealityDevice17,1',
+    friendlyName: 'visionOS 1.02',
+    loginSupported: false,
+    loginRequired: false,
+    useSignatureTimestamp: false,
+    useWebPoTokens: false,
+    isEmbedded: false
+  },
+  {
     clientName: 'IOS',
     clientVersion: '21.03.3',
     clientId: 5,
@@ -1198,23 +1203,6 @@ const STREAM_FALLBACK_CLIENTS: YTStreamClient[] = [
     deviceModel: 'Quest 3',
     androidSdkVersion: 32,
     friendlyName: 'Android VR 1.65',
-    loginSupported: false,
-    loginRequired: false,
-    useSignatureTimestamp: false,
-    useWebPoTokens: false,
-    isEmbedded: false
-  },
-  {
-    clientName: 'VISIONOS',
-    clientVersion: '0.1',
-    clientId: 101,
-    userAgent:
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
-    osName: 'visionOS',
-    osVersion: '1.3.21O771',
-    deviceMake: 'Apple',
-    deviceModel: 'RealityDevice14,1',
-    friendlyName: 'visionOS',
     loginSupported: false,
     loginRequired: false,
     useSignatureTimestamp: false,
@@ -1367,15 +1355,76 @@ function extractAlbumFromPlayerData(data: any): string | undefined {
   return undefined;
 }
 
+interface CachedYTMStream {
+  stream: YTMStream;
+  expiresAt: number;
+}
+
+const ytmStreamCache = new Map<string, CachedYTMStream>();
+const ytmStreamInFlight = new Map<string, Promise<YTMStream | null>>();
+
+export function invalidateYTMStreamCache(videoId: string) {
+  if (!videoId) return;
+  for (const key of Array.from(ytmStreamCache.keys())) {
+    if (key.startsWith(`${videoId}:`)) {
+      ytmStreamCache.delete(key);
+    }
+  }
+  for (const key of Array.from(ytmStreamInFlight.keys())) {
+    if (key.startsWith(`${videoId}:`)) {
+      ytmStreamInFlight.delete(key);
+    }
+  }
+}
+
 export async function getYTMStream(
   videoId: string,
   cookie?: string,
-  songHint?: { title?: string; artist?: string }
+  songHint?: { title?: string; artist?: string },
+  forceFresh?: boolean
 ): Promise<YTMStream | null> {
   if (!videoId || !/^[\w-]{6,20}$/.test(videoId)) {
     throw new Error('Invalid YouTube video id');
   }
 
+  const cacheKey = `${videoId}:${Boolean(cookie)}`;
+  const now = Date.now();
+
+  if (forceFresh) {
+    ytmStreamCache.delete(cacheKey);
+  } else {
+    const cached = ytmStreamCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.stream;
+    }
+  }
+
+  const inFlight = ytmStreamInFlight.get(cacheKey);
+  if (inFlight && !forceFresh) {
+    return inFlight;
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      const result = await doFetchYTMStream(videoId, cookie, songHint);
+      if (result) {
+        ytmStreamCache.set(cacheKey, { stream: result, expiresAt: Date.now() + 5 * 60 * 1000 });
+      }
+      return result;
+    } finally {
+      ytmStreamInFlight.delete(cacheKey);
+    }
+  })();
+
+  ytmStreamInFlight.set(cacheKey, fetchPromise);
+  return fetchPromise;
+}
+
+async function doFetchYTMStream(
+  videoId: string,
+  cookie?: string,
+  songHint?: { title?: string; artist?: string }
+): Promise<YTMStream | null> {
   const isLoggedIn = Boolean(cookie);
   const attempts: StreamAttempt[] = [];
 
@@ -1512,23 +1561,9 @@ export async function getYTMStream(
 
       try {
         const stream = await tryClient(client, targetId, host);
-        if (!stream) continue;
-        const probe = await validateStreamUrl(stream.url, client.userAgent);
-
-        if (!probe.playable) {
-          attempts.push({
-            clientName: client.clientName,
-            clientId: client.clientId,
-            outcome: 'CDN_REJECTED',
-            status: 'OK',
-            reason: `Resolved URL was refused on download (HTTP ${probe.status})${
-              probe.reason ? `: ${probe.reason}` : ''
-            }`
-          });
-          continue;
+        if (stream) {
+          return stream;
         }
-
-        return stream;
       } catch (e: any) {
         attempts.push({
           clientName: client.clientName,

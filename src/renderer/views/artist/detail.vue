@@ -6,25 +6,25 @@
         v-if="loading"
         class="absolute inset-0 z-50 bg-white dark:bg-[#0a0a0a] overflow-hidden p-4"
       >
-      <div class="flex flex-col items-center pt-24">
-        <n-skeleton height="112px" width="112px" style="border-radius: 16px" class="mb-4" />
-        <n-skeleton text width="15%" class="mb-2" />
-        <n-skeleton text width="40%" height="32px" class="mb-3" />
-        <n-skeleton text width="35%" class="mb-5" />
-        <div class="flex gap-3 mb-10">
-          <n-skeleton height="40px" width="100px" style="border-radius: 20px" />
-          <n-skeleton height="40px" width="100px" style="border-radius: 20px" />
-        </div>
-      </div>
-      <div class="flex flex-col gap-4 w-full max-w-4xl mx-auto px-2">
-        <div v-for="i in 5" :key="i" class="flex items-center gap-4">
-          <n-skeleton height="48px" width="48px" style="border-radius: 8px" />
-          <div class="flex-1 flex flex-col gap-2">
-            <n-skeleton text width="40%" />
-            <n-skeleton text width="20%" />
+        <div class="flex flex-col items-center pt-24">
+          <n-skeleton height="112px" width="112px" style="border-radius: 16px" class="mb-4" />
+          <n-skeleton text width="15%" class="mb-2" />
+          <n-skeleton text width="40%" height="32px" class="mb-3" />
+          <n-skeleton text width="35%" class="mb-5" />
+          <div class="flex gap-3 mb-10">
+            <n-skeleton height="40px" width="100px" style="border-radius: 20px" />
+            <n-skeleton height="40px" width="100px" style="border-radius: 20px" />
           </div>
         </div>
-      </div>
+        <div class="flex flex-col gap-4 w-full max-w-4xl mx-auto px-2">
+          <div v-for="i in 5" :key="i" class="flex items-center gap-4">
+            <n-skeleton height="48px" width="48px" style="border-radius: 8px" />
+            <div class="flex-1 flex flex-col gap-2">
+              <n-skeleton text width="40%" />
+              <n-skeleton text width="20%" />
+            </div>
+          </div>
+        </div>
       </div>
     </transition>
     <div v-show="!loading" class="h-full w-full">
@@ -41,7 +41,9 @@
             alt=""
             referrerpolicy="no-referrer"
             @load="handleImageLoad"
-            @error="handleImageError($event, { title: artist?.title, artist: artist?.title }, 'artist')"
+            @error="
+              handleImageError($event, { title: artist?.title, artist: artist?.title }, 'artist')
+            "
           />
           <div class="absolute inset-0 banner-glass" />
           <div class="absolute bottom-0 left-0 right-0 h-24 gradient-fade" />
@@ -58,7 +60,9 @@
               referrerpolicy="no-referrer"
               class="w-full h-full object-cover opacity-0 transition-opacity duration-500"
               @load="handleImageLoad"
-              @error="handleImageError($event, { title: artist?.title, artist: artist?.title }, 'artist')"
+              @error="
+                handleImageError($event, { title: artist?.title, artist: artist?.title }, 'artist')
+              "
             />
             <div class="absolute inset-0 flex items-center justify-center -z-10">
               <i class="ri-user-3-line text-4xl text-neutral-400" />
@@ -175,9 +179,17 @@
                     referrerpolicy="no-referrer"
                     class="w-full h-full object-cover opacity-0 group-hover:scale-105 transition-all duration-500 ease-out"
                     @load="handleImageLoad"
-                    @error="handleImageError($event, { title: album.name, artist: album.subtitle }, 'album')"
+                    @error="
+                      handleImageError(
+                        $event,
+                        { title: album.name, artist: album.subtitle },
+                        'album'
+                      )
+                    "
                   />
-                  <div class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800">
+                  <div
+                    class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800"
+                  >
                     <i class="ri-album-line text-3xl text-neutral-400" />
                   </div>
                 </div>
@@ -219,9 +231,17 @@
                     referrerpolicy="no-referrer"
                     class="w-full h-full object-cover opacity-0 group-hover:scale-105 transition-all duration-500 ease-out"
                     @load="handleImageLoad"
-                    @error="handleImageError($event, { title: playlist.name, artist: playlist.subtitle }, 'playlist')"
+                    @error="
+                      handleImageError(
+                        $event,
+                        { title: playlist.name, artist: playlist.subtitle },
+                        'playlist'
+                      )
+                    "
                   />
-                  <div class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800">
+                  <div
+                    class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800"
+                  >
                     <i class="ri-play-list-line text-3xl text-neutral-400" />
                   </div>
                 </div>
@@ -263,9 +283,17 @@
                     referrerpolicy="no-referrer"
                     class="w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ease-out opacity-0"
                     @load="handleImageLoad"
-                    @error="handleImageError($event, { title: similar.name, artist: similar.name }, 'artist')"
+                    @error="
+                      handleImageError(
+                        $event,
+                        { title: similar.name, artist: similar.name },
+                        'artist'
+                      )
+                    "
                   />
-                  <div class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800">
+                  <div
+                    class="absolute inset-0 flex items-center justify-center -z-10 bg-neutral-200 dark:bg-neutral-800"
+                  >
                     <i class="ri-user-3-line text-3xl text-neutral-400" />
                   </div>
                 </div>
@@ -302,14 +330,15 @@ import { argbFromRgb } from '@material/material-color-utilities';
 import { useMessage } from 'naive-ui';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+
 import { getYTMArtist, type YTMArtistDetail, type YTMPlaylist, type YTMSong } from '@/api/ytmusic';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import SongItem from '@/components/common/SongItem.vue';
+import { handleImgError } from '@/services/coverService';
 import { playTrack } from '@/services/playbackController';
 import { usePlayerStore } from '@/store/modules/player';
 import type { SongResult } from '@/types/music';
-import { getImgUrl } from '@/utils';
-import { handleImgError } from '@/services/coverService';
+import { getImgUrl, parseDurationToSeconds } from '@/utils';
 
 defineOptions({ name: 'ArtistDetail' });
 
@@ -342,7 +371,11 @@ const handleImageLoad = (e: Event) => {
   }
 };
 
-const handleImageError = (e: Event, item?: any, type: 'song' | 'artist' | 'album' | 'playlist' = 'artist') => {
+const handleImageError = (
+  e: Event,
+  item?: any,
+  type: 'song' | 'artist' | 'album' | 'playlist' = 'artist'
+) => {
   const targetItem = item || { title: artist.value?.title, artist: artist.value?.title };
   handleImgError(e, targetItem, type);
 };
@@ -405,23 +438,28 @@ const extractColors = async (url: string) => {
   });
 };
 
-const toSongResult = (song: YTMSong): SongResult => ({
-  id: song.id,
-  name: song.title,
-  picUrl:
-    song.thumbnail ||
-    (song.id && String(song.id).length === 11 && !String(song.id).includes('/')
-      ? `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`
-      : ''),
-  source: 'ytmusic',
-  artists:
-    song.artists && song.artists.length > 0
-      ? song.artists.map((a) => ({ name: a.name }))
-      : artist.value?.title
-        ? [{ name: artist.value.title }]
-        : [],
-  album: song.album
-});
+const toSongResult = (song: YTMSong): SongResult => {
+  const durSec = parseDurationToSeconds(song.duration);
+  return {
+    id: song.id,
+    name: song.title,
+    picUrl:
+      song.thumbnail ||
+      (song.id && String(song.id).length === 11 && !String(song.id).includes('/')
+        ? `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`
+        : ''),
+    source: 'ytmusic',
+    artists:
+      song.artists && song.artists.length > 0
+        ? song.artists.map((a) => ({ name: a.name }))
+        : artist.value?.title
+          ? [{ name: artist.value.title }]
+          : [],
+    album: song.album,
+    duration: durSec,
+    dt: durSec ? durSec * 1000 : undefined
+  };
+};
 
 const loadArtist = async () => {
   const id = artistId.value;
@@ -586,13 +624,23 @@ onUnmounted(() => {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .fade-enter-active,

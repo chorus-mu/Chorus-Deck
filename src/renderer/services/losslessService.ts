@@ -23,7 +23,7 @@ const cleanString = (str: string): string => {
     .trim();
 };
 
-async function queryLocalLossless(
+export async function queryLocalLossless(
   title: string,
   artist: string,
   targetDurationSec?: number
@@ -221,6 +221,9 @@ async function queryArchiveLossless(
   return null;
 }
 
+const losslessCache = new Map<string, LosslessMatchResult>();
+const losslessInFlight = new Map<string, Promise<LosslessMatchResult | null>>();
+
 export async function matchLosslessStream(
   title: string,
   artist: string,
@@ -228,31 +231,53 @@ export async function matchLosslessStream(
 ): Promise<LosslessMatchResult | null> {
   if (!title) return null;
 
+  const key = `${title.toLowerCase().trim()}:${(artist || '').toLowerCase().trim()}`;
+  const cached = losslessCache.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const inFlight = losslessInFlight.get(key);
+  if (inFlight) {
+    return inFlight;
+  }
+
   const durationSec = targetDurationMs && targetDurationMs > 0 ? targetDurationMs / 1000 : undefined;
 
-  const localMatch = await queryLocalLossless(title, artist, durationSec);
-  if (localMatch) {
-    console.info(`[LosslessService] Match FOUND [Tier 1: Local]: ${localMatch.qualityBadge} for "${title}"`);
-    return localMatch;
-  }
+  const fetchPromise = (async (): Promise<LosslessMatchResult | null> => {
+    try {
+      const localMatch = await queryLocalLossless(title, artist, durationSec);
+      if (localMatch) {
+        console.info(`[LosslessService] Match FOUND [Tier 1: Local]: ${localMatch.qualityBadge} for "${title}"`);
+        losslessCache.set(key, localMatch);
+        return localMatch;
+      }
 
-  const tidalResult = await queryTidalHiFi(title, artist, durationSec);
-  if (tidalResult) {
-    console.info(`[LosslessService] Match FOUND [Tier 2: Tidal]: ${tidalResult.qualityBadge} for "${title}"`);
-    return tidalResult;
-  }
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800));
 
-  const unmResult = await queryUNMLossless(title, artist, durationSec);
-  if (unmResult) {
-    console.info(`[LosslessService] Match FOUND [Tier 3: UNM]: ${unmResult.qualityBadge} for "${title}"`);
-    return unmResult;
-  }
+      const remotePromise = (async (): Promise<LosslessMatchResult | null> => {
+        try {
+          const tidalResult = await queryTidalHiFi(title, artist, durationSec);
+          if (tidalResult) {
+            console.info(`[LosslessService] Match FOUND [Tier 2: Tidal]: ${tidalResult.qualityBadge} for "${title}"`);
+            return tidalResult;
+          }
+        } catch (err) {
+          console.debug('[LosslessService] Tidal HiFi match skipped:', err);
+        }
+        return null;
+      })();
 
-  const archiveResult = await queryArchiveLossless(title, artist, durationSec);
-  if (archiveResult) {
-    console.info(`[LosslessService] Match FOUND [Tier 3.5: Archive FLAC]: ${archiveResult.qualityBadge} for "${title}"`);
-    return archiveResult;
-  }
+      const result = await Promise.race([remotePromise, timeoutPromise]);
+      if (result) {
+        losslessCache.set(key, result);
+      }
+      return result;
+    } finally {
+      losslessInFlight.delete(key);
+    }
+  })();
 
-  return null;
+  losslessInFlight.set(key, fetchPromise);
+  return fetchPromise;
 }

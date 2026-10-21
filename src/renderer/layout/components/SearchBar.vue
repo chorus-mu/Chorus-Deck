@@ -10,11 +10,7 @@
     </div>
 
     <transition name="tab-slide">
-      <div
-        v-if="!isSearchExpanded"
-        class="tabs-track flex-shrink-0"
-        ref="tabsTrackRef"
-      >
+      <div v-if="!isSearchExpanded" class="tabs-track flex-shrink-0" ref="tabsTrackRef">
         <div class="tab-slider-bg" :style="sliderStyle" />
         <button
           v-for="(tab, i) in tabs"
@@ -92,11 +88,6 @@
       </n-popover>
     </div>
 
-    <button v-if="showDownloadButton" class="action-btn" @click="navigateToDownloads">
-      <n-badge :value="downloadingCount" :max="99" :show="downloadingCount > 0" :offset="[-2, 2]">
-        <i class="ri-download-cloud-2-line" />
-      </n-badge>
-    </button>
 
     <n-popover trigger="hover" placement="bottom-end" :show-arrow="false" raw>
       <template #trigger>
@@ -165,7 +156,6 @@ import type { SearchFilter } from '@/api/provider';
 import { getProvider } from '@/api/providers';
 import { SEARCH_TYPES } from '@/const/bar-const';
 import { useZoom } from '@/hooks/useZoom';
-import { useDownloadStore } from '@/store/modules/download';
 import { useNavTitleStore } from '@/store/modules/navTitle';
 import { useSearchStore } from '@/store/modules/search';
 import { useSettingsStore } from '@/store/modules/settings';
@@ -180,15 +170,6 @@ const route = useRoute();
 const navTitleStore = useNavTitleStore();
 const searchStore = useSearchStore();
 const settingsStore = useSettingsStore();
-const downloadStore = useDownloadStore();
-const downloadingCount = computed(() => downloadStore.downloadingCount);
-const navigateToDownloads = () => {
-  router.push('/downloads');
-};
-const showDownloadButton = computed(
-  () =>
-    isDesktop() && (settingsStore.setData?.alwaysShowDownloadButton || downloadingCount.value > 0)
-);
 const { zoomFactor, initZoomFactor, increaseZoom, decreaseZoom, resetZoom, isZoom100 } = useZoom();
 
 const goBack = () => router.back();

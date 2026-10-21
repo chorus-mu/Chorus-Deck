@@ -19,6 +19,9 @@ export const usePlayerCoreStore = defineStore(
     const playMusic = ref<SongResult>({} as SongResult);
     const playMusicUrl = ref('');
     const musicFull = ref(false);
+    const asideOpen = ref(false);
+    const asideTab = ref<'queue' | 'lyrics'>('queue');
+    const lyricsDrawer = computed(() => asideOpen.value && asideTab.value === 'lyrics');
     const playbackRate = ref(1.0);
     const volume = ref(1);
     const isMuted = ref(false);
@@ -41,6 +44,36 @@ export const usePlayerCoreStore = defineStore(
 
     const setMusicFull = (value: boolean) => {
       musicFull.value = value;
+    };
+
+    const setAsideOpen = (value: boolean) => {
+      asideOpen.value = value;
+    };
+
+    const setAsideTab = (tab: 'queue' | 'lyrics') => {
+      asideTab.value = tab;
+    };
+
+    const toggleAside = (tab: 'queue' | 'lyrics') => {
+      if (asideOpen.value && asideTab.value === tab) {
+        asideOpen.value = false;
+      } else {
+        asideTab.value = tab;
+        asideOpen.value = true;
+      }
+    };
+
+    const setLyricsDrawer = (value: boolean) => {
+      if (value) {
+        asideTab.value = 'lyrics';
+        asideOpen.value = true;
+      } else if (asideTab.value === 'lyrics') {
+        asideOpen.value = false;
+      }
+    };
+
+    const toggleLyricsDrawer = () => {
+      toggleAside('lyrics');
     };
 
     const setPlaybackRate = (rate: number) => {
@@ -264,6 +297,9 @@ export const usePlayerCoreStore = defineStore(
       playMusic,
       playMusicUrl,
       musicFull,
+      asideOpen,
+      asideTab,
+      lyricsDrawer,
       playbackRate,
       volume,
       isMuted,
@@ -277,6 +313,11 @@ export const usePlayerCoreStore = defineStore(
 
       setIsPlay,
       setMusicFull,
+      setAsideOpen,
+      setAsideTab,
+      toggleAside,
+      setLyricsDrawer,
+      toggleLyricsDrawer,
       setPlayMusic,
       setPlaybackRate,
       setVolume,
@@ -295,7 +336,11 @@ export const usePlayerCoreStore = defineStore(
     persist: {
       key: 'player-core-store',
 
-      storage: debouncedLocalStorage,
+      storage: {
+        getItem: (k: string) => localStorage.getItem(k),
+        setItem: (k: string, v: string) => debouncedLocalStorage.setItem(k, v),
+        removeItem: (k: string) => debouncedLocalStorage.removeItem(k)
+      },
       pick: [
         'playMusic',
         'playMusicUrl',

@@ -14,18 +14,6 @@ const otherRouter: RouteRecordRaw[] = [
     component: () => import('@/views/local-music/index.vue')
   },
   {
-    path: '/downloads',
-    name: 'downloads',
-    meta: {
-      title: 'Download management',
-      keepAlive: true,
-      showInMenu: true,
-      back: true,
-      icon: 'ri-download-cloud-2-line'
-    },
-    component: () => import('@/views/download/DownloadPage.vue')
-  },
-  {
     path: '/playlist/:id',
     name: 'playlistDetail',
     meta: {

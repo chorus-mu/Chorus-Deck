@@ -20,11 +20,7 @@
         class="ri-loader-4-line loading-icon"
         :style="{ color: computedIconColor }"
       ></i>
-      <i
-        v-else
-        :class="isPlaying ? pauseIcon : playIcon"
-        :style="{ color: computedIconColor }"
-      ></i>
+      <i v-else :class="isPlaying ? pauseIcon : playIcon" :style="{ color: computedIconColor }"></i>
     </div>
   </div>
 </template>
@@ -87,63 +83,25 @@ const onClick = (e: MouseEvent) => {
   emit('click', e);
 };
 
-// Animation state
-const currentIndent = ref(props.isPlaying ? 0.15 : 0);
-let animationFrame: number | null = null;
-const targetIndent = computed(() => (props.isPlaying ? 0.15 : 0));
-
-// Smooth transition for the indent (morphing effect)
-const updateIndent = () => {
-  const diff = targetIndent.value - currentIndent.value;
-  if (Math.abs(diff) > 0.001) {
-    currentIndent.value += diff * 0.15; // ease-out approach
-    animationFrame = requestAnimationFrame(updateIndent);
-  } else {
-    currentIndent.value = targetIndent.value;
-    if (animationFrame) {
-      cancelAnimationFrame(animationFrame);
-      animationFrame = null;
-    }
-  }
-};
-
-watch(
-  () => props.isPlaying,
-  () => {
-    if (!animationFrame) {
-      animationFrame = requestAnimationFrame(updateIndent);
-    }
-  }
-);
-
-onUnmounted(() => {
-  if (animationFrame) cancelAnimationFrame(animationFrame);
-});
-
-const pathData = computed(() => {
+const buildWavyPath = (indent: number) => {
   const points = 8;
-  const steps = 360;
+  const steps = 72;
   const radius = 46;
-  const indent = currentIndent.value;
   let d = '';
-
   for (let i = 0; i <= steps; i++) {
     const theta = (i / steps) * 2 * Math.PI;
-    // Smoother, fewer points to avoid the sharp jagged gear look.
     const r = radius * (1 - indent * (0.5 - 0.5 * Math.cos(points * theta)));
-
     const x = 50 + r * Math.cos(theta);
     const y = 50 + r * Math.sin(theta);
-
-    if (i === 0) {
-      d += `M ${x} ${y} `;
-    } else {
-      d += `L ${x} ${y} `;
-    }
+    d += `${i === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)} `;
   }
-  d += 'Z';
-  return d;
-});
+  return d + 'Z';
+};
+
+const PAUSED_PATH = buildWavyPath(0);
+const PLAYING_PATH = buildWavyPath(0.15);
+
+const pathData = computed(() => (props.isPlaying ? PLAYING_PATH : PAUSED_PATH));
 </script>
 
 <style scoped>
@@ -169,8 +127,9 @@ const pathData = computed(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  transition: transform 0.3s ease;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   transform: scale(0.95);
+  will-change: transform;
 }
 
 .background-container.is-playing {
@@ -181,6 +140,8 @@ const pathData = computed(() => {
   width: 100%;
   height: 100%;
   overflow: visible;
+  will-change: transform;
+  transition: transform 0.25s ease;
 }
 
 .icon-container {

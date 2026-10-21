@@ -64,9 +64,18 @@
       <compact-player-settings v-model:visible="showPlayerSettings" />
 
       <transition name="fade">
-        <div v-if="showFullLyrics && !isLandscape" class="fullscreen-lyrics" :class="config.theme">
-          <div class="fullscreen-header">
-            <div class="song-title" v-html="playMusic.name"></div>
+        <div
+          v-if="showFullLyrics && !isLandscape"
+          class="fullscreen-lyrics"
+          :class="[config.theme, { 'is-light-theme': isLight }]"
+        >
+          <div class="fullscreen-header" title="Click to collapse lyrics" @click="closeFullLyrics">
+            <div class="song-title flex items-center justify-center gap-2">
+              <span v-html="playMusic.name"></span>
+              <span v-if="(playMusic as any)?.qualityBadge" class="lossless-quality-badge">
+                {{ (playMusic as any).qualityBadge }}
+              </span>
+            </div>
             <div class="artist-name">
               <span v-for="(item, index) in artistList" :key="index">
                 {{ item.name }}{{ index < artistList.length - 1 ? ', ' : '' }}
@@ -74,91 +83,11 @@
             </div>
           </div>
 
-          <div
-            ref="lyricsScrollerRef"
-            class="lyrics-scroller"
-            @touchstart="handleTouchStart"
-            @touchmove="handleTouchMove"
-            @touchend="handleTouchEnd"
-            @wheel="handleManualScroll"
-            @scroll="handleScroll"
-          >
-            <div class="lyrics-padding-top"></div>
-
-            <div v-if="isLyricsLoading" class="compact-lyrics-loading">
-              <div
-                v-for="n in 6"
-                :key="n"
-                class="lyrics-skeleton-line"
-                :style="{ width: `${40 + (n % 4) * 15}%` }"
-              ></div>
-            </div>
-
-            <template v-else-if="lrcArray.length">
-              <div v-if="!supportAutoScroll" class="lyric-line no-scroll-tip">
-                <span>This lyrics does not support auto-scroll</span>
-              </div>
-              <div
-                v-for="(item, index) in lrcArray"
-                :key="index"
-                :id="`lyric-line-${index}`"
-                class="lyric-line"
-                :class="{
-                  'now-text': index === nowIndex,
-                  'hover-text': item.text && item.startTime !== -1
-                }"
-                :style="getLineStyle(index)"
-                @click="config.lyricsClick !== false && item.startTime !== -1 ? setAudioTime(index) : null"
-              >
-                <AmllInterludeDots
-                  v-if="item.isPreamble || !item.text || item.text.trim() === '•••' || item.text.trim() === ''"
-                  :start-time="item.startTime ?? 0"
-                  :duration="item.duration ?? 3000"
-                  :current-time="(nowTime + correctionTime) * 1000"
-                  :is-active="index === nowIndex"
-                  :is-first-line="index === 0"
-                />
-
-                <div
-                  v-else-if="shouldRenderWordByWord(item)"
-                  class="word-by-word-lyric"
-                >
-                  <template v-for="(word, wordIndex) in getLineDisplayWords(item)" :key="wordIndex">
-                    <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">
-                      {{ word.text ? word.text.replace('{bg}', '') : '' }}
-                    </span>
-                    <span v-if="word.space" class="lyric-space">&nbsp;</span>
-                  </template>
-                </div>
-
-                <span
-                  v-else
-                  :style="getLrcStyle(index)"
-                  :class="{ 'bg-vocal': item.text ? item.text.startsWith('{bg}') : false }"
-                  >{{ item.text ? item.text.replace('{bg}', '') : '' }}</span
-                >
-                <div v-if="config.showRoma && item.romaText" class="translation">
-                  {{ item.romaText }}
-                </div>
-                <div v-if="config.showTranslation && item.trText" class="translation">
-                  {{ item.trText }}
-                </div>
-              </div>
-            </template>
-            <div v-else class="lyric-line no-scroll-tip">
-              <span>No lyrics, please enjoy</span>
-            </div>
-            <div class="lyrics-padding-bottom"></div>
-          </div>
-          <button
-            v-if="showSyncButton && supportAutoScroll"
-            class="lyrics-sync-button"
-            type="button"
-            @click="syncLyrics"
-          >
-            <i class="ri-focus-3-line"></i>
-            Sync
-          </button>
+          <lyrics-view
+            variant="compact"
+            :show-sync-button="true"
+            @line-click="handleLyricLineClick"
+          />
         </div>
       </transition>
 
@@ -174,7 +103,17 @@
             }"
             @click="cycleCoverStyle"
           >
-            <div class="img-wrapper">
+            <cover3-d
+              v-if="config.compactCoverStyle === 'square'"
+              ref="PicImgRef"
+              :src="currentSrc"
+              :loading="Boolean(playMusic?.playLoading)"
+              :max-tilt="18"
+              :scale="1.05"
+              :shine-intensity="0.38"
+              class="compact-cover-3d"
+            />
+            <div v-else class="img-wrapper">
               <n-image
                 ref="PicImgRef"
                 :src="currentSrc"
@@ -193,8 +132,11 @@
 
           <div class="px-2 flex-1 flex flex-col justify-around w-[85%]">
             <div class="song-info">
-              <div class="song-title-container">
+              <div class="song-title-container flex items-center gap-2">
                 <h1 class="song-title" v-html="playMusic.name"></h1>
+                <span v-if="(playMusic as any)?.qualityBadge" class="lossless-quality-badge">
+                  {{ (playMusic as any).qualityBadge }}
+                </span>
               </div>
               <p class="song-artist">
                 <span
@@ -220,14 +162,21 @@
                   class="lyric-line"
                   :style="getLineStyle(line.originalIndex)"
                 >
-                  <div
-                    v-if="shouldRenderWordByWord(line)"
-                    class="word-by-word-lyric"
-                  >
-                    <template v-for="(word, wordIndex) in getLineDisplayWords(line)" :key="wordIndex">
+                  <div v-if="shouldRenderWordByWord(line)" class="word-by-word-lyric">
+                    <template
+                      v-for="(word, wordIndex) in getLineDisplayWords(line)"
+                      :key="wordIndex"
+                    >
                       <span
                         class="lyric-word"
-                        :style="getWordStyle(line.originalIndex, wordIndex, word)"
+                        :style="
+                          getWordStyle(
+                            line.originalIndex,
+                            wordIndex,
+                            word,
+                            getLineDisplayWords(line).length
+                          )
+                        "
                       >
                         {{ word.text }}</span
                       ><span v-if="word.space">&nbsp;</span></template
@@ -238,9 +187,23 @@
                     v-else
                     :style="getLrcStyle(line.originalIndex)"
                     :class="{ 'bg-vocal': line.text.startsWith('{bg}') }"
-                  >{{
-                    line.text.replace('{bg}', '')
-                  }}</span>
+                    >{{ line.text.replace('{bg}', '') }}</span
+                  >
+
+                  <div
+                    v-if="config.showRoma !== false && line.romaText"
+                    class="compact-lyric-roma"
+                    :class="{ 'active-roma': line.originalIndex === nowIndex }"
+                  >
+                    {{ line.romaText }}
+                  </div>
+                  <div
+                    v-if="config.showTranslation !== false && line.trText && line.trText !== line.romaText"
+                    class="compact-lyric-tr"
+                    :class="{ 'active-tr': line.originalIndex === nowIndex }"
+                  >
+                    {{ line.trText }}
+                  </div>
                 </div>
               </div>
               <div v-else class="no-lyrics">No lyrics, please enjoy</div>
@@ -261,7 +224,16 @@
             }"
             @click="cycleCoverStyle"
           >
-            <div class="img-wrapper">
+            <cover3-d
+              v-if="config.compactCoverStyle === 'square'"
+              :src="currentSrc"
+              :loading="Boolean(playMusic?.playLoading)"
+              :max-tilt="18"
+              :scale="1.05"
+              :shine-intensity="0.38"
+              class="compact-cover-3d"
+            />
+            <div v-else class="img-wrapper">
               <n-image
                 :src="currentSrc"
                 preview-disabled
@@ -280,7 +252,7 @@
           <div class="landscape-progress-container">
             <div class="time-info">
               <span class="current-time">{{ secondToMinute(nowTime) }}</span>
-              <span class="total-time">{{ secondToMinute(allTime) }}</span>
+              <span class="total-time">{{ secondToMinute(effectiveTotalTime) }}</span>
             </div>
             <div
               class="apple-style-progress"
@@ -290,12 +262,12 @@
               <div class="progress-track">
                 <div
                   class="progress-fill"
-                  :style="{ width: `${(nowTime / Math.max(1, allTime)) * 100}%` }"
+                  :style="{ width: `${(nowTime / Math.max(1, effectiveTotalTime)) * 100}%` }"
                 ></div>
                 <div
                   class="progress-thumb"
                   :class="{ active: isThumbDragging || isMouseDragging }"
-                  :style="{ left: `${(nowTime / Math.max(1, allTime)) * 100}%` }"
+                  :style="{ left: `${(nowTime / Math.max(1, effectiveTotalTime)) * 100}%` }"
                   @touchstart="handleThumbTouchStart"
                   @touchmove="handleThumbTouchMove"
                   @touchend="handleThumbTouchEnd"
@@ -309,7 +281,12 @@
         <div class="landscape-lyrics-section">
           <div class="landscape-song-info">
             <div class="flex flex-col flex-1">
-              <h1 class="song-title" v-html="playMusic.name"></h1>
+              <div class="flex items-center gap-2">
+                <h1 class="song-title" v-html="playMusic.name"></h1>
+                <span v-if="(playMusic as any)?.qualityBadge" class="lossless-quality-badge">
+                  {{ (playMusic as any).qualityBadge }}
+                </span>
+              </div>
               <p class="song-artist">
                 <span
                   v-for="(item, index) in artistList"
@@ -326,92 +303,11 @@
             </div>
           </div>
 
-          <div
-            ref="landscapeLyricsRef"
-            class="landscape-lyrics-scroller"
-            @touchstart="handleTouchStart"
-            @touchmove="handleTouchMove"
-            @touchend="handleTouchEnd"
-            @wheel="handleManualScroll"
-            @scroll="handleScroll"
-          >
-            <div class="lyrics-padding-top"></div>
-
-            <div v-if="isLyricsLoading" class="compact-lyrics-loading">
-              <div
-                v-for="n in 6"
-                :key="n"
-                class="lyrics-skeleton-line"
-                :style="{ width: `${40 + (n % 4) * 15}%` }"
-              ></div>
-            </div>
-
-            <template v-else-if="lrcArray.length">
-              <div v-if="!supportAutoScroll" class="lyric-line no-scroll-tip">
-                <span>This lyrics does not support auto-scroll</span>
-              </div>
-              <div
-                v-for="(item, index) in lrcArray"
-                :key="index"
-                :id="`landscape-lyric-line-${index}`"
-                class="lyric-line"
-                :class="{
-                  'now-text': index === nowIndex,
-                  'hover-text': item.text && item.startTime !== -1
-                }"
-                :style="getLineStyle(index)"
-                @click="config.lyricsClick !== false && item.startTime !== -1 ? setAudioTime(index) : null"
-              >
-                <AmllInterludeDots
-                  v-if="item.isPreamble || !item.text || item.text.trim() === '•••' || item.text.trim() === ''"
-                  :start-time="item.startTime ?? 0"
-                  :duration="item.duration ?? 3000"
-                  :current-time="(nowTime + correctionTime) * 1000"
-                  :is-active="index === nowIndex"
-                  :is-first-line="index === 0"
-                />
-
-                <div
-                  v-else-if="shouldRenderWordByWord(item)"
-                  class="word-by-word-lyric"
-                >
-                  <template v-for="(word, wordIndex) in getLineDisplayWords(item)" :key="wordIndex">
-                    <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">
-                      {{ word.text ? word.text.replace('{bg}', '') : '' }}
-                    </span>
-                    <span v-if="word.space" class="lyric-space">&nbsp;</span>
-                  </template>
-                </div>
-
-                <span
-                  v-else
-                  :style="getLrcStyle(index)"
-                  :class="{ 'bg-vocal': item.text ? item.text.startsWith('{bg}') : false }"
-                  >{{ item.text ? item.text.replace('{bg}', '') : '' }}</span
-                >
-                <div v-if="config.showRoma && item.romaText" class="translation">
-                  {{ item.romaText }}
-                </div>
-                <div v-if="config.showTranslation && item.trText" class="translation">
-                  {{ item.trText }}
-                </div>
-              </div>
-            </template>
-            <div v-else class="lyric-line no-scroll-tip">
-              <span>No lyrics, please enjoy</span>
-            </div>
-            <div class="lyrics-padding-bottom"></div>
-          </div>
-
-          <button
-            v-if="showSyncButton && supportAutoScroll"
-            class="lyrics-sync-button landscape-sync-button"
-            type="button"
-            @click="syncLyrics"
-          >
-            <i class="ri-focus-3-line"></i>
-            Sync
-          </button>
+          <lyrics-view
+            variant="compact"
+            :show-sync-button="true"
+            @line-click="handleLyricLineClick"
+          />
 
           <div class="landscape-main-controls">
             <div
@@ -453,7 +349,7 @@
         <div class="progress-container">
           <div class="time-info">
             <span class="current-time">{{ secondToMinute(nowTime) }}</span>
-            <span class="total-time">{{ secondToMinute(allTime) }}</span>
+            <span class="total-time">{{ secondToMinute(effectiveTotalTime) }}</span>
           </div>
           <div
             class="apple-style-progress"
@@ -463,12 +359,12 @@
             <div class="progress-track">
               <div
                 class="progress-fill"
-                :style="{ width: `${(nowTime / Math.max(1, allTime)) * 100}%` }"
+                :style="{ width: `${(nowTime / Math.max(1, effectiveTotalTime)) * 100}%` }"
               ></div>
               <div
                 class="progress-thumb"
                 :class="{ active: isThumbDragging || isMouseDragging }"
-                :style="{ left: `${(nowTime / Math.max(1, allTime)) * 100}%` }"
+                :style="{ left: `${(nowTime / Math.max(1, effectiveTotalTime)) * 100}%` }"
                 @touchstart="handleThumbTouchStart"
                 @touchmove="handleThumbTouchMove"
                 @touchend="handleThumbTouchEnd"
@@ -523,22 +419,26 @@
 
 <script setup lang="ts">
 import { useWindowSize } from '@vueuse/core';
+import tinycolor from 'tinycolor2';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import AmllInterludeDots from '@/components/lyric/AmllInterludeDots.vue';
+import Cover3D from '@/components/cover/Cover3D.vue';
 import LyricSettings from '@/components/lyric/LyricSettings.vue';
+import LyricsView from '@/components/lyric/LyricsView.vue';
 import AnimatedPlayPause from '@/components/player/AnimatedPlayPause.vue';
 import CompactPlayerSettings from '@/components/player/CompactPlayerSettings.vue';
 import {
   allTime,
   artistList,
   correctionTime,
+  getExactSongDuration,
   isLyricsLoading,
   lrcArray,
   nowIndex,
   nowTime,
   playMusic,
   setAudioTime,
+  smoothTrackTimeMs,
   sound,
   textColors,
   useLyricProgress
@@ -552,7 +452,11 @@ import { useSettingsStore } from '@/store/modules/settings';
 import { DEFAULT_LYRIC_CONFIG, LyricConfig, LyricGranularity } from '@/types/lyric';
 import { secondToMinute } from '@/utils';
 import { getTextColors } from '@/utils/linearColor';
-import { computeLyricLineStyle } from '@/utils/lyricAnimation';
+import {
+  computeLyricLineStyle,
+  computeWordSweepStyle,
+  isIdeographicScript
+} from '@/utils/lyricAnimation';
 import { LYRIC_CONFIG_CHANGE_EVENT, readLyricConfig } from '@/utils/lyricConfig';
 import { showBottomToast } from '@/utils/shortcutToast';
 import { thumbPlayer } from '@/utils/thumbnail';
@@ -560,11 +464,30 @@ import { thumbPlayer } from '@/utils/thumbnail';
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
 
+const effectiveTotalTime = computed(() => {
+  const metaDur = getExactSongDuration(playMusic.value);
+  if (metaDur > 0) return metaDur;
+  if (allTime.value > 0) return allTime.value;
+  return 0;
+});
+
+const isDarkTheme = computed(() => {
+  return settingsStore.theme === 'dark' || document.documentElement.classList.contains('dark');
+});
+
+const isLight = computed(() => {
+  const c = textColors.value || getTextColors();
+  return c.theme === 'dark' || c.active === '#111827' || !isDarkTheme.value;
+});
+
 const play = computed(() => playerStore.isPlay);
 const playIcon = computed(() => (play.value ? 'ri-pause-fill' : 'ri-play-fill'));
 
 const isBuffering = computed(() => {
-  return audioService.isBuffering() || Boolean(playMusic.value?.playLoading);
+  if (audioService.isActuallyPlaying()) {
+    return audioService.isBuffering();
+  }
+  return audioService.isBuffering() || Boolean(playMusic.value?.playLoading) || audioService.isLoading();
 });
 
 const showPlayerSettings = ref(false);
@@ -661,230 +584,21 @@ const toggleFavorite = () => {
 };
 
 const showFullLyrics = ref(false);
-const isAutoScrollEnabled = ref(true);
-const lyricsScrollerRef = ref<HTMLElement | null>(null);
-const isTouchScrolling = ref(false);
-const touchStartY = ref(0);
-const lastScrollTop = ref(0);
-const autoScrollTimer = ref<number | null>(null);
-const isSongChanging = ref(false);
-const showSyncButton = ref(false);
-const isProgrammaticScroll = ref(false);
 
 const { width, height } = useWindowSize();
 const isLandscape = computed(() => width.value > height.value);
-const landscapeLyricsRef = ref<HTMLElement | null>(null);
-
-watch(isLandscape, (newVal) => {
-  if (newVal) {
-    nextTick(() => {
-      setTimeout(() => {
-        scrollToCurrentLyric(true, landscapeLyricsRef.value);
-      }, 300);
-    });
-  }
-});
 
 const showFullLyricScreen = () => {
   showFullLyrics.value = true;
-
-  nextTick(() => {
-    scrollToCurrentLyric(true);
-
-    setTimeout(() => {
-      scrollToCurrentLyric(true);
-    }, 200);
-
-    setTimeout(() => {
-      scrollToCurrentLyric(true);
-    }, 500);
-  });
 };
-
-const supportAutoScroll = computed(() => {
-  return lrcArray.value.length > 0 && lrcArray.value[0].startTime !== -1;
-});
 
 const closeFullLyrics = () => {
   showFullLyrics.value = false;
-  if (autoScrollTimer.value) {
-    clearTimeout(autoScrollTimer.value);
-    autoScrollTimer.value = null;
-  }
 };
 
-const scrollToCurrentLyric = (immediate = false, customScrollerRef?: HTMLElement | null) => {
-  try {
-    const scrollerRef = customScrollerRef || lyricsScrollerRef.value;
-    if (!scrollerRef) {
-      console.log('Lyrics container reference does not exist');
-      return;
-    }
-
-    if (!supportAutoScroll.value) {
-      console.log('Lyrics do not support auto-scrolling');
-      return;
-    }
-
-    if (!immediate && config.value.lyricsScroll === false) {
-      return;
-    }
-
-    if (isTouchScrolling.value && !immediate) {
-      return;
-    }
-
-    const prefix = customScrollerRef ? 'landscape-' : '';
-    const activeEl = document.getElementById(`${prefix}lyric-line-${nowIndex.value}`);
-    if (!activeEl) {
-      console.log(`Current lyrics element not found: ${prefix}lyric-line-${nowIndex.value}`);
-      return;
-    }
-
-    const containerRect = scrollerRef.getBoundingClientRect();
-    const lineRect = activeEl.getBoundingClientRect();
-
-    const scrollTop =
-      scrollerRef.scrollTop +
-      (lineRect.top - containerRect.top) -
-      containerRect.height / 2 +
-      lineRect.height / 2;
-
-    console.log(`scroll to lyrics #${nowIndex.value}, Location: ${scrollTop}px`);
-
-    scrollerRef.scrollTo({
-      top: scrollTop,
-      behavior: immediate ? 'auto' : 'smooth'
-    });
-    isProgrammaticScroll.value = true;
-    window.setTimeout(
-      () => {
-        isProgrammaticScroll.value = false;
-      },
-      immediate ? 120 : 500
-    );
-  } catch (err) {
-    console.error('Error scrolling lyrics:', err);
-  }
-};
-
-watch(nowIndex, (newIndex, oldIndex) => {
-  console.log(`Lyric index changes: ${oldIndex} -> ${newIndex}`);
-
-  if (isSongChanging.value || showSyncButton.value) return;
-
-  if (showFullLyrics.value) {
-    nextTick(() => {
-      scrollToCurrentLyric(false);
-    });
-  } else if (isLandscape.value) {
-    nextTick(() => {
-      scrollToCurrentLyric(false, landscapeLyricsRef.value);
-    });
-  }
-});
-
-watch(showFullLyrics, (newVal) => {
-  if (newVal) {
-    nextTick(() => {
-      setTimeout(() => {
-        scrollToCurrentLyric(true);
-      }, 300);
-    });
-  }
-});
-
-watch(nowTime, () => {
-  if (!isThumbDragging.value && !isTouchScrolling.value && !showSyncButton.value) {
-    if (showFullLyrics.value) {
-      scrollToCurrentLyric(false);
-    } else if (isLandscape.value) {
-      scrollToCurrentLyric(false, landscapeLyricsRef.value);
-    }
-  }
-});
-
-const handleManualScroll = () => {
-  if (isProgrammaticScroll.value || isSongChanging.value) return;
-  showSyncButton.value = true;
-  isAutoScrollEnabled.value = false;
-
-  if (autoScrollTimer.value) {
-    clearTimeout(autoScrollTimer.value);
-  }
-
-  // AMLL / Apple Music style auto-resume after 3.5s of no scroll interaction
-  autoScrollTimer.value = window.setTimeout(() => {
-    showSyncButton.value = false;
-    isAutoScrollEnabled.value = true;
-    isTouchScrolling.value = false;
-    if (showFullLyrics.value) {
-      scrollToCurrentLyric(false);
-    } else if (isLandscape.value) {
-      scrollToCurrentLyric(false, landscapeLyricsRef.value);
-    }
-  }, 3500);
-};
-
-const handleScroll = () => {
-  if (isProgrammaticScroll.value || isSongChanging.value) return;
-  handleManualScroll();
-};
-
-const handleTouchStart = (e: TouchEvent) => {
-  touchStartY.value = e.touches[0].clientY;
-
-  const scrollerRef = showFullLyrics.value
-    ? lyricsScrollerRef.value
-    : isLandscape.value
-      ? landscapeLyricsRef.value
-      : lyricsScrollerRef.value;
-
-  lastScrollTop.value = scrollerRef?.scrollTop || 0;
-  isTouchScrolling.value = true;
-  showSyncButton.value = true;
-  isAutoScrollEnabled.value = false;
-
-  if (autoScrollTimer.value) {
-    clearTimeout(autoScrollTimer.value);
-    autoScrollTimer.value = null;
-  }
-};
-
-const handleTouchMove = () => {
-  if (!isTouchScrolling.value) return;
-};
-
-const handleTouchEnd = () => {
-  if (autoScrollTimer.value) {
-    clearTimeout(autoScrollTimer.value);
-  }
-
-  autoScrollTimer.value = window.setTimeout(() => {
-    showSyncButton.value = false;
-    isAutoScrollEnabled.value = true;
-    isTouchScrolling.value = false;
-    if (showFullLyrics.value) {
-      scrollToCurrentLyric(false);
-    } else if (isLandscape.value) {
-      scrollToCurrentLyric(false, landscapeLyricsRef.value);
-    }
-  }, 3500);
-};
-
-const syncLyrics = () => {
-  if (autoScrollTimer.value) {
-    clearTimeout(autoScrollTimer.value);
-    autoScrollTimer.value = null;
-  }
-  showSyncButton.value = false;
-  isAutoScrollEnabled.value = true;
-  isTouchScrolling.value = false;
-
-  if (showFullLyrics.value) {
-    scrollToCurrentLyric(false);
-  } else if (isLandscape.value) {
-    scrollToCurrentLyric(false, landscapeLyricsRef.value);
+const handleLyricLineClick = (_line: any, index: number) => {
+  if (config.value.lyricsClick !== false) {
+    setAudioTime(index);
   }
 };
 
@@ -918,7 +632,10 @@ const handleProgressBarClick = (e: MouseEvent) => {
   progressContainerWidth.value = rect.width;
 
   const percentage = offsetX / rect.width;
-  const newTime = Math.max(0, Math.min(percentage * allTime.value, allTime.value));
+  const newTime = Math.max(
+    0,
+    Math.min(percentage * effectiveTotalTime.value, effectiveTotalTime.value)
+  );
 
   console.log(`Progress bar click: ${percentage.toFixed(2)}, new time: ${newTime.toFixed(2)}`);
 
@@ -940,7 +657,7 @@ const handleMouseDown = (e: MouseEvent) => {
     const rect = progressBar.getBoundingClientRect();
     const offsetX = e.clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, offsetX / rect.width));
-    const newTime = percentage * allTime.value;
+    const newTime = percentage * effectiveTotalTime.value;
 
     nowTime.value = newTime;
     console.log(
@@ -966,7 +683,7 @@ const handleMouseMove = (e: MouseEvent) => {
   const rect = (progressBar as HTMLElement).getBoundingClientRect();
   const offsetX = e.clientX - rect.left;
   const percentage = Math.max(0, Math.min(1, offsetX / rect.width));
-  const newTime = percentage * allTime.value;
+  const newTime = percentage * effectiveTotalTime.value;
 
   nowTime.value = newTime;
   console.log(
@@ -1013,7 +730,7 @@ const handleThumbTouchMove = (e: TouchEvent) => {
   const offsetX = touch.clientX - rect.left;
 
   const percentage = Math.max(0, Math.min(1, offsetX / rect.width));
-  const newTime = percentage * allTime.value;
+  const newTime = percentage * effectiveTotalTime.value;
 
   nowTime.value = newTime;
 
@@ -1111,10 +828,6 @@ watch(
 onBeforeUnmount(() => {
   window.removeEventListener(LYRIC_CONFIG_CHANGE_EVENT, handleLyricConfigChange);
 
-  if (autoScrollTimer.value) {
-    clearTimeout(autoScrollTimer.value);
-  }
-
   if (sleepTimerInterval) {
     clearInterval(sleepTimerInterval);
     sleepTimerInterval = null;
@@ -1153,63 +866,17 @@ const togglePlayMode = () => {
 };
 
 const closeMusicFull = () => {
+  if (showFullLyrics.value) {
+    showFullLyrics.value = false;
+    return;
+  }
   isVisible.value = false;
   playerStore.setMusicFull(false);
 };
 
-watch(
-  () => playMusic.value.id,
-  (newId, oldId) => {
-    if (newId !== oldId && newId) {
-      isSongChanging.value = true;
-
-      setTimeout(() => {
-        if (showFullLyrics.value && lyricsScrollerRef.value) {
-          showSyncButton.value = false;
-          isAutoScrollEnabled.value = true;
-          isTouchScrolling.value = false;
-          lyricsScrollerRef.value.scrollTo({
-            top: 0,
-            behavior: 'smooth'
-          });
-        } else if (isLandscape.value && landscapeLyricsRef.value) {
-          showSyncButton.value = false;
-          isAutoScrollEnabled.value = true;
-          isTouchScrolling.value = false;
-          landscapeLyricsRef.value.scrollTo({
-            top: 0,
-            behavior: 'smooth'
-          });
-        }
-
-        setTimeout(() => {
-          isSongChanging.value = false;
-        }, 300);
-      }, 100);
-    }
-  }
-);
-
 onMounted(() => {
   config.value = readLyricConfig();
   window.addEventListener(LYRIC_CONFIG_CHANGE_EVENT, handleLyricConfigChange);
-
-  isAutoScrollEnabled.value = true;
-  isTouchScrolling.value = false;
-
-  nextTick(() => {
-    if (isVisible.value) {
-      if (isLandscape.value) {
-        setTimeout(() => {
-          scrollToCurrentLyric(true, landscapeLyricsRef.value);
-        }, 500);
-      } else if (showFullLyrics.value) {
-        setTimeout(() => {
-          scrollToCurrentLyric(true);
-        }, 500);
-      }
-    }
-  });
 });
 
 watch(isVisible, (newVal) => {
@@ -1219,15 +886,31 @@ watch(isVisible, (newVal) => {
     }
   } else {
     showFullLyrics.value = false;
-    if (autoScrollTimer.value) {
-      clearTimeout(autoScrollTimer.value);
-      autoScrollTimer.value = null;
-    }
   }
 });
 
 const currentGranularity = computed<LyricGranularity>(() => {
-  return (settingsStore.setData?.lyricGranularity || config.value?.lyricGranularity || 'auto') as LyricGranularity;
+  const g = settingsStore.setData?.lyricGranularity || config.value?.lyricGranularity || 'karaoke';
+  return g === 'phrase' || (g as string) === 'sentence' ? 'phrase' : 'karaoke';
+});
+
+const activeBacklitColor = computed(() => {
+  const base = playerStore.playMusic?.primaryColor || (isDarkTheme.value ? '#ffffff' : '#111827');
+  const tc = tinycolor(base);
+  if (!tc.isValid()) {
+    return isLight.value ? 'rgba(0, 0, 0, 0.25)' : 'rgba(255, 255, 255, 0.45)';
+  }
+  if (isLight.value) {
+    return tc.clone().darken(10).setAlpha(0.35).toRgbString();
+  } else {
+    const hsl = tc.toHsl();
+    const glowHsl = {
+      h: hsl.h,
+      s: Math.min(1, Math.max(0.6, hsl.s * 1.25)),
+      l: Math.min(0.85, Math.max(0.55, hsl.l))
+    };
+    return tinycolor(glowHsl).setAlpha(0.65).toRgbString();
+  }
 });
 
 const getLrcStyle = (index: number) => {
@@ -1237,88 +920,31 @@ const getLrcStyle = (index: number) => {
 
   if (index !== nowIndex.value) {
     return {
-      color: inactiveClr
-    };
-  }
-
-  const currentTime = (nowTime.value + correctionTime.value) * 1000;
-  const item = lrcArray.value[index];
-  if (!item) return { color: inactiveClr };
-
-  const start = item.startTime ?? 0;
-  const nextItem = lrcArray.value[index + 1];
-  const nextStart = nextItem?.startTime;
-  const duration = (item.duration && item.duration > 0)
-    ? item.duration
-    : (nextStart && nextStart > start ? nextStart - start : 3000);
-  const end = start + Math.max(duration, 500);
-
-  if (currentTime >= start && currentTime < end) {
-    const progress = Math.min(Math.max((currentTime - start) / Math.max(duration, 500), 0), 1);
-    const progressPercent = Math.round(progress * 100);
-    return {
-      backgroundImage: `linear-gradient(to right, ${activeClr} 0%, ${activeClr} ${progressPercent}%, ${inactiveClr} ${progressPercent}%, ${inactiveClr} 100%)`,
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      color: 'transparent',
-      transition: 'none'
-    };
-  } else if (currentTime >= end) {
-    return {
-      color: activeClr,
-      WebkitTextFillColor: 'initial',
-      transition: 'none'
-    };
-  } else {
-    return {
       color: inactiveClr,
-      WebkitTextFillColor: 'initial',
+      textShadow: 'none',
       transition: 'color 0.25s ease'
     };
   }
+
+  const hasGlow = config.value.lyricsGlowEffect !== false;
+  return {
+    color: activeClr,
+    textShadow: hasGlow
+      ? `0 0 14px ${activeBacklitColor.value}, 0 0 28px ${activeBacklitColor.value}`
+      : 'none',
+    transition: 'color 0.25s ease'
+  };
 };
 
 const shouldRenderWordByWord = (item: any) => {
-  if (currentGranularity.value === 'sentence') return false;
-  return !!(item?.hasWordByWord && item?.words && item?.words.length > 0);
+  if (currentGranularity.value === 'phrase') return false;
+  if (!item?.hasWordByWord || !item?.words || item.words.length === 0) return false;
+  return true;
 };
 
 const getLineDisplayWords = (item: any) => {
   if (!item?.words || item.words.length === 0) return [];
-  const granularity = currentGranularity.value;
-  if (granularity === 'sentence') return [];
-
-  if (granularity === 'word') {
-    const combined: any[] = [];
-    let curText = '';
-    let curStartTime = 0;
-    let curEndTime = 0;
-
-    for (let i = 0; i < item.words.length; i++) {
-      const w = item.words[i];
-      if (!curText) {
-        curText = w.text || '';
-        curStartTime = w.startTime;
-        curEndTime = w.startTime + (w.duration || 0);
-      } else {
-        curText += w.text || '';
-        curEndTime = Math.max(curEndTime, w.startTime + (w.duration || 0));
-      }
-
-      if (w.space || i === item.words.length - 1) {
-        combined.push({
-          text: curText,
-          startTime: curStartTime,
-          duration: Math.max(50, curEndTime - curStartTime),
-          space: !!w.space
-        });
-        curText = '';
-      }
-    }
-    return combined;
-  }
-
+  if (currentGranularity.value === 'phrase') return [];
   return item.words;
 };
 
@@ -1332,15 +958,17 @@ const getLineStyle = (index: number) => {
   const baseStyle = computeLyricLineStyle({
     index,
     nowIndex: nowIndex.value,
-    style: config.value.lyricsAnimationStyle || 'apple_spring',
+    style: config.value.lyricsAnimationStyle || 'fluid_motion',
     alignment,
-    focusEnabled: config.value.focusCurrentLyric !== false
+    focusEnabled: config.value.focusCurrentLyric !== false,
+    activeGrowth: config.value.fluidActiveGrowth ?? 1.05
   });
 
   const isCurrent = index === nowIndex.value;
   const userFontSize = config.value.fontSize ? `${config.value.fontSize}px` : undefined;
   const userLineHeight = config.value.lineHeight ? `${config.value.lineHeight}` : undefined;
-  const userLetterSpacing = config.value.letterSpacing !== undefined ? `${config.value.letterSpacing}px` : undefined;
+  const userLetterSpacing =
+    config.value.letterSpacing !== undefined ? `${config.value.letterSpacing}px` : undefined;
   const userFontWeight = isCurrent
     ? Math.min(900, (config.value.fontWeight || 700) + 100)
     : config.value.fontWeight || 600;
@@ -1354,7 +982,7 @@ const getLineStyle = (index: number) => {
   };
 };
 
-const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
+const getWordStyle = (lineIndex: number, wordIndex: number, word: any, totalWords?: number) => {
   const colors = textColors.value || getTextColors();
   const activeClr = colors.active || '#ffffff';
   const inactiveClr = colors.primary || 'rgba(255, 255, 255, 0.54)';
@@ -1362,38 +990,23 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
   if (lineIndex !== nowIndex.value) {
     return {
       color: inactiveClr,
+      textShadow: 'none',
+      filter: 'none',
       transition: 'color 0.25s ease'
     };
   }
 
-  const currentTime = (nowTime.value + correctionTime.value) * 1000;
-  const wordStartTime = word.startTime;
-  const wordEndTime = word.startTime + word.duration;
-
-  if (currentTime >= wordStartTime && currentTime < wordEndTime) {
-    const progress = Math.min(Math.max((currentTime - wordStartTime) / word.duration, 0), 1);
-    const progressPercent = Math.round(progress * 100);
-
-    return {
-      backgroundImage: `linear-gradient(to right, ${activeClr} 0%, ${activeClr} ${progressPercent}%, ${inactiveClr} ${progressPercent}%, ${inactiveClr} 100%)`,
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      transition: 'all 0.1s ease'
-    };
-  } else if (currentTime >= wordEndTime) {
-    return {
-      color: activeClr,
-      WebkitTextFillColor: 'initial',
-      transition: 'none'
-    };
-  } else {
-    return {
-      color: inactiveClr,
-      WebkitTextFillColor: 'initial',
-      transition: 'color 0.25s ease'
-    };
-  }
+  return computeWordSweepStyle({
+    lineIndex,
+    nowIndex: nowIndex.value,
+    currentTime: smoothTrackTimeMs.value || (nowTime.value + correctionTime.value) * 1000,
+    word,
+    isTailWord: totalWords ? wordIndex === totalWords - 1 : false,
+    activeClr,
+    inactiveClr,
+    backlitClr: activeBacklitColor.value,
+    config: config.value
+  });
 };
 </script>
 
@@ -1978,12 +1591,43 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
     opacity: 1;
   }
 
+  &.is-interlude:not(.now-text) {
+    padding: 0 !important;
+    max-height: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
   &.clicked {
     animation: clickPulse 0.3s ease-in-out;
   }
 
   .translation {
     @apply font-normal opacity-70 mt-1 text-base;
+  }
+
+  .compact-lyric-roma {
+    @apply text-xs font-semibold opacity-70 mt-1;
+    color: var(--text-color-primary);
+    transition: color 0.3s ease, text-shadow 0.3s ease, opacity 0.3s ease;
+
+    &.active-roma {
+      @apply opacity-100;
+      color: #ffffff !important;
+      text-shadow: 0 0 8px var(--lrc-active-backlit, #f59e0b), 0 0 20px var(--lrc-active-backlit-halo, rgba(245, 158, 11, 0.6)) !important;
+    }
+  }
+
+  .compact-lyric-tr {
+    @apply text-xs font-normal opacity-60 mt-0.5;
+    color: var(--text-color-primary);
+
+    &.active-tr {
+      @apply opacity-90;
+      color: var(--lrc-translation-color, rgba(255, 255, 255, 0.85));
+    }
   }
 
   .word-by-word-lyric {
@@ -2057,58 +1701,15 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
     }
   }
 
-  .lyrics-scroller {
-    @apply flex-1 overflow-y-auto px-4;
-    scroll-behavior: smooth;
-    -webkit-overflow-scrolling: touch;
-    mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
-    -webkit-mask-image: linear-gradient(
-      to bottom,
-      transparent 0%,
-      black 10%,
-      black 90%,
-      transparent 100%
-    );
+  :deep(.lyrics-view-container) {
     padding-top: 100px;
-    padding-bottom: 200px;
-    margin-bottom: 180px;
-    margin-top: 90px;
-
-    .lyrics-padding-top {
-      height: 70px;
-      min-height: 70px;
-    }
-
-    .lyrics-padding-bottom {
-      height: 150px;
-      min-height: 150px;
-    }
-
-    .lyric-line {
-      @apply px-6 py-4 text-center;
-      font-size: var(--lyric-font-size, 22px);
-
-      span {
-        padding-right: 10px;
-      }
-    }
-
-    .now-text {
-      @apply text-2xl;
-    }
+    padding-bottom: 220px;
+    height: 100%;
+    width: 100%;
   }
 
-  .lyrics-sync-button {
-    @apply absolute right-5 bottom-24 z-20 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold;
-    color: var(--text-color-active);
-    background: color-mix(in srgb, var(--background-color, #222) 82%, transparent);
-    border: 1px solid color-mix(in srgb, var(--text-color-active) 35%, transparent);
-    box-shadow: 0 4px 16px rgb(0 0 0 / 25%);
-    backdrop-filter: blur(10px);
-
-    i {
-      font-size: 15px;
-    }
+  :deep(.lyrics-sync-button) {
+    bottom: 220px;
   }
 }
 
@@ -2145,43 +1746,25 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
 #compact-drawer-target {
   &.is-landscape {
     .landscape-lyrics-section {
-      .landscape-lyrics-scroller {
-        .lyrics-padding-top {
-          height: 30px;
-          min-height: 30px;
-        }
+      :deep(.lyrics-view-container) {
+        padding-top: 20px;
+        padding-bottom: 110px;
+        height: 100%;
+        width: 100%;
+      }
 
-        .lyrics-sync-button {
-          @apply absolute right-5 bottom-20 z-20 inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold;
-          color: var(--text-color-active);
-          background: color-mix(in srgb, var(--background-color, #222) 82%, transparent);
-          border: 1px solid color-mix(in srgb, var(--text-color-active) 35%, transparent);
-          box-shadow: 0 4px 16px rgb(0 0 0 / 25%);
-          backdrop-filter: blur(10px);
-
-          i {
-            font-size: 15px;
-          }
-        }
-
-        .lyrics-padding-bottom {
-          height: 100px;
-          min-height: 100px;
-        }
-
-        .lyric-line {
-          @apply px-4 py-3 text-left;
-          font-size: 26px;
-        }
-
-        .now-text {
-          @apply text-3xl;
-        }
+      :deep(.lyrics-sync-button) {
+        bottom: 110px;
       }
     }
 
     .word-by-word-lyric {
       @apply justify-start;
+      text-shadow: none !important;
+
+      .lyric-word {
+        text-shadow: none;
+      }
     }
   }
 
@@ -2235,7 +1818,8 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
 
 .cover-container {
   &.square-style {
-    @apply w-[85%] shadow-2xl shadow-black/50 rounded-xl overflow-hidden mt-8 aspect-square;
+    @apply w-[85%] rounded-xl overflow-visible mt-8 aspect-square;
+    perspective: 1200px;
 
     .cover-image {
       @apply w-full h-full;
@@ -2301,5 +1885,25 @@ const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
   font-size: 0.85em !important;
   font-style: italic !important;
   opacity: 0.85 !important;
+}
+
+.compact-cover-3d {
+  width: 100%;
+  height: 100%;
+  display: block;
+
+  :deep(.cover-wrapper) {
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
+  }
+}
+
+.lossless-quality-badge {
+  @apply px-1.5 py-0.5 text-[10px] font-bold rounded tracking-wider uppercase border border-current flex-shrink-0 inline-flex items-center;
+  color: var(--primary-color, #f43f5e);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(4px);
+  line-height: 1;
 }
 </style>

@@ -1,6 +1,6 @@
+import { invalidateYTMStreamCache } from '@/api/ytmusic';
 import { playbackRequestManager } from '@/services/playbackRequestManager';
 import type { ILyric, ILyricText, IWordData, SongResult } from '@/types/music';
-import { isDesktop } from '@/utils';
 import { parseLyrics as parseYrcLyrics } from '@/utils/yrcParser';
 
 export type ResolvedStream = {
@@ -13,7 +13,6 @@ export type ResolvedStream = {
 export const getSongStream = async (
   id: string | number,
   songData: SongResult,
-  isDownloaded: boolean = false,
   requestId?: string
 ): Promise<ResolvedStream> => {
   if (requestId && !playbackRequestManager.isRequestValid(requestId)) {
@@ -23,7 +22,7 @@ export const getSongStream = async (
   if (songData.playMusicUrl?.startsWith('local://')) {
     return { url: songData.playMusicUrl, mimeType: '', videoId: String(id), isLocal: true };
   }
-  if (songData.playMusicUrl && !isDownloaded) {
+  if (songData.playMusicUrl) {
     const expired = songData.expiredAt ? songData.expiredAt < Date.now() : false;
     if (!expired) {
       return {
@@ -43,6 +42,9 @@ export const getSongStream = async (
     throw new Error('Request cancelled');
   }
 
+  songData.streamUserAgent = stream.userAgent;
+  songData.mimeType = stream.mimeType;
+
   return {
     url: stream.url,
     mimeType: stream.mimeType,
@@ -55,10 +57,9 @@ export const getSongStream = async (
 export const getSongUrl = async (
   id: string | number,
   songData: SongResult,
-  isDownloaded: boolean = false,
   requestId?: string
 ): Promise<string | null> => {
-  const stream = await getSongStream(id, songData, isDownloaded, requestId);
+  const stream = await getSongStream(id, songData, requestId);
   return stream.url;
 };
 
@@ -203,19 +204,29 @@ export const useSongDetail = () => {
       const wasRejected = Boolean(playMusic.urlRejectedAt);
 
       if (isExpired || wasRejected) {
-        console.info(
-          `The song URL is no longer usable, retrieving it again: ${playMusic.name}`
-        );
+        console.info(`The song URL is no longer usable, retrieving it again: ${playMusic.name}`);
         playMusic.playMusicUrl = undefined;
         playMusic.mimeType = undefined;
         playMusic.streamUserAgent = undefined;
         playMusic.urlRejectedAt = undefined;
+        const vid = (playMusic as any).videoId || (playMusic as any).id;
+        if (vid) {
+          invalidateYTMStreamCache(String(vid));
+        }
       }
     }
 
     try {
-      const playMusicUrl =
-        playMusic.playMusicUrl || (await getSongUrl(playMusic.id, playMusic, false, requestId));
+      let playMusicUrl = playMusic.playMusicUrl;
+      if (!playMusicUrl) {
+        const stream = await getSongStream(playMusic.id, playMusic, requestId);
+        playMusicUrl = stream.url;
+        playMusic.mimeType = stream.mimeType || playMusic.mimeType;
+        playMusic.streamUserAgent = stream.userAgent || playMusic.streamUserAgent;
+        if (stream.videoId) {
+          playMusic.videoId = stream.videoId;
+        }
+      }
 
       if (requestId && !playbackRequestManager.isRequestValid(requestId)) {
         console.log(`[getSongDetail] URLThe request has expired after getting it: ${requestId}`);
@@ -226,9 +237,12 @@ export const useSongDetail = () => {
 
       playMusic.expiredAt = playMusic.createdAt + 1800000;
 
-      playMusic.playLoading = false;
-
-      return { ...playMusic, playMusicUrl } as SongResult;
+      return {
+        ...playMusic,
+        playMusicUrl,
+        mimeType: playMusic.mimeType,
+        streamUserAgent: playMusic.streamUserAgent
+      } as SongResult;
     } catch (error) {
       if ((error as Error).message === 'Request cancelled') {
         throw error;

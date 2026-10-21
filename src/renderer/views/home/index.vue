@@ -112,7 +112,17 @@
                       ]"
                       loading="lazy"
                       referrerpolicy="no-referrer"
-                      @error="handleImgError($event, item, (item as any).type === 'artist' ? 'artist' : (item as any).type === 'album' ? 'album' : 'song')"
+                      @error="
+                        handleImgError(
+                          $event,
+                          item,
+                          (item as any).type === 'artist'
+                            ? 'artist'
+                            : (item as any).type === 'album'
+                              ? 'album'
+                              : 'song'
+                        )
+                      "
                     />
                     <div
                       class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-all duration-300"
@@ -158,10 +168,11 @@ import {
   type YTMSection,
   type YTMSong
 } from '@/api/ytmusic';
-import { useQueueStore } from '@/store/modules/queue';
-import type { SongResult } from '@/types/music';
 import logoImg from '@/assets/logo.png';
 import { handleImgError } from '@/services/coverService';
+import { useQueueStore } from '@/store/modules/queue';
+import type { SongResult } from '@/types/music';
+import { parseDurationToSeconds } from '@/utils';
 
 defineOptions({ name: 'Home' });
 
@@ -191,11 +202,7 @@ const userName = computed(() => {
 });
 
 const headerSubtitle = computed(() => {
-  const subs = [
-    'Your personalized feed',
-    'Fresh picks for you',
-    "What's trending today"
-  ];
+  const subs = ['Your personalized feed', 'Fresh picks for you', "What's trending today"];
   return subs[new Date().getDay() % subs.length];
 });
 
@@ -228,6 +235,8 @@ function playSong(item: YTMSong | YTMPlaylist) {
     picUrl: item.thumbnail,
     album: item.album,
     source: 'ytmusic',
+    duration: parseDurationToSeconds(item.duration),
+    dt: parseDurationToSeconds(item.duration) ? parseDurationToSeconds(item.duration)! * 1000 : undefined,
     artists: item.artists.map((a) => ({ name: a.name, id: a.id }))
   };
   playlistStore.setQueue([track], false, false);
@@ -316,7 +325,9 @@ onMounted(() => {
 
 .ytm-card {
   animation: fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1), transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  transition:
+    width 0.4s cubic-bezier(0.25, 1, 0.5, 1),
+    transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .home-section {

@@ -20,45 +20,42 @@
 
 ## 📖 Overview
 
-**Chorus Deck** began as an Electron application but has been completely rebuilt as a native desktop client. By offloading all audio decoding, playback, and database operations to a highly optimized **Rust backend**, the UI is left to do what it does best—render a beautiful, stutter-free interface. 
+**Chorus Deck** is a native, ultra-responsive desktop music client. By offloading audio streaming, container decoding, and database caching to an asynchronous **Rust backend**, the UI stays silky smooth, lightweight, and responsive.
 
-The result is a music player that feels incredibly snappy, integrates seamlessly with your operating system, and uses a fraction of the RAM compared to traditional web-based desktop apps.
+The result is a music player that feels instant, integrates deeply with your operating system, and operates with minimal memory and CPU overhead.
 
 ## 🛠️ Technologies & Architecture
 
-Chorus Deck leverages a cutting-edge stack to achieve its performance targets:
-
-- 🦀 **Rust & [Tauri v2](https://v2.tauri.app/):** The core engine. Handles OS-level IPC, robust concurrent chunk downloading, and powers the native audio sink (`rodio`).
-- ⚡ **[Vue 3](https://vuejs.org/) & [TypeScript](https://www.typescriptlang.org/):** A strictly typed, reactive frontend.
-- 🗄️ **[SQLite](https://www.sqlite.org/):** Highly tuned with WAL mode and memory-mapped I/O to comfortably handle massive local libraries and cache registries.
-- 🎛️ **Native DSP:** Equalizer processing is done via native biquad filters in Rust, entirely bypassing the browser's heavy Web Audio API.
-- 🍍 **[Pinia](https://pinia.vuejs.org/):** Modular state management for the player, queue, and library.
+- 🦀 **Rust & [Tauri v2](https://v2.tauri.app/):** The core engine. Drives OS IPC, low-latency concurrent HTTP chunk caching, and the native audio sink (`rodio`).
+- ⚡ **[Vue 3](https://vuejs.org/) & [TypeScript](https://www.typescriptlang.org/):** Reactive, hardware-composited frontend UI with smooth layout animations.
+- 🎨 **GPUI & Core Shared Crates:** High-performance native canvas rendering layer bridging rust-native graphics and audio clocks.
+- 🗄️ **[SQLite](https://www.sqlite.org/):** WAL mode and memory-mapped caching for instant search and instant playback of pre-cached tracks.
+- 🎛️ **Native DSP:** 10-band equalizer processing executed via Rust biquad filters, bypassing browser Web Audio overhead.
+- 🍍 **[Pinia](https://pinia.vuejs.org/):** Modular state management for queue, player core, lyrics, and user preferences.
 
 ## ✨ Core Features
 
 | Feature | Description |
 | :--- | :--- |
-| 🎵 **Unlimited Streaming** | Deep integration with YouTube Music for an endless discovery and listening experience. |
-| 🎛️ **Native Equalizer** | A built-in 10-band EQ powered by Rust DSP, giving you hardware-level audio manipulation. |
-| 💾 **Offline Caching** | Resilient chunk-based downloading allows you to take your music anywhere, saving network bandwidth on replays. |
-| 🎤 **Immersive Lyrics** | fluid, word-by-word synchronized lyrics with a custom feather-edged UI and a background mini-mode. |
-| 🚀 **System Integration** | Full support for OS media controls (SMTC/MPRIS), hardware media keys, and an interactive system tray. |
-| 🎮 **Discord RPC** | Show off what you're listening to in real-time with Discord Rich Presence integration. |
-| 🎨 **Premium Aesthetics** | A meticulously crafted Vue 3 interface featuring seamless Light/Dark mode transitions and dynamic themes. |
-| 📦 **Library Import** | Import your playlists and likes from Spotify to seamlessly migrate your library. *(More platforms coming soon)* |
+| 🎵 **Unlimited Streaming** | High-fidelity streaming powered by YouTube Music with intelligent pre-buffering. |
+| ⏱️ **Buffer-First Playback** | Deterministic lifecycle: shimmer buffer timeline, pre-roll validation, and zero sound leaks before playback. |
+| 🎤 **Immersive Synced Lyrics** | Syllable & word-by-word synchronized lyrics, dynamic backlit line illumination, and Romaji transliteration. |
+| 🌊 **Beat & Interlude Waveforms** | Animated audio waveforms for instrumental preambles, musical breaks, and outro finishes after vocals end. |
+| 📑 **Docked & Fullscreen Views** | Switch effortlessly between a docked sidebar lyrics panel and an immersive fullscreen dynamic background. |
+| 🎛️ **Native 10-Band EQ** | Built-in equalizer powered by Rust DSP with persistent presets and instant frequency tuning. |
+| 🚀 **System Media Integration** | Native Windows SMTC & Linux MPRIS support, media key shortcuts, and system tray management. |
+| 🎮 **Discord Rich Presence** | Live Discord presence displaying current track, artist, album artwork, and elapsed time. |
+| 💾 **Smart Stream Caching** | Resilient chunk-based spooling ensures replay without re-downloading audio chunks. |
 
 ## 🚀 Getting Started
 
 ### 1. Prerequisites
 
-You will need the following tools installed on your development machine:
 - **[Node.js](https://nodejs.org/)** (v18 or higher)
 - **[Rust](https://rustup.rs/)** (latest stable release)
-- **OS-specific build tools** (e.g., MSVC on Windows, WebKit dependencies on Linux). Please refer to the [Tauri v2 Prerequisites Guide](https://v2.tauri.app/start/prerequisites/).
+- **OS build dependencies** (e.g. MSVC on Windows). Refer to the [Tauri v2 Prerequisites Guide](https://v2.tauri.app/start/prerequisites/).
 
 ### 2. Installation
-
-Clone the repository and install the Node dependencies:
 
 ```bash
 git clone https://github.com/chorus-mu/Chorus-Deck.git
@@ -66,29 +63,40 @@ cd Chorus-Deck
 npm install
 ```
 
-### 3. Local Development
+### 3. Development
 
-Start the Vite development server and the Tauri Rust backend simultaneously:
-
-```bash
-npm run tauri dev
-```
-
-### 4. Building for Production
-
-Compile a highly optimized, standalone executable for your operating system:
+Run the frontend dev server along with the native Tauri desktop app:
 
 ```bash
-npm run tauri build
+npm run desktop
+# or
+npm run tauri:dev
 ```
-*Your compiled binaries will be placed in `src-tauri/target/release/bundle/`.*
+
+To run only the web interface in Vite:
+
+```bash
+npm run dev
+```
+
+### 4. Production Build
+
+Build the optimized desktop application binary:
+
+```bash
+npm run tauri:build
+```
+
+Compiled binaries and installers are output to `crates/backend-tauri/target/release/bundle/`.
 
 ## 📂 Project Structure
 
-- **`src/`**: The Vue 3 frontend application. Contains all UI components, views, and Pinia stores.
-- **`src-tauri/`**: The Rust backend. Contains the `rodio` audio pipeline, SQLite database schemas, and Tauri command definitions.
-- **`src/renderer/api/bridge.ts`**: The strictly typed IPC (Inter-Process Communication) layer. This is the only way the frontend communicates with the native Rust backend.
+- **`crates/backend-tauri/`**: Tauri v2 backend, audio decoding pipeline, native commands, and OS integrations.
+- **`crates/core-shared/`**: Shared state models, audio state bridge, and canvas state machines.
+- **`crates/gpui-canvas/`**: GPU-accelerated canvas graphics experiments and native window rendering.
+- **`src/renderer/`**: Vue 3 application components, player stores, views, and lyrics renderers.
+- **`src/renderer/api/bridge.ts`**: Strictly-typed IPC bridge connecting Vue 3 with native Rust commands.
 
 ## 📄 License
 
-This project is open-source and intended for educational and learning purposes.
+This project is open-source and intended for educational and personal use.

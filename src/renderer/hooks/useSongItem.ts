@@ -9,12 +9,10 @@ import { getImageBackground } from '@/utils/linearColor';
 
 import { normalizeArtistList } from './MusicHook';
 import { useArtist } from './useArtist';
-import { useDownload } from './useDownload';
 
 export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
   const playerStore = usePlayerStore();
   const message = useMessage();
-  const { downloadMusic } = useDownload();
   const { navigateToArtist } = useArtist();
 
   const showDropdown = ref(false);
@@ -156,7 +154,6 @@ export function useSongItem(props: { item: SongResult; canRemove?: boolean }) {
     handleMenuClick,
     handleArtistClick,
     handleMouseEnter,
-    handleMouseLeave,
-    downloadMusic
+    handleMouseLeave
   };
 }

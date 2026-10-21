@@ -112,10 +112,7 @@
               }"
             >
               <div class="lyric-text" :style="{ fontSize: `${fontSize}px` }">
-                <div
-                  v-if="line.hasWordByWord && line.words && line.words.length > 0"
-                  class="word-by-word-lyric"
-                >
+                <div v-if="isLineWordByWord(line)" class="word-by-word-lyric">
                   <template v-for="(word, wordIndex) in line.words" :key="wordIndex">
                     <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">
                       {{ word.text }} </span
@@ -145,11 +142,7 @@
           <div class="lyric-line lyric-line-current">
             <div class="lyric-text" :style="{ fontSize: `${fontSize}px` }">
               <div
-                v-if="
-                  staticData.lrcArray[currentIndex] != null &&
-                  staticData.lrcArray[currentIndex].hasWordByWord &&
-                  (staticData.lrcArray[currentIndex].words?.length ?? 0) > 0
-                "
+                v-if="isLineWordByWord(staticData.lrcArray[currentIndex])"
                 class="word-by-word-lyric"
               >
                 <template
@@ -186,12 +179,12 @@
             :class="{ 'lyric-line-current': line.index === currentIndex }"
           >
             <div class="lyric-text" :style="{ fontSize: `${fontSize}px` }">
-              <div
-                v-if="line.hasWordByWord && line.words && line.words.length > 0"
-                class="word-by-word-lyric"
-              >
+              <div v-if="isLineWordByWord(line)" class="word-by-word-lyric">
                 <template v-for="(word, wordIndex) in line.words" :key="wordIndex">
-                  <span class="lyric-word" :style="getWordStyle(line.index, wordIndex, word)">
+                  <span
+                    class="lyric-word"
+                    :style="getWordStyle(line.index, wordIndex, word, line.words?.length)"
+                  >
                     {{ word.text }} </span
                   ><span v-if="word.space" class="lyric-word">&nbsp;</span>
                 </template>
@@ -226,6 +219,10 @@ import {
   saveLyricThemeColor,
   validateColor
 } from '@/utils/linearColor';
+import { computeWordSweepStyle } from '@/utils/lyricAnimation';
+import { LYRIC_CONFIG_CHANGE_EVENT, readLyricConfig } from '@/utils/lyricConfig';
+
+const lyricConfig = ref(readLyricConfig());
 
 defineOptions({
   name: 'Lyric'
@@ -328,7 +325,7 @@ let removeReceiveLyricListener: (() => void) | null = null;
 const isHovering = ref(false);
 
 const showThemeColorPanel = ref(false);
-const currentHighlightColor = ref('#6366f1');
+const currentHighlightColor = ref('#ffffff');
 
 const showControls = computed(() => {
   if (lyricSetting.value.isLock) {
@@ -547,8 +544,14 @@ onMounted(() => {
     resizeObserver.observe(containerRef.value);
   }
 
+  const handleConfigUpdate = () => {
+    lyricConfig.value = readLyricConfig();
+  };
+  window.addEventListener(LYRIC_CONFIG_CHANGE_EVENT, handleConfigUpdate);
+
   onUnmounted(() => {
     resizeObserver.disconnect();
+    window.removeEventListener(LYRIC_CONFIG_CHANGE_EVENT, handleConfigUpdate);
   });
 });
 
@@ -568,69 +571,51 @@ const currentProgress = computed(() => {
   return Math.min(Math.max(elapsed / duration, 0), 1);
 });
 
-const getLyricStyle = (index: number) => {
-  if (index !== currentIndex.value) return {};
+const isLineWordByWord = (line: any) => {
+  if (!line?.hasWordByWord || !line?.words || line.words.length === 0) return false;
+  if (line.words.length === 1 && line.words[0].text?.trim().includes(' ')) return false;
+  return true;
+};
 
-  const progress = currentProgress.value * 100;
+const getLyricStyle = (index: number) => {
+  if (index !== currentIndex.value) {
+    return {
+      color: 'var(--text-color)',
+      transition: 'color 0.3s ease'
+    };
+  }
 
   return {
-    background: `linear-gradient(to right, var(--highlight-color) ${progress}%, var(--text-color) ${progress}%)`,
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-
-    textRendering: 'optimizeLegibility' as const,
-    WebkitFontSmoothing: 'antialiased' as const,
-    MozOsxFontSmoothing: 'grayscale' as const,
-
-    transform: 'translateZ(0)',
-    backfaceVisibility: 'hidden' as const,
-    transition: 'background 0.1s linear'
+    color: 'var(--highlight-color, #ffffff)',
+    transition: 'color 0.25s ease'
   };
 };
 
 const getWordStyle = (
   lineIndex: number,
-  _wordIndex: number,
-  word: { text: string; startTime: number; duration: number }
+  wordIndex: number,
+  word: { text: string; startTime: number; duration: number },
+  totalWords?: number
 ) => {
   if (lineIndex !== currentIndex.value) {
     return {
       color: 'var(--text-color)',
-      transition: 'color 0.3s ease',
-      backgroundImage: 'none',
-      WebkitTextFillColor: 'initial'
+      textShadow: 'none',
+      filter: 'none',
+      transition: 'color 0.25s ease'
     };
   }
 
-  const currentTime = actualTime.value * 1000;
-
-  const wordStartTime = word.startTime;
-  const wordEndTime = word.startTime + word.duration;
-
-  if (currentTime >= wordStartTime && currentTime < wordEndTime) {
-    const progress = Math.min((currentTime - wordStartTime) / word.duration, 1);
-    const progressPercent = Math.round(progress * 100);
-
-    return {
-      backgroundImage: `linear-gradient(to right, var(--highlight-color) 0%, var(--highlight-color) ${progressPercent}%, var(--text-color) ${progressPercent}%, var(--text-color) 100%)`,
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      transition: 'all 0.1s ease'
-    };
-  } else if (currentTime >= wordEndTime) {
-    return {
-      color: 'var(--highlight-color)',
-      WebkitTextFillColor: 'initial',
-      transition: 'none'
-    };
-  } else {
-    return {
-      color: 'var(--text-color)',
-      WebkitTextFillColor: 'initial',
-      transition: 'none'
-    };
-  }
+  return computeWordSweepStyle({
+    lineIndex,
+    nowIndex: currentIndex.value,
+    currentTime: actualTime.value * 1000,
+    word,
+    isTailWord: totalWords ? wordIndex === totalWords - 1 : false,
+    activeClr: 'var(--highlight-color)',
+    inactiveClr: 'var(--text-color)',
+    config: lyricConfig.value
+  });
 };
 
 const TIME_OFFSET = 400;
@@ -736,9 +721,9 @@ onMounted(() => {
   updateContainerHeight();
   window.addEventListener('resize', updateContainerHeight);
 
-  const disposeReceiveLyric = window.api.on('receive-lyric', (data: string) => {
+  const disposeReceiveLyric = window.api.on('receive-lyric', (data: any) => {
     try {
-      const parsedData = JSON.parse(data);
+      const parsedData = typeof data === 'string' ? JSON.parse(data) : data;
       handleDataUpdate(parsedData);
     } catch (error) {
       console.error('Error parsing lyric data:', error);
@@ -1298,37 +1283,55 @@ body,
 
 .lyric-wrapper {
   will-change: transform;
-  padding: 20vh 0;
+  padding: 30vh 0;
   transform-origin: center center;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .lyric-line {
-  padding: 4px 20px;
+  padding: 8px 20px;
   text-align: center;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: blur(2.5px);
+  opacity: 0.45;
+  transform: scale(0.96) translateZ(0);
+  transition:
+    transform 0.38s cubic-bezier(0.25, 1, 0.5, 1),
+    opacity 0.32s cubic-bezier(0.25, 1, 0.5, 1),
+    filter 0.32s ease;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
 
+  &.lyric-line-next {
+    opacity: 0.62;
+    filter: blur(1.8px);
+    transform: scale(0.98) translateZ(0);
+  }
+
   &.lyric-line-current {
-    transform: scale(1.05);
+    transform: scale(1.05) translateZ(0);
     opacity: 1;
+    filter: blur(0px);
+    transition:
+      transform 0.38s cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 0.28s cubic-bezier(0.25, 1, 0.5, 1),
+      filter 0.28s ease;
 
     .lyric-text {
       text-shadow: none;
 
       .lyric-text-inner {
         filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
-
         -webkit-font-smoothing: antialiased;
       }
     }
   }
 
   &.lyric-line-passed {
-    opacity: 0.6;
+    opacity: 0.38;
+    filter: blur(2.5px);
+    transform: scale(0.96) translateZ(0);
   }
 }
 
@@ -1357,6 +1360,7 @@ body,
   .word-by-word-lyric {
     display: inline-block;
     text-align: center;
+    text-shadow: none !important;
 
     .lyric-word {
       display: inline-block;
@@ -1368,6 +1372,7 @@ body,
       text-rendering: optimizeLegibility;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      text-shadow: none;
     }
   }
 }

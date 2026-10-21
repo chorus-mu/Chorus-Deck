@@ -13,6 +13,8 @@ let generation = 0;
 
 export const getCurrentGeneration = (): number => generation;
 
+export let startupFetchPromise: Promise<SongResult | null> | null = null;
+
 const getPlayerCoreStore = async () => {
   const { usePlayerCoreStore } = await import('@/store/modules/playerCore');
   return usePlayerCoreStore();
@@ -63,14 +65,7 @@ const loadAndPlayAudio = async (song: SongResult, shouldPlay: boolean): Promise<
     throw new Error('Song is not playingURL');
   }
 
-  let initialPosition = (song as any).seekTargetTime || 0;
-  if (!initialPosition) {
-    const savedProgress = JSON.parse(localStorage.getItem('playProgress') || '{}');
-    if (savedProgress.songId === song.id) {
-      initialPosition = savedProgress.progress;
-      console.log('[playbackController] Resume playback progress:', initialPosition);
-    }
-  }
+  const initialPosition = (song as any).seekTargetTime || 0;
 
   console.log(`[playbackController] Start playing: ${song.name}`);
   await audioService.play(song.playMusicUrl, song, shouldPlay, initialPosition || 0);
@@ -115,45 +110,87 @@ const updateDocumentTitle = (music: SongResult): void => {
 
 export const playTrack = async (
   music: SongResult,
-  shouldPlay: boolean = true
+  shouldPlay: boolean = true,
+  isContinuous: boolean = false
 ): Promise<boolean> => {
   const gen = ++generation;
   const requestId = playbackRequestManager.createRequest(music);
   console.log(
-    `[playbackController] playTrack gen=${gen}, song: ${music.name}, requestId: ${requestId}`
+    `[playbackController] playTrack gen=${gen}, song: ${music.name}, requestId: ${requestId}, continuous=${isContinuous}`
   );
 
   const playerCore = await getPlayerCoreStore();
-  playerCore.playMusic = music;
-  await audioService.pause();
-  await audioService.stop();
+  const hasPreloadedUrl = Boolean(music.playMusicUrl);
+
+  const seamless = isContinuous && hasPreloadedUrl;
+
+  playerCore.play = shouldPlay;
+  playerCore.userPlayIntent = shouldPlay;
+
+  const initialSeek = (music as any).seekTargetTime || 0;
+
+  if (!seamless) {
+    playerCore.isPlay = false;
+    music.playLoading = true;
+    playerCore.playMusic = { ...music, playLoading: true };
+    audioService.setLoading(true);
+    audioService.setBuffering(true);
+    audioService.prepareNextTrack().catch(() => {});
+  } else {
+    music.playLoading = false;
+    playerCore.playMusic = { ...music, playLoading: false };
+    audioService.setLoading(false);
+    audioService.setBuffering(false);
+  }
 
   try {
-    const { nowTime, allTime, nowIndex, lrcArray } = await import('@/hooks/MusicHook');
-    nowTime.value = 0;
-    allTime.value = 0;
-    nowIndex.value = 0;
-    lrcArray.value = [];
-  } catch (e) {
-    // non-critical
+    const { nowTime, allTime, smoothTrackTimeMs, nowIndex, lrcArray, getExactSongDuration } =
+      await import('@/hooks/MusicHook');
+    const dur = getExactSongDuration(music);
+    if (dur > 0) {
+      allTime.value = dur;
+      (music as any).duration = dur;
+    }
+    if (!seamless) {
+      nowTime.value = initialSeek > 0 ? initialSeek : 0;
+      smoothTrackTimeMs.value = nowTime.value * 1000;
+      nowIndex.value = 0;
+      const lyricObj = (music as any).lyric;
+      if (lyricObj?.lyrics && lyricObj.lyrics.length > 0) {
+        lrcArray.value = lyricObj.lyrics;
+      } else {
+        lrcArray.value = [];
+      }
+    }
+  } catch {
+    // Non-critical metadata initialization
+  }
+
+  if (startupFetchPromise && String(playerCore.playMusic?.id) === String(music.id)) {
+    try {
+      const detailed = await startupFetchPromise;
+      if (detailed) {
+        music = { ...music, ...detailed };
+      }
+    } catch {
+      // ignore
+    }
   }
 
   if (!playbackRequestManager.isRequestValid(requestId)) {
     console.log(`[playbackController] The request expires after it is created: ${requestId}`);
+    audioService.setLoading(false);
+    audioService.setBuffering(false);
     return false;
   }
   if (!playbackRequestManager.activateRequest(requestId)) {
     console.log(`[playbackController] Unable to activate request: ${requestId}`);
+    audioService.setLoading(false);
+    audioService.setBuffering(false);
     return false;
   }
 
-  playerCore.play = shouldPlay;
-  playerCore.isPlay = false; // Still loading/buffering, not playing yet
-  playerCore.userPlayIntent = shouldPlay;
-
-  music.playLoading = true;
   updateDocumentTitle(music);
-  // Send song metadata with is_playing: false until audio actually starts
   window.api.sendSong({ ...music, is_playing: false });
   window.api.updatePlayState(false);
 
@@ -196,6 +233,7 @@ export const playTrack = async (
       console.log(
         `[playbackController] gen=${gen} Expired (after obtaining details), currently gen=${generation}`
       );
+      audioService.setBuffering(false);
       return false;
     }
 
@@ -210,12 +248,17 @@ export const playTrack = async (
 
     applyLoadedMetadata();
   } catch (error) {
-    if (gen !== generation) return false;
+    if (gen !== generation) {
+      audioService.setBuffering(false);
+      return false;
+    }
     console.error('[playbackController] Failed to get song details:', error);
     message.error('Play Failed, Play Next Song');
     if (playerCore.playMusic) {
       playerCore.playMusic.playLoading = false;
     }
+    audioService.setLoading(false);
+    audioService.setBuffering(false);
     playerCore.setIsPlay(false);
     window.api.updatePlayState(false);
     playbackRequestManager.failRequest(requestId);
@@ -230,13 +273,18 @@ export const playTrack = async (
         `[playbackController] gen=${gen} Expired (after playing audio), currently gen=${generation}`
       );
       await audioService.stop();
+      audioService.setLoading(false);
+      audioService.setBuffering(false);
       return false;
     }
 
     if (success) {
       resetUrlExpiredRetry();
       playerCore.playMusic.playLoading = false;
+      audioService.setLoading(false);
+      audioService.setBuffering(false);
       playerCore.playMusic.isFirstPlay = false;
+      playerCore.setIsPlay(true);
       playbackRequestManager.completeRequest(requestId);
       console.log(`[playbackController] gen=${gen} Played successfully: ${music.name}`);
 
@@ -244,6 +292,11 @@ export const playTrack = async (
 
       return true;
     } else {
+      if (playerCore.playMusic) {
+        playerCore.playMusic.playLoading = false;
+      }
+      audioService.setLoading(false);
+      audioService.setBuffering(false);
       playerCore.setIsPlay(false);
       window.api.updatePlayState(false);
       playbackRequestManager.failRequest(requestId);
@@ -252,6 +305,7 @@ export const playTrack = async (
   } catch (error) {
     if (gen !== generation) {
       console.log(`[playbackController] gen=${gen} Expired (abnormal playback), return silently`);
+      audioService.setBuffering(false);
       return false;
     }
 
@@ -268,10 +322,25 @@ export const playTrack = async (
       }
     }
 
+    const isStreamFailure =
+      errorMsg.includes('Stream URL failed') ||
+      errorMsg.includes('re-resolving') ||
+      errorMsg.includes('Lossless stream failed');
+
+    if (isStreamFailure) {
+      console.warn(
+        '[playbackController] Stream failed; automatic recovery in progress via url_expired event:',
+        errorMsg
+      );
+      return false;
+    }
+
     message.error('Play Failed, Play Next Song');
     if (playerCore.playMusic) {
       playerCore.playMusic.playLoading = false;
     }
+    audioService.setLoading(false);
+    audioService.setBuffering(false);
     playerCore.setIsPlay(false);
     playbackRequestManager.failRequest(requestId);
     return false;
@@ -286,12 +355,13 @@ const resetUrlExpiredRetry = (): void => {
   urlExpiredRetryCount = 0;
 };
 
-
 export const stopAll = async (): Promise<void> => {
   generation++;
   resetUrlExpiredRetry();
 
   audioService.stop();
+  audioService.setLoading(false);
+  audioService.setBuffering(false);
 
   const playerCore = await getPlayerCoreStore();
   playerCore.setIsPlay(false);
@@ -316,21 +386,24 @@ export const setupUrlExpiredHandler = (): void => {
   audioService.on('url_expired', async (expiredTrack: SongResult) => {
     if (!expiredTrack) return;
 
+    const currentGen = generation;
+
     console.log(
       '[playbackController] detectedURLExpired events, ready to be reacquiredURL',
       expiredTrack.name
     );
 
     const playerCore = await getPlayerCoreStore();
+    const isCurrentRequestedTrack = String(playerCore.playMusic?.id) === String(expiredTrack.id);
 
-    if (!playerCore.userPlayIntent && !playerCore.play) {
+    if (!playerCore.userPlayIntent && !playerCore.play && !isCurrentRequestedTrack) {
       console.log(
         '[playbackController] The user has no intention to play and skipsURLExpiration processing'
       );
       return;
     }
 
-    if (playerCore.playMusic?.id !== expiredTrack.id) {
+    if (currentGen !== generation || !isCurrentRequestedTrack) {
       console.log(
         '[playbackController] The current song has been changed and skippedURLExpiration processing'
       );
@@ -379,15 +452,23 @@ export const setupUrlExpiredHandler = (): void => {
       }
     }
 
+    if (currentGen !== generation || String(playerCore.playMusic?.id) !== String(expiredTrack.id)) {
+      return;
+    }
+
     try {
-      const trackToPlay: SongResult = {
+      const trackToPlay = {
         ...expiredTrack,
+        losslessAttemptFailed: (expiredTrack as any)?.losslessAttemptFailed,
+        qualityBadge: (expiredTrack as any)?.losslessAttemptFailed
+          ? undefined
+          : (expiredTrack as any)?.qualityBadge,
         isFirstPlay: true,
         playMusicUrl: undefined,
         mimeType: undefined,
         streamUserAgent: undefined,
-        urlRejectedAt: undefined
-      };
+        urlRejectedAt: (expiredTrack as any)?.urlRejectedAt || Date.now()
+      } as SongResult;
 
       const success = await playTrack(trackToPlay, true);
 
@@ -407,7 +488,6 @@ export const setupUrlExpiredHandler = (): void => {
 };
 
 let lastYtmRequestKey: string | null = null;
-
 
 export const setupYTMusicPlayHandler = (): void => {
   const handler = async (event: Event): Promise<void> => {
@@ -473,23 +553,95 @@ export const initializePlayState = async (): Promise<void> => {
       playerCore.userPlayIntent = false;
       if (playerCore.playMusic) {
         playerCore.playMusic.playLoading = false;
+        if (!playerCore.playMusic.playMusicUrl?.startsWith('local://')) {
+          playerCore.playMusic.playMusicUrl = undefined;
+          playerCore.playMusicUrl = '';
+        }
       }
 
       updateDocumentTitle(playerCore.playMusic);
 
       try {
-        const savedProgress = JSON.parse(localStorage.getItem('playProgress') || '{}');
-        if (savedProgress.songId === playerCore.playMusic.id && savedProgress.progress > 0) {
-          const { nowTime, allTime } = await import('@/hooks/MusicHook');
-          nowTime.value = savedProgress.progress;
+        const queue = await getPlaylistStore();
+        const { allTime, nowTime, getExactSongDuration } = await import('@/hooks/MusicHook');
+        let initialDur = getExactSongDuration(playerCore.playMusic);
+        if ((!initialDur || initialDur <= 0) && queue.queueItems?.length) {
+          const match = queue.queueItems.find(
+            (item: SongResult) => String(item.id) === String(playerCore.playMusic.id)
+          );
+          if (match) {
+            initialDur = getExactSongDuration(match);
+          }
+        }
+        if (initialDur > 0) {
+          allTime.value = initialDur;
+          playerCore.playMusic.duration = initialDur;
+          playerCore.playMusic.dt = initialDur * 1000;
+        }
 
-          if (playerCore.playMusic.dt) {
-            allTime.value = playerCore.playMusic.dt / 1000;
+        const savedProgress = JSON.parse(localStorage.getItem('playProgress') || '{}');
+        if (
+          savedProgress.songId &&
+          String(savedProgress.songId) === String(playerCore.playMusic.id)
+        ) {
+          if (savedProgress.progress > 0) {
+            nowTime.value = savedProgress.progress;
+          }
+          if ((!allTime.value || allTime.value <= 0) && savedProgress.duration > 0) {
+            allTime.value = savedProgress.duration;
+            playerCore.playMusic.duration = savedProgress.duration;
+            playerCore.playMusic.dt = savedProgress.duration * 1000;
           }
         }
       } catch (e) {
         console.warn('[playbackController] Failed to resume playback progress:', e);
       }
+
+      startupFetchPromise = (async () => {
+        try {
+          const { allTime, nowTime } = await import('@/hooks/MusicHook');
+          const videoId =
+            playerCore.playMusic.videoId ||
+            (typeof playerCore.playMusic.id === 'string' &&
+            playerCore.playMusic.id.length === 11 &&
+            !playerCore.playMusic.id.includes('/')
+              ? playerCore.playMusic.id
+              : '');
+
+          if ((!allTime.value || allTime.value <= 0) && videoId) {
+            try {
+              const { getYTMStream } = await import('@/api/ytmusic');
+              const stream = await getYTMStream(videoId);
+              const durSec =
+                stream?.durationSeconds ||
+                (stream?.approxDurationMs ? Math.round(stream.approxDurationMs / 1000) : 0);
+              if (durSec > 0) {
+                playerCore.playMusic.duration = durSec;
+                playerCore.playMusic.dt = durSec * 1000;
+                allTime.value = durSec;
+                localStorage.setItem(
+                  'playProgress',
+                  JSON.stringify({
+                    songId: playerCore.playMusic.id,
+                    progress: nowTime.value,
+                    duration: durSec
+                  })
+                );
+              }
+            } catch (err) {
+              console.debug('[playbackController] Startup stream duration probe fallback:', err);
+            }
+          }
+        } catch (err) {
+          console.warn(
+            '[playbackController] Automatic initial song stream resolution non-fatal:',
+            err
+          );
+        } finally {
+          startupFetchPromise = null;
+        }
+        return null;
+      })();
     } else {
       const isLocalMusic = playerCore.playMusic.playMusicUrl?.startsWith('local://');
 

@@ -102,32 +102,42 @@
               <p class="text-sm">No results found for "{{ lastQuery }}"</p>
             </div>
 
-            <section v-if="results.topResult" class="mb-8">
-              <h2 class="text-xl font-bold text-neutral-900 dark:text-white mb-3 px-1">
-                Top Result
+            <section v-if="results.topResult" class="mb-5">
+              <h2
+                class="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-2 px-1"
+              >
+                BEST MATCH
               </h2>
               <div
-                class="group flex items-center gap-4 bg-neutral-100/80 dark:bg-neutral-900/50 p-4 rounded-3xl cursor-pointer hover:bg-neutral-200/80 dark:hover:bg-neutral-800/50 transition-all"
+                class="group flex items-center gap-4 bg-neutral-100/70 dark:bg-neutral-900/60 p-3.5 rounded-2xl cursor-pointer hover:bg-neutral-200/70 dark:hover:bg-neutral-800/60 transition-all border border-black/5 dark:border-white/5"
                 @click="onTopResultClick"
               >
                 <div
                   :class="[
-                    'relative w-24 h-24 flex-shrink-0 overflow-hidden bg-neutral-200 dark:bg-neutral-800',
+                    'relative w-16 h-16 flex-shrink-0 overflow-hidden bg-neutral-200 dark:bg-neutral-800 shadow-sm',
                     'artists' in results.topResult
-                      ? 'rounded-lg'
+                      ? 'rounded-xl'
                       : (results.topResult as any).type === 'artist'
                         ? 'rounded-full'
-                        : 'rounded-lg'
+                        : 'rounded-xl'
                   ]"
                 >
                   <i
-                    class="ri-image-line absolute inset-0 flex items-center justify-center text-neutral-400 text-2xl"
+                    class="ri-image-line absolute inset-0 flex items-center justify-center text-neutral-400 text-xl"
                   ></i>
                   <img
                     :src="results.topResult.picUrl"
                     alt=""
                     referrerpolicy="no-referrer"
-                    @error="handleImgError($event, results.topResult, 'artists' in results.topResult ? 'song' : ((results.topResult as any).type || 'song'))"
+                    @error="
+                      handleImgError(
+                        $event,
+                        results.topResult,
+                        'artists' in results.topResult
+                          ? 'song'
+                          : (results.topResult as any).type || 'song'
+                      )
+                    "
                     class="relative z-10 w-full h-full object-cover"
                     loading="lazy"
                   />
@@ -135,199 +145,183 @@
                     v-if="'artists' in results.topResult"
                     class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                   >
-                    <i class="ri-play-fill text-white text-3xl" />
+                    <i class="ri-play-fill text-white text-2xl" />
                   </div>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <p class="text-2xl font-bold text-neutral-900 dark:text-white line-clamp-1 mb-1">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-primary">
+                    {{
+                      'artists' in results.topResult
+                        ? 'SONG'
+                        : (results.topResult as any).type?.toUpperCase() || 'RESULT'
+                    }}
+                  </span>
+                  <p class="text-lg font-bold text-neutral-900 dark:text-white line-clamp-1">
                     {{ results.topResult.name }}
                   </p>
-                  <p class="text-sm text-neutral-500 dark:text-neutral-400 line-clamp-1">
+                  <p class="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-1 mt-0.5">
                     <span v-if="'artists' in results.topResult">
-                      Song •
                       {{ (results.topResult as any).artists?.map((a: any) => a.name).join(', ') }}
                     </span>
                     <span v-else>
-                      {{
-                        (results.topResult as any).type?.charAt(0).toUpperCase() +
-                        (results.topResult as any).type?.slice(1)
-                      }}
-                      <template v-if="(results.topResult as any).desc"
-                        >• {{ (results.topResult as any).desc }}</template
-                      >
+                      {{ (results.topResult as any).desc || (results.topResult as any).type }}
                     </span>
                   </p>
                 </div>
               </div>
             </section>
 
-            <section v-if="results.songs.length > 0" class="mb-8">
-              <h2 class="text-xl font-bold text-neutral-900 dark:text-white mb-3 px-1">Songs</h2>
-              <div
-                class="flex flex-col gap-1 bg-neutral-100/80 dark:bg-neutral-900/50 rounded-3xl p-2"
-              >
-                <div
-                  v-for="(song, idx) in results.songs"
-                  :key="song.id"
-                  class="search-result-row group flex items-center gap-4 px-3 py-2 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer rounded-2xl"
-                  :style="{ animationDelay: idx * 0.02 + 's' }"
-                  @click="playSong(song)"
+            <!-- 3 Parallel Compact Columns -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <!-- Column 1: SONGS -->
+              <div v-if="results.songs && results.songs.length > 0" class="flex flex-col gap-1">
+                <h3
+                  class="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 px-1 mb-1"
                 >
+                  SONGS
+                </h3>
+                <div class="flex flex-col gap-1">
                   <div
-                    class="relative w-11 h-11 flex-shrink-0 rounded-lg overflow-hidden bg-neutral-200 dark:bg-neutral-800"
+                    v-for="(song, idx) in results.songs.slice(0, 6)"
+                    :key="song.id"
+                    class="search-result-row group flex items-center gap-3 px-2.5 py-1.5 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer rounded-xl"
+                    :style="{ animationDelay: idx * 0.02 + 's' }"
+                    @click="playSong(song)"
                   >
-                    <i
-                      class="ri-image-line absolute inset-0 flex items-center justify-center text-neutral-400 text-2xl"
-                    ></i>
-                    <img
-                      :src="song.picUrl"
-                      alt=""
-                      referrerpolicy="no-referrer"
-                      @error="handleImgError($event, song, 'song')"
-                      class="relative z-10 w-full h-full object-cover"
-                      loading="lazy"
-                    />
                     <div
-                      class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                      class="relative w-9 h-9 flex-shrink-0 rounded-lg overflow-hidden bg-neutral-200 dark:bg-neutral-800"
                     >
-                      <i class="ri-play-fill text-white text-sm" />
+                      <img
+                        :src="song.picUrl"
+                        alt=""
+                        referrerpolicy="no-referrer"
+                        @error="handleImgError($event, song, 'song')"
+                        class="relative z-10 w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                      <div
+                        class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                      >
+                        <i class="ri-play-fill text-white text-xs" />
+                      </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p
+                        class="text-xs font-semibold text-neutral-900 dark:text-white line-clamp-1 group-hover:text-primary transition-colors"
+                      >
+                        {{ song.name }}
+                      </p>
+                      <p
+                        class="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-1 mt-0.5"
+                      >
+                        {{ (song.artists || []).map((a) => a.name).join(', ') }}
+                      </p>
+                    </div>
+                    <span
+                      v-if="formatTime(song.dt)"
+                      class="text-[11px] text-neutral-400 flex-shrink-0 tabular-nums"
+                    >
+                      {{ formatTime(song.dt) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Column 2: ARTISTS -->
+              <div v-if="results.artists && results.artists.length > 0" class="flex flex-col gap-1">
+                <h3
+                  class="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 px-1 mb-1"
+                >
+                  ARTISTS
+                </h3>
+                <div class="flex flex-col gap-1">
+                  <div
+                    v-for="(ar, idx) in results.artists.slice(0, 6)"
+                    :key="ar.id"
+                    class="search-result-row group flex items-center gap-3 px-2.5 py-1.5 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer rounded-xl"
+                    :style="{ animationDelay: idx * 0.02 + 's' }"
+                    @click="goToArtist(ar.id)"
+                    @contextmenu.prevent.stop="openArtistMenu($event, ar)"
+                  >
+                    <div
+                      class="relative w-9 h-9 flex-shrink-0 rounded-full overflow-hidden bg-neutral-200 dark:bg-neutral-800"
+                    >
+                      <img
+                        :src="ar.picUrl"
+                        alt=""
+                        referrerpolicy="no-referrer"
+                        @error="handleImgError($event, ar, 'artist')"
+                        class="relative z-10 w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p
+                        class="text-xs font-semibold text-neutral-900 dark:text-white line-clamp-1 group-hover:text-primary transition-colors"
+                      >
+                        {{ ar.name }}
+                      </p>
+                      <p class="text-[11px] text-neutral-500 dark:text-neutral-400">Artist</p>
                     </div>
                   </div>
-                  <div class="flex-1 min-w-0">
-                    <p
-                      class="text-sm font-semibold text-neutral-900 dark:text-white line-clamp-1 group-hover:text-primary transition-colors"
-                    >
-                      {{ song.name }}
-                    </p>
-                    <p class="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-1 mt-0.5">
-                      {{ (song.artists || []).map((a) => a.name).join(', ') }}
-                    </p>
-                  </div>
-                  <span
-                    v-if="formatTime(song.dt)"
-                    class="text-xs text-neutral-400 flex-shrink-0 tabular-nums"
-                  >
-                    {{ formatTime(song.dt) }}
-                  </span>
                 </div>
               </div>
-            </section>
 
-            <section v-if="results.artists && results.artists.length > 0" class="mb-8">
-              <h2 class="text-xl font-bold text-neutral-900 dark:text-white mb-3 px-1">Artists</h2>
+              <!-- Column 3: ALBUMS & PLAYLISTS -->
               <div
-                class="flex flex-col gap-1 bg-neutral-100/80 dark:bg-neutral-900/50 rounded-3xl p-2"
+                v-if="results.albums?.length || results.playlists?.length"
+                class="flex flex-col gap-1"
               >
-                <div
-                  v-for="(ar, idx) in results.artists"
-                  :key="ar.id"
-                  class="search-result-row group flex items-center gap-4 px-3 py-2 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer rounded-2xl"
-                  :style="{ animationDelay: idx * 0.02 + 's' }"
-                  @click="goToArtist(ar.id)"
+                <h3
+                  class="text-xs font-bold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 px-1 mb-1"
                 >
+                  ALBUMS & PLAYLISTS
+                </h3>
+                <div class="flex flex-col gap-1">
                   <div
-                    class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-neutral-200 dark:bg-neutral-800"
+                    v-for="(item, idx) in [
+                      ...(results.albums || []).map((a) => ({ ...a, _isAlbum: true })),
+                      ...(results.playlists || []).map((p) => ({ ...p, _isAlbum: false }))
+                    ].slice(0, 6)"
+                    :key="item.id"
+                    class="search-result-row group flex items-center gap-3 px-2.5 py-1.5 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer rounded-xl"
+                    :style="{ animationDelay: idx * 0.02 + 's' }"
+                    @click="goToPlaylist(item.id)"
+                    @contextmenu.prevent.stop="openAlbumPlaylistMenu($event, item)"
                   >
-                    <i
-                      class="ri-image-line absolute inset-0 flex items-center justify-center text-neutral-400 text-2xl"
-                    ></i>
-                    <img
-                      :src="ar.picUrl"
-                      alt=""
-                      referrerpolicy="no-referrer"
-                      @error="handleImgError($event, ar, 'artist')"
-                      class="relative z-10 w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p
-                      class="text-sm font-semibold text-neutral-900 dark:text-white line-clamp-1 group-hover:text-primary transition-colors"
+                    <div
+                      class="relative w-9 h-9 flex-shrink-0 rounded-lg overflow-hidden bg-neutral-200 dark:bg-neutral-800"
                     >
-                      {{ ar.name }}
-                    </p>
+                      <img
+                        :src="item.picUrl"
+                        alt=""
+                        referrerpolicy="no-referrer"
+                        @error="handleImgError($event, item, item._isAlbum ? 'album' : 'playlist')"
+                        class="relative z-10 w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p
+                        class="text-xs font-semibold text-neutral-900 dark:text-white line-clamp-1 group-hover:text-primary transition-colors"
+                      >
+                        {{ item.name }}
+                      </p>
+                      <p
+                        class="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-1 mt-0.5"
+                      >
+                        {{
+                          item._isAlbum
+                            ? 'Album' +
+                              ((item as any).artist?.name ? ' • ' + (item as any).artist.name : '')
+                            : 'Playlist'
+                        }}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </section>
-
-            <section v-if="results.albums && results.albums.length > 0" class="mb-8">
-              <h2 class="text-xl font-bold text-neutral-900 dark:text-white mb-3 px-1">Albums</h2>
-              <div
-                class="flex flex-col gap-1 bg-neutral-100/80 dark:bg-neutral-900/50 rounded-3xl p-2"
-              >
-                <div
-                  v-for="(al, idx) in results.albums"
-                  :key="al.id"
-                  class="search-result-row group flex items-center gap-4 px-3 py-2 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer rounded-2xl"
-                  :style="{ animationDelay: idx * 0.02 + 's' }"
-                  @click="goToPlaylist(al.id)"
-                >
-                  <div
-                    class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-neutral-200 dark:bg-neutral-800"
-                  >
-                    <i
-                      class="ri-image-line absolute inset-0 flex items-center justify-center text-neutral-400 text-2xl"
-                    ></i>
-                    <img
-                      :src="al.picUrl"
-                      alt=""
-                      referrerpolicy="no-referrer"
-                      @error="handleImgError($event, al, 'album')"
-                      class="relative z-10 w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p
-                      class="text-sm font-semibold text-neutral-900 dark:text-white line-clamp-1 group-hover:text-primary transition-colors"
-                    >
-                      {{ al.name }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section v-if="results.playlists && results.playlists.length > 0" class="mb-8">
-              <h2 class="text-xl font-bold text-neutral-900 dark:text-white mb-3 px-1">
-                Playlists
-              </h2>
-              <div
-                class="flex flex-col gap-1 bg-neutral-100/80 dark:bg-neutral-900/50 rounded-3xl p-2"
-              >
-                <div
-                  v-for="(pl, idx) in results.playlists"
-                  :key="pl.id"
-                  class="search-result-row group flex items-center gap-4 px-3 py-2 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer rounded-2xl"
-                  :style="{ animationDelay: idx * 0.02 + 's' }"
-                  @click="goToPlaylist(pl.id)"
-                >
-                  <div
-                    class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-neutral-200 dark:bg-neutral-800"
-                  >
-                    <i
-                      class="ri-image-line absolute inset-0 flex items-center justify-center text-neutral-400 text-2xl"
-                    ></i>
-                    <img
-                      :src="pl.picUrl"
-                      alt=""
-                      referrerpolicy="no-referrer"
-                      @error="handleImgError($event, pl, 'playlist')"
-                      class="relative z-10 w-full h-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p
-                      class="text-sm font-semibold text-neutral-900 dark:text-white line-clamp-1 group-hover:text-primary transition-colors"
-                    >
-                      {{ pl.name }}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </section>
+            </div>
           </div>
 
           <!-- Songs -->
@@ -403,6 +397,7 @@
                 class="search-result-row group flex items-center gap-4 px-3 py-2 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer rounded-2xl"
                 :style="{ animationDelay: idx * 0.02 + 's' }"
                 @click="goToPlaylist(pl.id)"
+                @contextmenu.prevent.stop="openAlbumPlaylistMenu($event, { ...pl, _isAlbum: false })"
               >
                 <div
                   class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-neutral-200 dark:bg-neutral-800"
@@ -452,6 +447,7 @@
                 class="search-result-row group flex items-center gap-4 px-3 py-2 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer rounded-2xl"
                 :style="{ animationDelay: idx * 0.02 + 's' }"
                 @click="goToPlaylist(al.id)"
+                @contextmenu.prevent.stop="openAlbumPlaylistMenu($event, { ...al, _isAlbum: true })"
               >
                 <div
                   class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-neutral-200 dark:bg-neutral-800"
@@ -501,6 +497,7 @@
                 class="search-result-row group flex items-center gap-4 px-3 py-2 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer rounded-2xl"
                 :style="{ animationDelay: idx * 0.02 + 's' }"
                 @click="goToArtist(ar.id)"
+                @contextmenu.prevent.stop="openArtistMenu($event, ar)"
               >
                 <div
                   class="relative w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-neutral-200 dark:bg-neutral-800"
@@ -650,6 +647,19 @@
         </div>
       </div>
     </n-scrollbar>
+
+    <artist-dropdown
+      v-model:show="showArtistMenu"
+      :x="artistMenuX"
+      :y="artistMenuY"
+      :artist="selectedArtist"
+    />
+    <album-playlist-dropdown
+      v-model:show="showAlbumPlaylistMenu"
+      :x="albumPlaylistMenuX"
+      :y="albumPlaylistMenuY"
+      :item="selectedAlbumPlaylist"
+    />
   </div>
 </template>
 
@@ -662,12 +672,40 @@ import type { SearchFilter, SearchResults } from '@/api/provider';
 import { getProvider } from '@/api/providers';
 import { getYTMMoods, type YTMMood, type YTMMoodCategory } from '@/api/ytmusic';
 import logoImg from '@/assets/logo.png';
+import AlbumPlaylistDropdown, {
+  type AlbumPlaylistItemData
+} from '@/components/common/AlbumPlaylistDropdown.vue';
+import ArtistDropdown, { type ArtistItemData } from '@/components/common/ArtistDropdown.vue';
 import { handleImgError } from '@/services/coverService';
 import { useQueueStore } from '@/store/modules/queue';
 import type { SongResult } from '@/types/music';
 import { secondToMinute } from '@/utils';
 
 defineOptions({ name: 'Search' });
+
+const showArtistMenu = ref(false);
+const artistMenuX = ref(0);
+const artistMenuY = ref(0);
+const selectedArtist = ref<ArtistItemData | null>(null);
+
+const showAlbumPlaylistMenu = ref(false);
+const albumPlaylistMenuX = ref(0);
+const albumPlaylistMenuY = ref(0);
+const selectedAlbumPlaylist = ref<AlbumPlaylistItemData | null>(null);
+
+function openArtistMenu(e: MouseEvent, ar: any) {
+  selectedArtist.value = ar;
+  artistMenuX.value = e.clientX;
+  artistMenuY.value = e.clientY;
+  showArtistMenu.value = true;
+}
+
+function openAlbumPlaylistMenu(e: MouseEvent, item: any) {
+  selectedAlbumPlaylist.value = item;
+  albumPlaylistMenuX.value = e.clientX;
+  albumPlaylistMenuY.value = e.clientY;
+  showAlbumPlaylistMenu.value = true;
+}
 
 const SEARCH_TABS = [
   { key: 'all', label: 'All' },
@@ -943,7 +981,9 @@ onMounted(() => {
 
 .mood-pill {
   animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  transition: transform 0.2s ease, width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  transition:
+    transform 0.2s ease,
+    width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .ytm-playlist-card {

@@ -158,25 +158,34 @@ export const parseGradient = (gradientStr: string) => {
 };
 
 export const getTextColors = (gradient: string = ''): ITextColors => {
-  const defaultColors = {
-    primary: 'rgba(255, 255, 255, 0.54)',
-    active: '#ffffff',
-    theme: 'light'
-  };
+  const isAppLight = typeof document !== 'undefined' && (
+    document.documentElement.classList.contains('light') ||
+    document.documentElement.getAttribute('data-theme') === 'light'
+  );
 
-  if (!gradient) return defaultColors;
+  let isLightBackground = isAppLight;
 
-  const colors = parseGradient(gradient);
-  if (!colors.length) return defaultColors;
+  if (gradient) {
+    const colors = parseGradient(gradient);
+    if (colors.length > 0) {
+      const mainColor = colors.length === 1 ? colors[0] : colors[1] || colors[0];
+      const tc = tinycolor(mainColor);
+      isLightBackground = tc.getBrightness() > 155;
+    }
+  }
 
-  const mainColor = colors.length === 1 ? colors[0] : colors[1] || colors[0];
-  const tc = tinycolor(mainColor);
-  const isDark = tc.getBrightness() > 155;
+  if (isLightBackground) {
+    return {
+      primary: 'rgba(17, 24, 39, 0.45)',
+      active: '#111827',
+      theme: 'dark'
+    };
+  }
 
   return {
-    primary: isDark ? 'rgba(0, 0, 0, 0.54)' : 'rgba(255, 255, 255, 0.54)',
-    active: isDark ? '#000000' : '#ffffff',
-    theme: isDark ? 'dark' : 'light'
+    primary: 'rgba(255, 255, 255, 0.45)',
+    active: '#ffffff',
+    theme: 'light'
   };
 };
 

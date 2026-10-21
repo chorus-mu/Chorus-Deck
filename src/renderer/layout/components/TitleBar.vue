@@ -7,6 +7,12 @@
   >
     <div id="title" class="font-medium flex items-center gap-2">
       <div class="flex items-center gap-1 mr-2" style="-webkit-app-region: no-drag">
+        <button class="nav-arrow-btn" title="Back" @click="router.back()">
+          <i class="ri-arrow-left-s-line text-lg" />
+        </button>
+        <button class="nav-arrow-btn" title="Forward" @click="router.forward()">
+          <i class="ri-arrow-right-s-line text-lg" />
+        </button>
       </div>
       Chorus Deck
     </div>
@@ -192,6 +198,12 @@ const drag = (event: MouseEvent) => {
   @apply flex items-center justify-center w-9 h-7 rounded-lg transition-colors duration-150 cursor-pointer;
   @apply text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100;
   @apply hover:bg-black/5 dark:hover:bg-white/10;
+}
+
+.nav-arrow-btn {
+  @apply flex items-center justify-center w-7 h-7 rounded-full transition-all duration-150 cursor-pointer;
+  @apply text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white;
+  @apply hover:bg-black/5 dark:hover:bg-white/10 active:scale-95;
 }
 
 .close-btn {

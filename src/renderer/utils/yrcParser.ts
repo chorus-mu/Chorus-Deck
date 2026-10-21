@@ -1,10 +1,9 @@
 import {
-  parseYrc,
-  parseTTML,
+  type LyricLine as AmllLyricLine,
   parseLrcLike,
   parseQrc,
-  type LyricLine as AmllLyricLine
-} from '@applemusic-like-lyrics/lyric';
+  parseTTML,
+  parseYrc} from '@applemusic-like-lyrics/lyric';
 
 export interface WordData {
   readonly text: string;
@@ -53,11 +52,12 @@ export const formatTime = (ms: number): string => {
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
 };
 
-/**
- * Transforms AMLL parsed LyricLine array into Chorus-Deck's LyricLine structure
- */
 const convertAmllLines = (amllLines: AmllLyricLine[]): LyricLine[] => {
   const result: LyricLine[] = [];
+
+  const hasMultipleWordsPerLine = amllLines.some(
+    (line) => Array.isArray(line.words) && line.words.length > 1
+  );
 
   for (let i = 0; i < amllLines.length; i++) {
     const line = amllLines[i];
@@ -80,22 +80,26 @@ const convertAmllLines = (amllLines: AmllLyricLine[]): LyricLine[] => {
       const rawText = line.words.map((w) => w.word).join('');
       fullText = rawText.trim();
 
-      for (let wIdx = 0; wIdx < line.words.length; wIdx++) {
-        const w = line.words[wIdx];
-        const wDuration =
-          w.endTime && w.endTime > w.startTime ? w.endTime - w.startTime : Math.max(duration, 200);
+      const isFakeSingleWord = line.words.length === 1 && line.words[0].word.trim().includes(' ');
 
-        // Check if next word has leading space or current word trailing space
-        const hasSpace =
-          w.word.endsWith(' ') ||
-          (wIdx < line.words.length - 1 && line.words[wIdx + 1].word.startsWith(' '));
+      if (!isFakeSingleWord) {
+        for (let wIdx = 0; wIdx < line.words.length; wIdx++) {
+          const w = line.words[wIdx];
+          const wDuration =
+            w.endTime && w.endTime > w.startTime ? w.endTime - w.startTime : Math.max(duration, 200);
 
-        words.push({
-          text: w.word.trim(),
-          startTime: w.startTime ?? startTime,
-          duration: wDuration,
-          space: hasSpace
-        });
+          // Check if next word has leading space or current word trailing space
+          const hasSpace =
+            w.word.endsWith(' ') ||
+            (wIdx < line.words.length - 1 && line.words[wIdx + 1].word.startsWith(' '));
+
+          words.push({
+            text: w.word.trim(),
+            startTime: w.startTime ?? startTime,
+            duration: wDuration,
+            space: hasSpace
+          });
+        }
       }
     } else {
       fullText = (line.romanLyric || line.translatedLyric || '').trim();

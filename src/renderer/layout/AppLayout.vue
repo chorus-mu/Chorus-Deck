@@ -23,7 +23,7 @@
         </div>
       </div>
 
-      <compact-play-bar v-show="isPlay" />
+      <compact-play-bar />
     </div>
     <update-modal v-if="isDesktop()" />
     <queue />
@@ -39,10 +39,7 @@
             <app-sidebar :menus="menuStore.menus" />
           </div>
           <div class="shell-surface shell-main relative">
-            <div
-              v-if="!isDesktop()"
-              class="absolute top-4 right-6 z-20"
-            >
+            <div v-if="!isDesktop()" class="absolute top-4 right-6 z-20">
               <button
                 class="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-colors shadow-sm"
                 @click="openDownloadPage"
@@ -67,14 +64,17 @@
           </div>
 
           <div
-            class="shell-queue-col"
-            :class="{ 'is-open': !playerStore.musicFull && playerStore.queueVisible }"
+            class="shell-surface shell-aside-col"
+            :class="{ 'is-open': !playerStore.musicFull && playerStore.asideOpen }"
           >
-            <queue mode="shell" />
+            <div v-show="playerStore.asideTab === 'queue'" class="h-full w-full">
+              <queue key="queue" mode="shell" />
+            </div>
+            <docked-lyrics v-show="playerStore.asideTab === 'lyrics'" key="lyrics" />
           </div>
         </div>
       </div>
-      <play-bar v-show="isPlay" />
+      <play-bar />
       <queue v-if="playerStore.musicFull" mode="full" />
     </div>
     <update-modal v-if="isDesktop()" />
@@ -103,7 +103,6 @@ const keepAliveInclude = [
   'Toplist',
   'History',
   'LocalMusic',
-  'Downloads',
   'PlaylistDetail',
   'AlbumDetail',
   'MoodDetail',
@@ -111,15 +110,16 @@ const keepAliveInclude = [
   'PlaylistIndex'
 ];
 
-const PlayBar = defineAsyncComponent(() => import('@/components/player/PlayBar.vue'));
-const CompactPlayBar = defineAsyncComponent(() => import('@/components/player/CompactPlayBar.vue'));
+import DockedLyrics from '@/components/lyric/DockedLyrics.vue';
+import CompactPlayBar from '@/components/player/CompactPlayBar.vue';
+import PlayBar from '@/components/player/PlayBar.vue';
+
 const Queue = defineAsyncComponent(() => import('@/components/player/Queue.vue'));
 
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
 const menuStore = useMenuStore();
 
-const isPlay = computed(() => playerStore.playMusic && playerStore.playMusic.id);
 const route = useRoute();
 
 const shouldShowCompactMenu = computed(() => {
@@ -175,36 +175,48 @@ onMounted(() => {
   transition: gap 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-.shell-queue-col {
+.shell-aside-col {
   height: 100%;
   flex-shrink: 0;
   overflow: hidden;
-  width: clamp(260px, 28vw, 360px);
-  margin-right: calc(-1 * clamp(260px, 28vw, 360px) - var(--shell-gap));
-  transform: translateY(100%);
+  width: 0;
   opacity: 0;
   pointer-events: none;
-  isolation: isolate;
-  contain: paint;
+  background-color: var(--shell-surface);
+  border-radius: var(--shell-radius);
   transition:
-    transform 0.35s cubic-bezier(0.25, 1, 0.5, 1),
-    margin-right 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+    width 0.35s cubic-bezier(0.25, 1, 0.5, 1),
     opacity 0.25s ease;
-  will-change: transform, margin-right;
-  backface-visibility: hidden;
+  will-change: width, opacity;
 
   &.is-open {
-    transform: translateY(0);
-    margin-right: 0;
+    width: clamp(254px, 20vw, 360px);
     opacity: 1;
     pointer-events: auto;
   }
 }
 
+.aside-fade-enter-active,
+.aside-fade-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+.aside-fade-enter-from {
+  opacity: 0;
+  transform: scale(0.98);
+}
+.aside-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
 .shell-surface {
-  background-color: var(--shell-surface, #fff);
+  background-color: var(--shell-surface);
   border-radius: var(--shell-radius);
-  transition: width 0.35s cubic-bezier(0.25, 1, 0.5, 1), flex 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+  transition:
+    width 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+    flex 0.35s cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .shell-sidebar {
@@ -269,7 +281,9 @@ onMounted(() => {
 
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .fade-enter-from,

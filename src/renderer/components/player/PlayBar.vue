@@ -1,13 +1,7 @@
 <template>
   <div
     class="music-play-bar rounded-t-3xl overflow-hidden"
-    :class="[
-      setAnimationClass('animate__bounceInUp'),
-      musicFullVisible ? 'play-bar-opcity' : '',
-      musicFullVisible && MusicFullRef?.musicFullRef?.config?.hidePlayBar
-        ? 'animate__animated animate__slideOutDown'
-        : ''
-    ]"
+    :class="{ 'play-bar-hidden': musicFullVisible }"
     :style="{
       backgroundColor: musicFullVisible ? 'transparent' : 'var(--shell-surface)',
       color: 'var(--text-color, inherit)',
@@ -30,7 +24,14 @@
           @error="handleImgError($event, playMusic, 'song')"
           style="object-fit: cover"
         />
-        <img v-else :key="'logo'" :src="logoImg" class="play-bar-img" alt="" style="object-fit: cover" />
+        <img
+          v-else
+          :key="'logo'"
+          :src="logoImg"
+          class="play-bar-img"
+          alt=""
+          style="object-fit: cover"
+        />
         <div class="hover-arrow">
           <div class="hover-content">
             <i
@@ -44,7 +45,8 @@
       <div class="music-content">
         <div class="music-content-title flex items-center">
           <n-ellipsis class="text-ellipsis" line-clamp="1">
-            <p v-html="playMusic?.name || ''"></p>
+            <p v-if="playMusic?.name" v-html="playMusic.name"></p>
+            <p v-else class="text-xs opacity-50">Ready to play</p>
           </n-ellipsis>
           <span v-if="(playMusic as any)?.qualityBadge" class="lossless-quality-badge">
             {{ (playMusic as any).qualityBadge }}
@@ -132,11 +134,7 @@
 
       <div class="playback-timeline custom-slider">
         <span class="time-text">{{ secondToMinute(nowTime) }}</span>
-        <div
-          class="timeline-slider"
-          :class="{ 'is-buffering': isBuffering }"
-          @click.stop
-        >
+        <div class="timeline-slider" :class="{ 'is-buffering': isBuffering }" @click.stop>
           <div v-if="isBuffering" class="buffer-loading-track">
             <div class="buffer-shimmer-bar"></div>
           </div>
@@ -144,47 +142,51 @@
             v-else
             v-model:value="timeSlider"
             :step="1"
-            :max="allTime > 0 ? allTime : 100"
+            :max="effectiveTotalTime > 0 ? effectiveTotalTime : 100"
             :min="0"
             :tooltip="false"
             @dragstart="handleSliderDragStart"
             @dragend="handleSliderDragEnd"
           ></n-slider>
         </div>
-        <span class="time-text">{{ secondToMinute(allTime) }}</span>
+        <span class="time-text">{{ secondToMinute(effectiveTotalTime) }}</span>
       </div>
     </div>
 
-    <!-- Right Side: Volume & Extra -->
-    <div class="play-bar-right audio-button">
-      <div class="icon-btn tooltip-btn" @click.stop="handleDownload">
-        <n-tooltip trigger="hover" :z-index="9999999">
-          <template #trigger>
-            <i
-              :class="isDownloading ? 'ri-loader-4-line loading-icon' : 'ri-download-2-line'"
-              class="text-xl transition-colors cursor-pointer"
-            ></i>
-          </template>
-          Download
-        </n-tooltip>
-      </div>
-
-      <div class="advanced-controls-wrapper inline-flex" @click.stop>
-        <advanced-controls-popover />
-      </div>
-
+    <!-- Right Side: Lyrics, Queue, Volume & Fullscreen -->
+    <div class="play-bar-right audio-button flex items-center gap-2">
+      <!-- Lyrics Drawer Toggle -->
       <n-tooltip trigger="hover" :z-index="9999999">
         <template #trigger>
-          <div class="icon-btn" @click.stop="openQueue">
-            <i class="ri-play-list-fill text-xl transition-colors cursor-pointer"></i>
+          <div
+            class="icon-btn pill-toggle-btn"
+            :class="{ 'is-active': playerStore.asideOpen && playerStore.asideTab === 'lyrics' }"
+            @click.stop="toggleLyrics"
+          >
+            <i class="ri-chat-quote-line text-lg"></i>
+          </div>
+        </template>
+        Lyrics
+      </n-tooltip>
+
+      <!-- Queue Drawer Toggle -->
+      <n-tooltip trigger="hover" :z-index="9999999">
+        <template #trigger>
+          <div
+            class="icon-btn pill-toggle-btn"
+            :class="{ 'is-active': playerStore.asideOpen && playerStore.asideTab === 'queue' }"
+            @click.stop="openQueue"
+          >
+            <i class="ri-play-list-2-line text-lg"></i>
           </div>
         </template>
         Queue
       </n-tooltip>
 
+      <!-- Volume -->
       <div class="audio-volume custom-slider" @click.stop @wheel.prevent="handleVolumeWheel">
         <div class="volume-icon" @click.stop="mute">
-          <i class="text-xl" :class="getVolumeIcon"></i>
+          <i class="text-lg" :class="getVolumeIcon"></i>
         </div>
         <div class="volume-slider-horizontal">
           <n-slider
@@ -196,13 +198,14 @@
         </div>
       </div>
 
+      <!-- Fullscreen Toggle -->
       <n-tooltip trigger="hover" :z-index="9999999">
         <template #trigger>
-          <div class="icon-btn close-btn" @click.stop="handleCloseBar">
-            <i class="ri-close-line text-xl transition-colors cursor-pointer"></i>
+          <div class="icon-btn" @click.stop="setMusicFull">
+            <i class="ri-fullscreen-line text-lg"></i>
           </div>
         </template>
-        Close
+        Fullscreen
       </n-tooltip>
     </div>
 
@@ -211,37 +214,39 @@
 </template>
 
 <script lang="ts" setup>
-import { useThrottleFn } from '@vueuse/core';
 import { storeToRefs } from 'pinia';
 import { computed, ref, watch } from 'vue';
 
+import logoImg from '@/assets/logo.png';
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
-import AdvancedControlsPopover from '@/components/player/AdvancedControlsPopover.vue';
 import AnimatedPlayPause from '@/components/player/AnimatedPlayPause.vue';
 import {
   allTime,
   artistList,
-  isLyricWindowOpen,
+  ensureLyricsLoaded,
+  getExactSongDuration,
   nowTime,
-  openLyric,
-  playMusic,
-  textColors
+  playMusic
 } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
-import { useDownload } from '@/hooks/useDownload';
 import { useFavorite } from '@/hooks/useFavorite';
 import { usePlaybackControl } from '@/hooks/usePlaybackControl';
-import { usePlayMode } from '@/hooks/usePlayMode';
 import { useVolumeControl } from '@/hooks/useVolumeControl';
 import { audioService } from '@/services/audioService';
+import { handleImgError } from '@/services/coverService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
-import { getImgUrl, isCompact, isDesktop, secondToMinute, setAnimationClass } from '@/utils';
-import logoImg from '@/assets/logo.png';
-import { handleImgError } from '@/services/coverService';
+import { getImgUrl, secondToMinute, setAnimationClass } from '@/utils';
 
 const playerStore = usePlayerStore();
 const settingsStore = useSettingsStore();
+
+const effectiveTotalTime = computed(() => {
+  const metaDur = getExactSongDuration(playMusic.value);
+  if (metaDur > 0) return metaDur;
+  if (allTime.value > 0) return allTime.value;
+  return 0;
+});
 
 const { isPlaying: play, playMusicEvent, handleNext, handlePrev } = usePlaybackControl();
 
@@ -254,23 +259,6 @@ const {
 } = useVolumeControl();
 
 const { isFavorite, toggleFavorite } = useFavorite();
-
-const { isDownloading, downloadMusic } = useDownload();
-const handleDownload = () => {
-  if (!playMusic.value || isDownloading.value) return;
-  downloadMusic(playMusic.value);
-};
-
-const handleCloseBar = async () => {
-  try {
-    const { stopAll } = await import('@/services/playbackController');
-    await stopAll();
-  } catch (error) {
-    console.error('Failed to stop playback:', error);
-  }
-};
-
-const { playMode, playModeIcon, playModeText, togglePlayMode } = usePlayMode();
 
 const { playbackRate, shuffleEnabled, repeatMode } = storeToRefs(playerStore);
 
@@ -286,11 +274,6 @@ watch(
   { immediate: true, deep: true }
 );
 
-const throttledSeek = useThrottleFn((value: number) => {
-  audioService.seek(value);
-  nowTime.value = value;
-}, 50);
-
 const dragValue = ref(0);
 const isDragging = ref(false);
 const isSeeking = ref(false);
@@ -299,7 +282,7 @@ let seekTimeout: any = null;
 
 watch(nowTime, (newTime) => {
   if (isSeeking.value && targetSeekTime.value !== null) {
-    if (Math.abs(newTime - targetSeekTime.value) <= 0.8) {
+    if (Math.abs(newTime - targetSeekTime.value) <= 1.0) {
       isSeeking.value = false;
       targetSeekTime.value = null;
       if (seekTimeout) {
@@ -312,14 +295,17 @@ watch(nowTime, (newTime) => {
 
 const hasSong = computed(() => {
   const m = playMusic?.value;
-  return Boolean(m && (m.id !== undefined && m.id !== null && m.id !== '') && (m.name || m.title));
+  return Boolean(
+    m && m.id !== undefined && m.id !== null && m.id !== '' && (m.name || (m as any).title)
+  );
 });
 
 const isBuffering = computed(() => {
   if (!hasSong.value) return false;
   if (isSeeking.value) return true;
-  if (audioService.isBuffering() || Boolean(playMusic?.value?.playLoading)) return true;
-  if (!audioService.isActuallyPlaying() && Boolean(playerStore.play)) return true;
+  if (Boolean(playMusic?.value?.playLoading) || audioService.isLoading() || audioService.isBuffering()) {
+    return true;
+  }
   return false;
 });
 
@@ -344,7 +330,7 @@ const executeSeek = (targetTime: number) => {
   seekTimeout = setTimeout(() => {
     isSeeking.value = false;
     targetSeekTime.value = null;
-  }, 1500);
+  }, 1200);
 };
 
 const handleSliderDragStart = () => {
@@ -355,15 +341,15 @@ const handleSliderDragStart = () => {
 const handleSliderDragEnd = () => {
   isDragging.value = false;
   const target = dragValue.value;
-  if (allTime.value > 5 && target >= allTime.value - 0.5) {
-    executeSeek(allTime.value);
+  if (effectiveTotalTime.value > 2 && target >= effectiveTotalTime.value - 0.8) {
+    audioService.triggerPlaybackEnded();
   } else {
     executeSeek(target);
   }
 };
 
 const formatTooltip = (value: number) => {
-  return `${secondToMinute(value)} / ${secondToMinute(allTime.value)}`;
+  return `${secondToMinute(value)} / ${secondToMinute(effectiveTotalTime.value)}`;
 };
 
 const MusicFullRef = ref<any>(null);
@@ -411,7 +397,18 @@ const openQueue = (e?: Event) => {
     e.stopPropagation();
     e.preventDefault();
   }
-  playerStore.setQueueVisible(!playerStore.queueVisible);
+  playerStore.toggleAside('queue');
+};
+
+const toggleLyrics = (e?: Event) => {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  playerStore.toggleAside('lyrics');
+  if (playerStore.asideOpen && playerStore.asideTab === 'lyrics') {
+    void ensureLyricsLoaded(false);
+  }
 };
 </script>
 
@@ -421,27 +418,25 @@ const openQueue = (e?: Event) => {
 }
 
 .music-play-bar {
-  @apply h-24 relative flex-shrink-0 flex items-center justify-between box-border px-4 py-2;
+  @apply h-16 relative flex-shrink-0 flex items-center justify-between box-border px-4 py-1.5;
   margin-left: var(--shell-gap, 12px);
   margin-right: var(--shell-gap, 12px);
   margin-bottom: var(--shell-gap, 12px);
   border-radius: var(--shell-radius, 16px);
   width: calc(100% - calc(var(--shell-gap, 12px) * 2));
   z-index: var(--shell-z-player, 20);
-  animation-duration: 0.5s !important;
   cursor: default;
-  transition: opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1), transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.35s ease;
+  will-change: transform, opacity;
+  transition:
+    transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.32s cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 0.35s ease;
 
-  &.play-bar-opcity {
+  &.play-bar-hidden {
     opacity: 0 !important;
     pointer-events: none;
-    transform: translateY(12px);
+    transform: scale(0.96) translateY(12px);
     box-shadow: none !important;
-  }
-
-  &.animate__slideOutDown {
-    animation-duration: 0.35s !important;
-    pointer-events: none;
   }
 }
 
@@ -460,9 +455,9 @@ const openQueue = (e?: Event) => {
   }
 
   .favorite-btn {
-    @apply flex items-center justify-center rounded-full transition-all w-8 h-8 ml-2 cursor-pointer;
+    @apply flex items-center justify-center rounded-full transition-all w-7 h-7 ml-1 cursor-pointer;
     i {
-      @apply text-lg;
+      @apply text-base;
     }
     &:hover {
       @apply bg-gray-100 dark:bg-dark-300;
@@ -471,13 +466,13 @@ const openQueue = (e?: Event) => {
 }
 
 .play-bar-center {
-  @apply flex flex-col items-center justify-center w-1/3 min-w-[300px];
+  @apply flex flex-col items-center justify-center w-1/3 min-w-[280px];
 
   .music-buttons {
-    @apply flex items-center justify-center gap-3 mb-1;
+    @apply flex items-center justify-center gap-2 mb-0.5;
 
     .tooltip-btn {
-      @apply text-gray-500 hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-8 h-8 rounded-full;
+      @apply text-gray-500 hover:text-primary transition-colors cursor-pointer flex items-center justify-center w-7 h-7 rounded-full;
       &:hover {
         @apply bg-gray-100 dark:bg-dark-300;
       }
@@ -486,11 +481,11 @@ const openQueue = (e?: Event) => {
     &-prev,
     &-next {
       @apply flex items-center justify-center rounded-full bg-gray-100 dark:bg-dark-300 transition-all cursor-pointer;
-      width: 40px;
-      height: 40px;
+      width: 32px;
+      height: 32px;
 
       i {
-        font-size: 24px !important;
+        font-size: 18px !important;
       }
 
       &:hover {
@@ -501,8 +496,8 @@ const openQueue = (e?: Event) => {
 
     &-play {
       @apply flex justify-center items-center rounded-full transition-all cursor-pointer;
-      width: 48px;
-      height: 48px;
+      width: 38px;
+      height: 38px;
 
       &.play-animated {
         background: transparent !important;
@@ -520,16 +515,16 @@ const openQueue = (e?: Event) => {
   }
 
   .playback-timeline {
-    @apply flex items-center w-full gap-3;
+    @apply flex items-center w-full gap-2;
 
     .time-text {
-      @apply text-xs opacity-60 w-10 text-center;
+      @apply text-[11px] opacity-60 w-9 text-center;
       font-variant-numeric: tabular-nums;
     }
 
     .timeline-slider {
       @apply flex-1;
-      padding: 6px 0;
+      padding: 2px 0;
     }
   }
 }
@@ -538,12 +533,12 @@ const openQueue = (e?: Event) => {
   @apply flex items-center justify-end w-1/3 min-w-[200px] gap-1;
 
   .audio-volume {
-    @apply flex items-center gap-2 ml-1 w-28;
+    @apply flex items-center gap-2 ml-1 w-24;
 
     .volume-icon {
       @apply cursor-pointer flex items-center;
       i {
-        @apply text-lg hover:text-primary transition-colors;
+        @apply text-base hover:text-primary transition-colors;
       }
     }
 
@@ -554,13 +549,16 @@ const openQueue = (e?: Event) => {
 }
 
 .play-bar-img {
-  @apply w-14 h-14 rounded-md object-cover;
+  @apply w-11 h-11 rounded-lg object-cover;
 }
 
 .icon-btn {
-  @apply flex items-center justify-center rounded-full transition-all w-9 h-9 mx-0.5;
+  @apply flex items-center justify-center rounded-full transition-all w-8 h-8 mx-0.5;
   &:hover {
     @apply bg-gray-100 dark:bg-dark-300 text-primary;
+  }
+  &.pill-toggle-btn.is-active {
+    @apply text-primary bg-primary/15 !important;
   }
   &.close-btn:hover {
     @apply text-red-500;
@@ -605,14 +603,15 @@ const openQueue = (e?: Event) => {
 
     .buffer-shimmer-bar {
       @apply absolute inset-0 rounded-full;
+      width: 50%;
       background: linear-gradient(
         90deg,
-        rgba(128, 128, 128, 0.2) 0%,
+        transparent 0%,
         var(--fill-color, var(--primary-color)) 50%,
-        rgba(128, 128, 128, 0.2) 100%
+        transparent 100%
       );
-      background-size: 200% 100%;
-      animation: buffer-rail-shimmer 1.4s ease-in-out infinite, buffer-rail-pulse 1.4s ease-in-out infinite;
+      will-change: transform, opacity;
+      animation: buffer-rail-slide 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
     }
   }
 
@@ -622,29 +621,25 @@ const openQueue = (e?: Event) => {
   }
 }
 
-@keyframes buffer-rail-shimmer {
+@keyframes buffer-rail-slide {
   0% {
-    background-position: 100% 0;
-  }
-  100% {
-    background-position: -100% 0;
-  }
-}
-
-@keyframes buffer-rail-pulse {
-  0%, 100% {
-    opacity: 0.85;
+    transform: translateX(-100%);
+    opacity: 0.3;
   }
   50% {
-    opacity: 0.45;
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(250%);
+    opacity: 0.3;
   }
 }
 
 .play-bar-img-wrapper {
-  @apply relative cursor-pointer w-14 h-14 shrink-0;
+  @apply relative cursor-pointer w-11 h-11 shrink-0 rounded-lg overflow-hidden;
 
   .hover-arrow {
-    @apply absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 rounded-md;
+    @apply absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 rounded-lg;
     background: rgba(0, 0, 0, 0.5);
 
     .hover-content {

@@ -8,7 +8,14 @@ export const readLyricConfig = (): LyricConfig => {
   try {
     const savedConfig = localStorage.getItem(LYRIC_CONFIG_STORAGE_KEY);
     if (savedConfig) {
-      return { ...DEFAULT_LYRIC_CONFIG, ...JSON.parse(savedConfig) };
+      const parsed = JSON.parse(savedConfig);
+      if (parsed.lyricsAnimationStyle !== 'chorus_bouncy') {
+        parsed.lyricsAnimationStyle = 'fluid_motion';
+      }
+      if (!parsed.lyricGranularity) {
+        parsed.lyricGranularity = 'karaoke';
+      }
+      return { ...DEFAULT_LYRIC_CONFIG, ...parsed };
     }
   } catch (error) {
     console.error('Failed to read lyrics configuration:', error);

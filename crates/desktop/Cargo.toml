@@ -1,0 +1,19 @@
+[package]
+name = "desktop"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "desktop"
+path = "src/lib.rs"
+
+[dependencies]
+core-shared.workspace = true
+gpui.workspace = true
+gpui_windows.workspace = true
+tokio.workspace = true
+log.workspace = true
+env_logger.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true

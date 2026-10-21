@@ -52,7 +52,9 @@
             :src="currentSrc"
             alt=""
             referrerpolicy="no-referrer"
-            @error="handleImgError($event, { title: detail?.title, artist: detail?.author }, 'album')"
+            @error="
+              handleImgError($event, { title: detail?.title, artist: detail?.author }, 'album')
+            "
             class="w-full h-full object-cover"
           />
           <div v-else class="w-full h-full flex items-center justify-center">
@@ -88,7 +90,9 @@
                 :src="author.avatar"
                 alt=""
                 referrerpolicy="no-referrer"
-                @error="handleImgError($event, { title: author.name, artist: author.name }, 'artist')"
+                @error="
+                  handleImgError($event, { title: author.name, artist: author.name }, 'artist')
+                "
                 class="w-6 h-6 rounded-full object-cover shadow-sm"
               />
               {{ author.name }}
@@ -104,7 +108,9 @@
                 :src="detail.authorAvatar"
                 alt=""
                 referrerpolicy="no-referrer"
-                @error="handleImgError($event, { title: detail.author, artist: detail.author }, 'artist')"
+                @error="
+                  handleImgError($event, { title: detail.author, artist: detail.author }, 'artist')
+                "
                 class="w-6 h-6 rounded-full object-cover shadow-sm"
               />
               {{ detail.author }}
@@ -159,13 +165,6 @@
             <i class="ri-shuffle-line text-base" />
             Shuffle
           </button>
-          <button
-            class="flex items-center gap-2 px-3 h-10 rounded-2xl text-sm bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-200 transition-all hover:scale-[1.03] disabled:opacity-40"
-            :disabled="!songs.length"
-            @click="batchDownload"
-          >
-            <i class="ri-download-2-line text-base" />
-          </button>
         </div>
       </div>
 
@@ -209,7 +208,9 @@
                   :src="getImgUrl(album.coverImgUrl, '300y300')"
                   alt=""
                   referrerpolicy="no-referrer"
-                  @error="handleImgError($event, { title: album.name, artist: album.subtitle }, 'album')"
+                  @error="
+                    handleImgError($event, { title: album.name, artist: album.subtitle }, 'album')
+                  "
                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
                 <div v-else class="w-full h-full flex items-center justify-center">
@@ -252,7 +253,13 @@
                   :src="getImgUrl(playlist.coverImgUrl, '300y300')"
                   alt=""
                   referrerpolicy="no-referrer"
-                  @error="handleImgError($event, { title: playlist.name, artist: playlist.subtitle }, 'playlist')"
+                  @error="
+                    handleImgError(
+                      $event,
+                      { title: playlist.name, artist: playlist.subtitle },
+                      'playlist'
+                    )
+                  "
                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
                 <div v-else class="w-full h-full flex items-center justify-center">
@@ -295,7 +302,9 @@
                   :src="getImgUrl(similar.coverImgUrl, '300y300')"
                   alt=""
                   referrerpolicy="no-referrer"
-                  @error="handleImgError($event, { title: similar.name, artist: similar.name }, 'artist')"
+                  @error="
+                    handleImgError($event, { title: similar.name, artist: similar.name }, 'artist')
+                  "
                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
                 <div v-else class="w-full h-full flex items-center justify-center">
@@ -333,38 +342,41 @@ import {
 } from '@/api/ytmusic';
 import { navigateToMusicList } from '@/components/common/MusicListNavigator';
 import SongItem from '@/components/common/SongItem.vue';
-import { useDownload } from '@/hooks/useDownload';
+import { handleImgError } from '@/services/coverService';
 import { playTrack } from '@/services/playbackController';
 import { usePlayerStore } from '@/store/modules/player';
 import type { SongResult } from '@/types/music';
-import { getImgUrl } from '@/utils';
-import { handleImgError } from '@/services/coverService';
+import { getImgUrl, parseDurationToSeconds } from '@/utils';
 
 defineOptions({ name: 'AlbumDetail' });
 
-const toSongResult = (song: YTMSong): SongResult => ({
-  id: song.id,
-  name: song.title,
-  picUrl:
-    song.thumbnail ||
-    (song.id && String(song.id).length === 11 && !String(song.id).includes('/')
-      ? `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`
-      : ''),
-  source: 'ytmusic',
-  artists:
-    song.artists && song.artists.length > 0
-      ? song.artists.map((a) => ({ name: a.name }))
-      : detail.value?.author
-        ? [{ name: detail.value.author }]
-        : [],
-  album: song.album || detail.value?.title
-});
+const toSongResult = (song: YTMSong): SongResult => {
+  const durSec = parseDurationToSeconds(song.duration);
+  return {
+    id: song.id,
+    name: song.title,
+    picUrl:
+      song.thumbnail ||
+      (song.id && String(song.id).length === 11 && !String(song.id).includes('/')
+        ? `https://i.ytimg.com/vi/${song.id}/hqdefault.jpg`
+        : ''),
+    source: 'ytmusic',
+    artists:
+      song.artists && song.artists.length > 0
+        ? song.artists.map((a) => ({ name: a.name }))
+        : detail.value?.author
+          ? [{ name: detail.value.author }]
+          : [],
+    album: song.album || detail.value?.title,
+    duration: durSec,
+    dt: durSec ? durSec * 1000 : undefined
+  };
+};
 
 const route = useRoute();
 const router = useRouter();
 const playerStore = usePlayerStore();
 const message = useMessage();
-const { batchDownloadMusic } = useDownload();
 
 const detail = ref<YTMPlaylistDetail | null>(null);
 const songs = ref<SongResult[]>([]);
@@ -576,11 +588,6 @@ const shufflePlay = async () => {
   const shuffled = [...songs.value].sort(() => Math.random() - 0.5);
   playerStore.setQueue(shuffled, false, true);
   await playerStore.setPlay(shuffled[0]);
-};
-
-const batchDownload = async () => {
-  if (!songs.value.length) return;
-  await batchDownloadMusic(songs.value);
 };
 
 const navigateToArtist = (author?: any) => {

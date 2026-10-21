@@ -1,5 +1,214 @@
 <template>
   <div class="flex flex-col gap-6">
+    <setting-section title="Audio Quality Mode">
+      <setting-item
+        icon="ri-sound-module-line"
+        title="Streaming Source & Quality"
+        description="Choose between pure YouTube high-quality streaming or lossless audio"
+      >
+        <template #action>
+          <div class="flex items-center gap-2 max-md:w-full">
+            <button
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 flex items-center gap-2 cursor-pointer border"
+              :class="
+                (setData.audioQualityMode || 'opus') === 'opus'
+                  ? 'bg-primary text-white border-primary shadow-sm'
+                  : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-transparent hover:bg-neutral-200 dark:hover:bg-neutral-800'
+              "
+              @click="setData.audioQualityMode = 'opus'"
+            >
+              <i class="ri-youtube-line text-sm"></i>
+              <span>Opus (YouTube HQ)</span>
+            </button>
+            <button
+              type="button"
+              class="px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 flex items-center gap-2 cursor-pointer border"
+              :class="
+                setData.audioQualityMode === 'lossless'
+                  ? 'bg-primary text-white border-primary shadow-sm'
+                  : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-transparent hover:bg-neutral-200 dark:hover:bg-neutral-800'
+              "
+              @click="setData.audioQualityMode = 'lossless'"
+            >
+              <i class="ri-disc-line text-sm"></i>
+              <span>Lossless (FLAC / Hi-Res)</span>
+            </button>
+          </div>
+        </template>
+      </setting-item>
+
+      <div
+        class="px-4 py-3 rounded-xl bg-neutral-100/70 dark:bg-neutral-900/40 text-xs text-neutral-500 dark:text-neutral-400 border border-black/5 dark:border-white/5"
+      >
+        <span v-if="(setData.audioQualityMode || 'opus') === 'opus'">
+          <strong class="text-neutral-800 dark:text-neutral-200">Opus Mode:</strong> Pure YouTube
+          high-quality music. Fast, instant fetching with local-play responsiveness and 100% stable
+          continuous playback.
+        </span>
+        <span v-else>
+          <strong class="text-neutral-800 dark:text-neutral-200">Lossless Mode:</strong> Pure, big,
+          very high-quality music. Plays FLAC/ALAC from local lossless collections and verified
+          lossless sources (with automatic fallback to YouTube audio if unavailable).
+        </span>
+      </div>
+    </setting-section>
+
+    <setting-section title="Lyrics Settings">
+      <setting-item
+        icon="ri-text-spacing"
+        title="Lyric Granularity"
+        description="Choose sync mode: whole sentence/line, word-by-word, or syllable-by-syllable"
+      >
+        <template #action>
+          <n-select
+            v-model:value="setData.lyricGranularity"
+            :options="lyricGranularityOptions"
+            class="w-56 max-md:w-full"
+          />
+        </template>
+      </setting-item>
+      <setting-item
+        icon="ri-film-line"
+        title="Lyrics Animation Style"
+        description="Select the transition physics and animation for lyric lines"
+      >
+        <template #action>
+          <n-select
+            v-model:value="setData.lyricsAnimationStyle"
+            :options="lyricsAnimationOptions"
+            class="w-56 max-md:w-full"
+          />
+        </template>
+      </setting-item>
+
+      <setting-item
+        icon="ri-music-2-line"
+        title="Preferred Lyric Provider"
+        description="Priority provider for multi-source lyric searching"
+      >
+        <template #action>
+          <n-select
+            v-model:value="setData.preferredLyricProvider"
+            :options="preferredProviderOptions"
+            class="w-64 max-md:w-full"
+          />
+        </template>
+      </setting-item>
+      <setting-item
+        icon="ri-align-left"
+        title="Lyrics Position"
+        description="Alignment of the lyrics text"
+      >
+        <template #action>
+          <n-select
+            v-model:value="setData.lyricsTextPosition"
+            :options="lyricsPositionOptions"
+            class="w-48 max-md:w-full"
+          />
+        </template>
+      </setting-item>
+      <setting-item
+        icon="ri-font-size-2"
+        title="Lyrics Text Size"
+        description="Adjust the font size for lyrics"
+      >
+        <template #action>
+          <div class="w-40 flex justify-end">
+            <n-slider v-model:value="setData.lyricsTextSize" :min="16" :max="36" :step="1" />
+          </div>
+        </template>
+      </setting-item>
+      <setting-item
+        icon="ri-line-height"
+        title="Lyrics Line Spacing"
+        description="Adjust the spacing between lines of lyrics"
+      >
+        <template #action>
+          <div class="w-40 flex justify-end">
+            <n-slider v-model:value="setData.lyricsLineSpacing" :min="1.0" :max="4.0" :step="0.1" />
+          </div>
+        </template>
+      </setting-item>
+      <setting-item
+        icon="ri-cursor-line"
+        title="Click to Seek"
+        description="Click on a lyric line to seek to that position"
+      >
+        <n-switch v-model:value="setData.lyricsClick" />
+      </setting-item>
+      <setting-item
+        icon="ri-scroll-to-bottom-line"
+        title="Auto Scroll"
+        description="Automatically scroll lyrics as the song plays"
+      >
+        <n-switch v-model:value="setData.lyricsScroll" />
+      </setting-item>
+      <setting-item
+        icon="ri-sun-foggy-line"
+        title="Glow Effect"
+        description="Enable glow effect for the active lyric line"
+      >
+        <n-switch v-model:value="setData.lyricsGlowEffect" />
+      </setting-item>
+      <setting-item
+        icon="ri-apple-line"
+        title="Apple Music Blur Style"
+        description="Use Apple Music style blur for lyrics background"
+      >
+        <n-switch v-model:value="setData.appleMusicLyricsBlur" />
+      </setting-item>
+      <setting-item
+        icon="ri-blur-off-line"
+        title="Standard Blur"
+        description="Use standard blur for lyrics background"
+      >
+        <n-switch v-model:value="setData.lyricsStandardBlur" />
+      </setting-item>
+      <setting-item
+        icon="ri-drag-move-line"
+        title="Swipe Lyrics"
+        description="Allow swiping on lyrics to change songs"
+      >
+        <n-switch v-model:value="setData.swipeLyrics" />
+      </setting-item>
+      <setting-item
+        icon="ri-play-line"
+        title="Show Play/Pause on Thumbnail"
+        description="Show play/pause controls on the lyrics thumbnail"
+      >
+        <n-switch v-model:value="setData.enableLyricsThumbnailPlayPause" />
+      </setting-item>
+    </setting-section>
+
+    <setting-section title="Dynamic Island">
+      <setting-item
+        icon="ri-layout-top-line"
+        title="Enable Dynamic Island"
+        description="Show dynamic content notch at the top of the screen"
+      >
+        <n-switch v-model:value="setData.dynamicIslandEnabled" />
+      </setting-item>
+
+      <setting-item
+        icon="ri-eye-line"
+        title="Dynamic Island Visibility"
+        description="Select when to show the Dynamic Island"
+      >
+        <template #action>
+          <n-switch
+            v-model:value="setData.dynamicIslandVisibility"
+            checked-value="permanent"
+            unchecked-value="auto-hide"
+            :disabled="!setData.dynamicIslandEnabled"
+          >
+            <template #checked>Permanent</template>
+            <template #unchecked>Auto-hide</template>
+          </n-switch>
+        </template>
+      </setting-item>
+    </setting-section>
+
     <setting-section title="Playback Settings">
       <setting-item
         icon="ri-hq-line"
@@ -169,7 +378,7 @@
       </setting-item>
 
       <setting-item
-        icon="ri-download-cloud-line"
+        icon="ri-skip-forward-line"
         title="Preload Next Song"
         description="Cache the next song for gapless playback"
       >
@@ -281,17 +490,6 @@
         description="Automatically skip to the next track if a playback error occurs"
       >
         <n-switch v-model:value="setData.autoSkipNextOnError">
-          <template #checked>On</template>
-          <template #unchecked>Off</template>
-        </n-switch>
-      </setting-item>
-
-      <setting-item
-        icon="ri-heart-add-line"
-        title="Auto Download On Like"
-        description="Automatically download the track when it is liked"
-      >
-        <n-switch v-model:value="setData.autoDownloadOnLike">
           <template #checked>On</template>
           <template #unchecked>Off</template>
         </n-switch>
@@ -513,6 +711,15 @@ watch(pureModeEnabled, (value) => {
   writeLyricConfig({ ...readLyricConfig(), pureModeEnabled: value });
 });
 
+watch(
+  () => (setData.value as any)?.dynamicIslandEnabled,
+  (val) => {
+    if (val) {
+      window.api?.launchDynamicIsland?.().catch(() => {});
+    }
+  }
+);
+
 const qualityOptions = computed(() => [
   { label: 'Standard', value: 'standard' },
   { label: 'Higher', value: 'higher' },
@@ -524,4 +731,35 @@ const qualityOptions = computed(() => [
   { label: 'Dolby Atmos', value: 'dolby' },
   { label: 'Master', value: 'jymaster' }
 ]);
+
+const lyricsPositionOptions = [
+  { label: 'Left', value: 'LEFT' },
+  { label: 'Center', value: 'CENTER' },
+  { label: 'Right', value: 'RIGHT' }
+];
+
+const lyricGranularityOptions = [
+  { label: 'Karaoke (Syllable-by-Syllable Sync)', value: 'karaoke' },
+  { label: 'Phrase (Line-by-Line Sync)', value: 'phrase' }
+];
+
+const preferredProviderOptions = [
+  { label: 'Auto (Smart Best Match)', value: 'auto' },
+  { label: 'BetterLyrics (Word / Syllable synced)', value: 'betterlyrics' },
+  { label: 'YouLyPlus (Rich Line & Word synced)', value: 'youlyplus' },
+  { label: 'LrcLib (Open Line / Word synced)', value: 'lrclib' },
+  { label: 'KuGou (Comprehensive Global & C-Pop)', value: 'kugou' },
+  { label: 'Paxsenix (Musixmatch / Spotify Mirror)', value: 'paxsenix' },
+  { label: 'SimpMusic (YouTube Music Syllables)', value: 'simpmusic' }
+];
+
+const lyricsAnimationOptions = [
+  { label: 'Fluid Motion', value: 'fluid_motion' },
+  { label: 'Chorus-Bouncy', value: 'chorus_bouncy' }
+];
+
+const dynamicIslandVisibilityOptions = [
+  { label: 'Auto-hide', value: 'auto-hide' },
+  { label: 'Permanent', value: 'permanent' }
+];
 </script>

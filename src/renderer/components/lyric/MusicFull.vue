@@ -7,6 +7,11 @@
     to="#layout-main"
     :z-index="9998"
   >
+    <lyric-dynamic-background
+      v-if="!config.useCustomBackground"
+      :fallback-color="props.background || '#09070f'"
+    />
+
     <div
       v-if="
         config.useCustomBackground && config.backgroundMode === 'image' && config.backgroundImage
@@ -14,103 +19,55 @@
       class="background-layer"
       :style="backgroundImageStyle"
     ></div>
-    <div id="drawer-target" :class="[config.theme]" class="relative z-10">
+
+    <div
+      id="drawer-target"
+      :class="[config.theme, 'morph-state-' + morphState]"
+      class="relative z-10 w-full h-full"
+    >
       <div
         class="control-left absolute top-8 left-8 z-[9999]"
         :class="{ 'pure-mode': config.pureModeEnabled }"
       >
-        <div class="control-btn" @click="closeMusicFull">
+        <div class="control-btn" title="Collapse" @click="closeMusicFull">
           <i class="ri-arrow-down-s-line"></i>
         </div>
       </div>
 
       <div
-        class="control-right absolute top-8 right-8 z-[9999]"
-        :class="{ 'pure-mode': config.pureModeEnabled }"
+        class="window-controls-top-right absolute top-8 right-8 z-[9999] flex items-center gap-1.5"
+        @mousedown.stop
       >
-        <n-popover
-          v-model:show="settingsPopoverVisible"
-          trigger="click"
-          placement="bottom-end"
-          :show-arrow="false"
-          raw
-        >
-          <template #trigger>
-            <div class="control-btn" title="Lyrics Settings">
-              <i class="ri-settings-3-line"></i>
-            </div>
-          </template>
-          <lyric-settings ref="lyricSettingsRef" />
-        </n-popover>
-
-        <div class="control-btn" title="Toggle Fullscreen" @click="toggleFullScreen">
-          <i
-            :class="isFullScreen ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line'"
-            style="font-size: 14px"
-          ></i>
+        <div class="window-control-btn" @click="minimizeWindow" title="Minimize">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M3 8h10v1.5H3z" />
+          </svg>
         </div>
-
-
+        <div class="window-control-btn" @click="maximizeWindow" title="Maximize">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <rect x="3" y="3" width="10" height="10" rx="1.5" />
+          </svg>
+        </div>
+        <div class="window-control-btn close-btn" @click="closeAppWindow" title="Close">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path
+              d="M4.29 4.29a1 1 0 0 1 1.42 0L8 6.59l2.29-2.3a1 1 0 0 1 1.42 1.42L9.41 8l2.3 2.29a1 1 0 0 1-1.42 1.42L8 9.41l-2.29 2.3a1 1 0 0 1-1.42-1.42L6.59 8 4.29 5.71a1 1 0 0 1 0-1.42z"
+            />
+          </svg>
+        </div>
       </div>
 
-      <transition name="fade">
-        <div v-if="showPureModeTip" class="pure-mode-tip-layer">
-          <transition name="fade" mode="out-in">
-            <div v-if="pureModeTipStep === 1" key="right" class="absolute inset-0">
-              <div class="pure-mode-tip-highlight"></div>
-              <div class="pure-mode-tip-bubble">
-                <div class="pure-mode-tip-content">
-                  <i class="ri-cursor-line"></i>
-                  <span
-                    >The controls are tucked away here — hover over this spot to bring them back, or
-                    turn them off anytime in Settings → Playback</span
-                  >
-                  <div class="pure-mode-tip-dots">
-                    <span class="is-active"></span>
-                    <span></span>
-                  </div>
-                </div>
-                <div class="pure-mode-tip-actions">
-                  <button
-                    type="button"
-                    class="pure-mode-tip-btn pure-mode-tip-btn--primary"
-                    @click="nextPureModeTipStep"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            </div>
-            <div v-else key="left" class="absolute inset-0">
-              <div class="pure-mode-tip-highlight pure-mode-tip-highlight--left"></div>
-              <div class="pure-mode-tip-bubble pure-mode-tip-bubble--left">
-                <div class="pure-mode-tip-content">
-                  <i class="ri-cursor-line"></i>
-                  <span>The collapse button hides here — hover to reveal it, click to go back</span>
-                  <div class="pure-mode-tip-dots">
-                    <span></span>
-                    <span class="is-active"></span>
-                  </div>
-                </div>
-                <div class="pure-mode-tip-actions">
-                  <button type="button" class="pure-mode-tip-btn" @click="prevPureModeTipStep">
-                    Previous
-                  </button>
-                  <button
-                    type="button"
-                    class="pure-mode-tip-btn pure-mode-tip-btn--primary"
-                    @click="finishPureModeTip"
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            </div>
-          </transition>
-        </div>
-      </transition>
-
-      <div class="content-wrapper" :style="{ width: `${config.contentWidth}%` }">
+      <div
+        class="content-wrapper"
+        :style="{ width: config.contentWidth ? `${Math.max(config.contentWidth, 92)}%` : '95%' }"
+      >
         <div
           v-if="!config.hideCover"
           class="left-side"
@@ -118,7 +75,6 @@
         >
           <div class="img-container">
             <cover3-d
-              ref="PicImgRef"
               :key="playMusic?.id"
               :src="thumbPlayer(playMusic?.picUrl)"
               :loading="false"
@@ -127,10 +83,15 @@
               :shine-intensity="0.25"
             />
           </div>
+
           <div class="music-info">
-            <div class="music-content-name flex items-center gap-2">
-              <span v-html="playMusic.name"></span>
+            <div class="music-content-name flex items-center justify-center gap-2">
+              <span v-html="playMusic?.name || ''"></span>
+              <span v-if="(playMusic as any)?.qualityBadge" class="lossless-quality-badge">
+                {{ (playMusic as any).qualityBadge }}
+              </span>
             </div>
+
             <div class="music-content-singer">
               <n-ellipsis
                 class="text-ellipsis"
@@ -146,15 +107,15 @@
                   class="cursor-pointer hover:text-primary"
                   @click="handleArtistClick(item.id)"
                 >
-                  {{ item.name }}
-                  {{ index < artistList.length - 1 ? ', ' : '' }}
+                  {{ item.name }}{{ index < artistList.length - 1 ? ', ' : '' }}
                 </span>
               </n-ellipsis>
             </div>
+
             <simple-play-bar
               class="mt-4"
               :pure-mode-enabled="config.pureModeEnabled"
-              :isDark="textColors.theme === 'dark'"
+              :is-dark="textColors.theme === 'dark'"
             />
           </div>
         </div>
@@ -162,123 +123,31 @@
         <div
           class="right-side"
           :class="{
-            center: config.centerLyrics,
             hide: config.hideLyrics,
             'full-width': config.hideCover
           }"
         >
-          <button
-            v-if="showSyncButton && supportAutoScroll"
-            class="lyrics-sync-button"
-            type="button"
-            @click="syncLyrics"
-          >
-            <i class="ri-focus-3-line"></i>
-            Sync
-          </button>
-          <n-layout
-            ref="lrcSider"
-            class="music-lrc"
-            :native-scrollbar="false"
-            @wheel="onUserManualScroll"
-            @touchstart="onUserManualScroll"
-            @mouseover="mouseOverLayout"
-            @mouseleave="mouseLeaveLayout"
-          >
-            <div class="music-lrc-container">
-              <div
-                v-if="config.hideCover"
-                class="music-info-header"
-                :style="{ textAlign: config.centerLyrics ? 'center' : 'left' }"
-              >
-                <div class="music-info-name" v-html="playMusic.name"></div>
-                <div class="music-info-singer">
-                  <span
-                    v-for="(item, index) in artistList"
-                    :key="index"
-                    class="cursor-pointer hover:text-primary"
-                    @click="handleArtistClick(item.id)"
-                  >
-                    {{ item.name }}
-                    {{ index < artistList.length - 1 ? ', ' : '' }}
-                  </span>
-                </div>
-              </div>
-
-              <div v-if="isLyricsLoading" class="music-lyrics-loading">
-                <div
-                  v-for="n in 8"
-                  :key="n"
-                  class="lyrics-skeleton-line"
-                  :style="{ width: `${40 + (n % 5) * 12}%` }"
-                ></div>
-              </div>
-
-              <template v-else-if="lrcArray.length">
-                <div v-if="!supportAutoScroll" class="music-lrc-text no-scroll-tip">
-                  <span>This lyrics does not support auto-scroll</span>
-                </div>
-                <div
-                  v-for="(item, index) in lrcArray"
-                  :id="`music-lrc-text-${index}`"
-                  :key="index"
-                  class="music-lrc-text"
-                  :style="getFocusStyle(index)"
-                  :class="{
-                    'now-text': index === nowIndex,
-                    'hover-text': item.text && item.startTime !== -1,
-                    'right-side': config.lyricsTextPosition === 'RIGHT',
-                    'has-glow': config.lyricsGlowEffect !== false
-                  }"
-                  @click="config.lyricsClick !== false && item.startTime !== -1 ? setAudioTime(index) : null"
-                >
-                  <AmllInterludeDots
-                    v-if="item.isPreamble || item.text?.trim() === '•••'"
-                    :start-time="item.startTime ?? 0"
-                    :duration="item.duration ?? 3000"
-                    :current-time="(nowTime + correctionTime) * 1000"
-                    :is-active="index === nowIndex"
-                    :is-first-line="index === 0"
-                  />
-
-                  <div
-                    v-else-if="shouldRenderWordByWord(item)"
-                    class="word-by-word-lyric"
-                  >
-                    <template v-for="(word, wordIndex) in getLineDisplayWords(item)" :key="wordIndex">
-                      <span class="lyric-word" :style="getWordStyle(index, wordIndex, word)">
-                        {{ word.text ? word.text.replace('{bg}', '') : '' }}
-                      </span>
-                      <span v-if="word.space" class="lyric-space">&nbsp;</span>
-                    </template>
-                  </div>
-
-                  <span
-                    v-else
-                    :style="getLrcStyle(index)"
-                    :class="{ 'bg-vocal': item.text ? item.text.startsWith('{bg}') : false }"
-                    >{{ item.text ? item.text.replace('{bg}', '') : '' }}</span
-                  >
-                  <div v-show="config.showRoma && item.romaText" class="music-lrc-text-roma">
-                    {{ item.romaText }}
-                  </div>
-                  <div v-show="config.showTranslation && item.trText" class="music-lrc-text-tr">
-                    {{ item.trText }}
-                  </div>
-                </div>
-              </template>
-
-              <div v-else class="music-lrc-text">
-                <span>No lyrics, please enjoy</span>
-              </div>
-            </div>
-
-            <lyric-correction-control
-              v-if="!isCompact"
-              :correction-time="correctionTime"
-              @adjust="adjustCorrectionTime"
-            />
-          </n-layout>
+          <lyrics-view
+            ref="lyricsViewRef"
+            variant="full"
+            alignment="left"
+            :morph-state="morphState"
+          />
+        </div>
+      </div>
+      <div
+        class="control-bottom-right absolute bottom-6 right-6 z-[9999]"
+        :class="{ 'pure-mode': config.pureModeEnabled }"
+      >
+        <div
+          class="control-btn"
+          :title="isFullScreen ? 'Exit Fullscreen' : 'Enter Fullscreen'"
+          @click="toggleFullScreen"
+        >
+          <i
+            :class="isFullScreen ? 'ri-fullscreen-exit-line' : 'ri-fullscreen-line'"
+            style="font-size: 15px"
+          ></i>
         </div>
       </div>
     </div>
@@ -286,108 +155,179 @@
 </template>
 
 <script setup lang="ts">
-import { useDebounceFn } from '@vueuse/core';
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
-import tinycolor from 'tinycolor2';
 
-import AmllInterludeDots from '@/components/lyric/AmllInterludeDots.vue';
 import Cover3D from '@/components/cover/Cover3D.vue';
-import LyricCorrectionControl from '@/components/lyric/LyricCorrectionControl.vue';
-import LyricSettings from '@/components/lyric/LyricSettings.vue';
+import LyricDynamicBackground from '@/components/lyric/LyricDynamicBackground.vue';
+import LyricsView from '@/components/lyric/LyricsView.vue';
 import SimplePlayBar from '@/components/player/SimplePlayBar.vue';
-import {
-  adjustCorrectionTime,
-  artistList,
-  correctionTime,
-  ensureLyricsLoaded,
-  isLyricsLoading,
-  lrcArray,
-  nowIndex,
-  nowTime,
-  playMusic,
-  setAudioTime,
-  textColors,
-  useLyricProgress
-} from '@/hooks/MusicHook';
+import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
 import { useArtist } from '@/hooks/useArtist';
 import { useLyricBackground } from '@/hooks/useLyricBackground';
 import { usePlayerStore } from '@/store/modules/player';
-import { useSettingsStore } from '@/store/modules/settings';
-import { DEFAULT_LYRIC_CONFIG, LyricConfig, LyricGranularity } from '@/types/lyric';
-import { isCompact, isDesktop } from '@/utils';
-import { getTextColors } from '@/utils/linearColor';
-import { computeLyricLineStyle } from '@/utils/lyricAnimation';
+import { type LyricConfig } from '@/types/lyric';
+import { isDesktop } from '@/utils';
 import { LYRIC_CONFIG_CHANGE_EVENT, readLyricConfig, writeLyricConfig } from '@/utils/lyricConfig';
 import { thumbPlayer } from '@/utils/thumbnail';
 
-const playerStore = usePlayerStore();
-const settingsStore = useSettingsStore();
-const setData = computed(() => settingsStore.setData);
-
-const lrcSider = ref<any>(null);
-const isMouse = ref(false);
-const showSyncButton = ref(false);
-const isProgrammaticScroll = ref(false);
-const { currentBackground, applyBackground } = useLyricBackground();
-
-const isDarkTheme = computed(() => {
-  return settingsStore.theme === 'dark' || document.documentElement.classList.contains('dark');
+const props = defineProps({
+  modelValue: {
+    type: Boolean,
+    default: false
+  },
+  background: {
+    type: String,
+    default: ''
+  }
 });
 
-const rawAlbumColor = computed(
-  () => playMusic.value?.primaryColor || '#6366f1'
+const emit = defineEmits(['update:modelValue']);
+
+const playerStore = usePlayerStore();
+const { navigateToArtist } = useArtist();
+
+const lyricsViewRef = ref<InstanceType<typeof LyricsView> | null>(null);
+
+const isFullScreen = ref(false);
+
+const minimizeWindow = () => {
+  if (window?.api?.minimize) {
+    window.api.minimize();
+  }
+};
+
+const maximizeWindow = () => {
+  if (window?.api?.maximize) {
+    window.api.maximize();
+  }
+};
+
+const closeAppWindow = () => {
+  if (window?.api?.close) {
+    window.api.close();
+  } else {
+    closeMusicFull();
+  }
+};
+
+const openGpuiCanvas = async () => {
+  if (window?.api?.launchPerformanceWindow) {
+    try {
+      await window.api.launchPerformanceWindow();
+    } catch (e) {
+      console.error('Failed to launch GPUI window:', e);
+    }
+  }
+};
+
+const { applyBackground } = useLyricBackground();
+
+type PlayerMorphState =
+  'collapsed' | 'expanding' | 'morphing' | 'settling' | 'normal' | 'collapsing';
+
+const morphState = ref<PlayerMorphState>(props.modelValue ? 'normal' : 'collapsed');
+let morphTimer1: any = null;
+let morphTimer2: any = null;
+let morphTimer3: any = null;
+
+const clearMorphTimers = () => {
+  if (morphTimer1) clearTimeout(morphTimer1);
+  if (morphTimer2) clearTimeout(morphTimer2);
+  if (morphTimer3) clearTimeout(morphTimer3);
+  morphTimer1 = null;
+  morphTimer2 = null;
+  morphTimer3 = null;
+};
+
+const isVisible = computed({
+  get: () => props.modelValue,
+  set: (val: boolean) => {
+    emit('update:modelValue', val);
+    playerStore.setMusicFull(val);
+  }
+});
+
+const closeMusicFull = () => {
+  isVisible.value = false;
+};
+
+const config = ref<LyricConfig>(readLyricConfig());
+provide('lyricSetting', config);
+
+watch(
+  () => config.value,
+  (newConfig) => {
+    writeLyricConfig(newConfig);
+  },
+  { deep: true }
 );
 
-const accentColor = computed(() => {
-  const base = rawAlbumColor.value;
-  const tc = tinycolor(base);
-  if (!tc.isValid()) return isDarkTheme.value ? '#c7d2fe' : '#1e1b4b';
-  const hsl = tc.toHsl();
-  if (isDarkTheme.value) {
-    const sat = Math.min(Math.max(hsl.s, 0.5) * 1.1, 1);
-    const lum = Math.min(Math.max(hsl.l, 0.72), 0.88);
-    return tinycolor({ h: hsl.h, s: sat, l: lum }).toRgbString();
-  } else {
-    const sat = Math.min(Math.max(hsl.s, 0.6) * 1.25, 1);
-    const lum = Math.min(Math.max(hsl.l, 0.14), 0.26);
-    return tinycolor({ h: hsl.h, s: sat, l: lum }).toRgbString();
+const handleLyricConfigChange = () => {
+  const nextConfig = readLyricConfig();
+  if (JSON.stringify(nextConfig) !== JSON.stringify(config.value)) {
+    config.value = nextConfig;
   }
-});
+};
 
-const inactiveLyricColor = computed(() => {
-  const base = rawAlbumColor.value;
-  const tc = tinycolor(base);
-  const h = tc.isValid() ? tc.toHsl().h : 230;
-  if (isDarkTheme.value) {
-    return tinycolor({ h, s: 0.12, l: 0.52 }).toRgbString();
-  } else {
-    return tinycolor({ h, s: 0.18, l: 0.55 }).setAlpha(0.65).toRgbString();
-  }
-});
-// -----------------------------------------------------------------
+const themeMusic: Record<string, string> = {
+  default: '',
+  dark: '#000000',
+  white: '#ffffff',
+  gray: '#242424',
+  blue: '#092147',
+  green: '#00372d',
+  purple: '#280c44',
+  pink: '#5e0035',
+  warm: '#4a2c00',
+  red: '#4a0808'
+};
 
 const customBackgroundStyle = computed(() => {
-  if (!config.value.useCustomBackground) {
-    return null;
-  }
-
+  if (!config.value.useCustomBackground) return null;
   switch (config.value.backgroundMode) {
     case 'solid':
-      return config.value.solidColor;
-    case 'gradient': {
-      const { colors, direction } = config.value.gradientColors;
-      return `linear-gradient(${direction}, ${colors.join(', ')})`;
-    }
+      return config.value.solidColor || null;
+    case 'gradient':
+      if (config.value.gradientColors?.colors?.length) {
+        return `linear-gradient(${config.value.gradientColors.direction || '180deg'}, ${config.value.gradientColors.colors.join(', ')})`;
+      }
+      return null;
     case 'image':
-      if (!config.value.backgroundImage) return null;
-
-      return config.value.backgroundImage;
+      return null;
     case 'css':
       return config.value.customCss || null;
     default:
       return null;
   }
+});
+
+const targetBackground = computed(() => {
+  if (config.value.useCustomBackground && customBackgroundStyle.value) {
+    return customBackgroundStyle.value;
+  }
+  if (config.value.theme && config.value.theme !== 'default') {
+    return themeMusic[config.value.theme] || props.background;
+  }
+  return props.background;
+});
+
+watch(
+  targetBackground,
+  (newBg) => {
+    if (newBg) {
+      applyBackground(newBg);
+    }
+  },
+  { immediate: true }
+);
+
+const backgroundImageStyle = computed(() => {
+  const blur = config.value.imageBlur || 0;
+  const brightness = config.value.imageBrightness || 100;
+  return {
+    backgroundImage: `url(${config.value.backgroundImage})`,
+    filter: `blur(${blur}px) brightness(${brightness}%)`
+  };
 });
 
 const isQueueVisibleInFull = computed(() => {
@@ -412,7 +352,7 @@ const drawerBaseStyle = computed(() => {
     if (config.value.useCustomBackground && customBackgroundStyle.value) {
       return { ...fullStyle, background: customBackgroundStyle.value };
     }
-    return { ...fullStyle, background: currentBackground.value || props.background };
+    return { ...fullStyle, background: 'transparent' };
   }
 
   const queueWidth = 'clamp(260px, 28vw, 360px)';
@@ -429,525 +369,28 @@ const drawerBaseStyle = computed(() => {
     right: `calc(var(--shell-gap, 12px) + ${queueOffset})`,
     height: 'calc(100% - calc(var(--shell-gap, 12px) * 2))',
     maxHeight: 'calc(100% - calc(var(--shell-gap, 12px) * 2))',
-    boxSizing: 'border-box',
-    transition: 'right 0.35s cubic-bezier(0.25, 1, 0.5, 1)',
-    willChange: 'right'
+    boxSizing: 'border-box' as const,
+    transition: 'right 0.35s cubic-bezier(0.25, 1, 0.5, 1)'
   };
 
   if (config.value.useCustomBackground && config.value.backgroundMode === 'image') {
     return { ...shellStyle, background: 'transparent' };
   }
-
   if (config.value.useCustomBackground && customBackgroundStyle.value) {
     return { ...shellStyle, background: customBackgroundStyle.value };
   }
-  return { ...shellStyle, background: currentBackground.value || props.background };
+  return { ...shellStyle, background: 'transparent' };
 });
 
-const backgroundImageStyle = computed(() => {
-  const blur = config.value.imageBlur || 0;
-  const brightness = config.value.imageBrightness || 100;
-  return {
-    backgroundImage: `url(${config.value.backgroundImage})`,
-    filter: `blur(${blur}px) brightness(${brightness}%)`
-  };
-});
-const showStickyHeader = ref(false);
-const lyricSettingsRef = ref<InstanceType<typeof LyricSettings>>();
-const isSongChanging = ref(false);
-const isFullScreen = ref(false);
-
-const config = ref<LyricConfig>(readLyricConfig());
-provide('lyricSetting', config);
-
-watch(
-  () => lyricSettingsRef.value?.config,
-  (newConfig) => {
-    if (newConfig) {
-      config.value = newConfig;
-    }
-  },
-  { deep: true, immediate: true }
-);
-
-watch(
-  () => config.value,
-  (newConfig) => {
-    writeLyricConfig(newConfig);
-    if (lyricSettingsRef.value) {
-      lyricSettingsRef.value.config = newConfig;
-    }
-  },
-  { deep: true }
-);
-
-const handleLyricConfigChange = () => {
-  const nextConfig = readLyricConfig();
-  if (JSON.stringify(nextConfig) !== JSON.stringify(config.value)) {
-    config.value = nextConfig;
-  }
-};
-
-const PURE_MODE_ONBOARDED_KEY = 'pureModeOnboarded';
-const settingsPopoverVisible = ref(false);
-const showPureModeTip = ref(false);
-const pureModeTipStep = ref(1);
-const pendingPureModeTip = ref(false);
-
-const showPureModeTipStep = (step: number) => {
-  pureModeTipStep.value = step;
-  showPureModeTip.value = true;
-};
-
-const displayPureModeTip = () => {
-  pendingPureModeTip.value = false;
-  localStorage.setItem(PURE_MODE_ONBOARDED_KEY, 'true');
-  showPureModeTipStep(1);
-};
-
-const prevPureModeTipStep = () => {
-  if (pureModeTipStep.value > 1) {
-    showPureModeTipStep(1);
-  }
-};
-
-const nextPureModeTipStep = () => {
-  if (pureModeTipStep.value < 2) {
-    showPureModeTipStep(2);
-  }
-};
-
-const finishPureModeTip = () => {
-  showPureModeTip.value = false;
-};
-
-const showPureModeOnboarding = () => {
-  if (!isVisible.value || localStorage.getItem(PURE_MODE_ONBOARDED_KEY)) return;
-
-  if (settingsPopoverVisible.value) {
-    pendingPureModeTip.value = true;
-    return;
-  }
-  displayPureModeTip();
-};
-
-watch(settingsPopoverVisible, (visible) => {
-  if (!visible && pendingPureModeTip.value && isVisible.value) {
-    displayPureModeTip();
-  }
-});
-
-watch(
-  () => config.value.pureModeEnabled,
-  (newValue, oldValue) => {
-    if (newValue && !oldValue) {
-      showPureModeOnboarding();
-    }
-  }
-);
-
-const supportAutoScroll = computed(() => {
-  return lrcArray.value.length > 0 && lrcArray.value[0].startTime !== -1;
-});
-
-const props = defineProps({
-  modelValue: {
-    type: Boolean,
-    default: false
-  },
-  background: {
-    type: String,
-    default: ''
-  }
-});
-
-const themeMusic = {
-  light: 'linear-gradient(to bottom, #ffffff, #f5f5f5)',
-  dark: 'linear-gradient(to bottom, #1a1a1a, #000000)'
-};
-
-const emit = defineEmits(['update:modelValue']);
-
-const isVisible = computed({
-  get: () => props.modelValue,
-  set: (value) => emit('update:modelValue', value)
-});
-
-let userScrollTimeout: any = null;
-
-const onUserManualScroll = () => {
-  if (isSongChanging.value) return;
-  showSyncButton.value = true;
-
-  if (userScrollTimeout) {
-    clearTimeout(userScrollTimeout);
-  }
-  userScrollTimeout = setTimeout(() => {
-    showSyncButton.value = false;
-    lrcScroll('smooth');
-  }, 3500);
-};
-
-const syncLyrics = () => {
-  if (userScrollTimeout) {
-    clearTimeout(userScrollTimeout);
-    userScrollTimeout = null;
-  }
-  showSyncButton.value = false;
-  isMouse.value = false;
-  lrcScroll('smooth');
-};
-
-const lrcScroll = (behavior: ScrollBehavior = 'smooth', forceTop: boolean = false) => {
-  if (!isVisible.value || !lrcSider.value || !supportAutoScroll.value) return;
-  if (!forceTop && config.value.lyricsScroll === false) return;
-
-  if (forceTop) {
-    isProgrammaticScroll.value = true;
-    lrcSider.value.scrollTo({
-      top: 0,
-      behavior
-    });
-    window.setTimeout(() => {
-      isProgrammaticScroll.value = false;
-    }, 250);
-    return;
-  }
-
-  if (showSyncButton.value) return;
-
-  const nowEl = document.querySelector(`#music-lrc-text-${nowIndex.value}`) as HTMLElement;
-  if (nowEl) {
-    const containerHeight = lrcSider.value.$el.clientHeight;
-    const elementTop = nowEl.offsetTop;
-    const scrollTop = elementTop - containerHeight / 2 + nowEl.clientHeight / 2;
-
-    isProgrammaticScroll.value = true;
-    lrcSider.value.scrollTo({
-      top: Math.max(0, scrollTop),
-      behavior
-    });
-    window.setTimeout(
-      () => {
-        isProgrammaticScroll.value = false;
-      },
-      behavior === 'smooth' ? 500 : 100
-    );
-  }
-};
-
-const debouncedLrcScroll = useDebounceFn(lrcScroll, 120);
-
-const mouseOverLayout = () => {
-  if (isCompact.value) {
-    return;
-  }
-  isMouse.value = true;
-};
-
-const mouseLeaveLayout = () => {
-  if (isCompact.value) {
-    return;
-  }
-  setTimeout(() => {
-    isMouse.value = false;
-  }, 1000);
-};
-
-watch(nowIndex, () => {
-  if (isSongChanging.value || showSyncButton.value) return;
-  debouncedLrcScroll();
-});
-
-watch(
-  () => isVisible.value,
-  () => {
-    if (isVisible.value) {
-      playerStore.setQueueVisible(false);
-      if (config.value.pureModeEnabled) {
-        showPureModeOnboarding();
-      }
-      nextTick(() => {
-        lrcScroll('instant');
-      });
-    } else {
-      showPureModeTip.value = false;
-    }
-  }
-);
-
-const targetBackground = computed(() => {
-  if (config.value.useCustomBackground && customBackgroundStyle.value) {
-    if (typeof customBackgroundStyle.value === 'string') {
-      return customBackgroundStyle.value;
-    }
-  }
-  if (config.value.theme !== 'default') {
-    return themeMusic[config.value.theme] || props.background;
-  }
-  return props.background;
-});
-
-watch(
-  targetBackground,
-  (newBg) => {
-    if (newBg) {
-      applyBackground(newBg);
-    }
-  },
-  { immediate: true }
-);
-
-const currentGranularity = computed<LyricGranularity>(() => {
-  return (settingsStore.setData?.lyricGranularity || config.value?.lyricGranularity || 'auto') as LyricGranularity;
-});
-
-const getLrcStyle = (index: number) => {
-  const colors = textColors.value || getTextColors();
-  const activeClr = colors.active || '#ffffff';
-  const inactiveClr = colors.primary || 'rgba(255, 255, 255, 0.54)';
-
-  if (index !== nowIndex.value) {
-    return {
-      color: inactiveClr
-    };
-  }
-
-  const currentTime = (nowTime.value + correctionTime.value) * 1000;
-  const item = lrcArray.value[index];
-  if (!item) return { color: inactiveClr };
-
-  const start = item.startTime ?? 0;
-  const nextItem = lrcArray.value[index + 1];
-  const nextStart = nextItem?.startTime;
-  const duration = (item.duration && item.duration > 0)
-    ? item.duration
-    : (nextStart && nextStart > start ? nextStart - start : 3000);
-  const end = start + Math.max(duration, 500);
-
-  if (currentTime >= start && currentTime < end) {
-    const progress = Math.min(Math.max((currentTime - start) / Math.max(duration, 500), 0), 1);
-    const progressPercent = Math.round(progress * 100);
-    return {
-      backgroundImage: `linear-gradient(to right, ${activeClr} 0%, ${activeClr} ${progressPercent}%, ${inactiveClr} ${progressPercent}%, ${inactiveClr} 100%)`,
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      color: 'transparent',
-      transition: 'none'
-    };
-  } else if (currentTime >= end) {
-    return {
-      color: activeClr,
-      WebkitTextFillColor: 'initial',
-      transition: 'none'
-    };
+const toggleFullScreen = () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+    isFullScreen.value = true;
   } else {
-    return {
-      color: inactiveClr,
-      WebkitTextFillColor: 'initial',
-      transition: 'color 0.25s ease'
-    };
-  }
-};
-
-const shouldRenderWordByWord = (item: any) => {
-  if (currentGranularity.value === 'sentence') return false;
-  return !!(item?.hasWordByWord && item?.words && item?.words.length > 0);
-};
-
-const getLineDisplayWords = (item: any) => {
-  if (!item?.words || item.words.length === 0) return [];
-  const granularity = currentGranularity.value;
-  if (granularity === 'sentence') return [];
-
-  if (granularity === 'word') {
-    const combined: any[] = [];
-    let curText = '';
-    let curStartTime = 0;
-    let curEndTime = 0;
-
-    for (let i = 0; i < item.words.length; i++) {
-      const w = item.words[i];
-      if (!curText) {
-        curText = w.text || '';
-        curStartTime = w.startTime;
-        curEndTime = w.startTime + (w.duration || 0);
-      } else {
-        curText += w.text || '';
-        curEndTime = Math.max(curEndTime, w.startTime + (w.duration || 0));
-      }
-
-      if (w.space || i === item.words.length - 1) {
-        combined.push({
-          text: curText,
-          startTime: curStartTime,
-          duration: Math.max(50, curEndTime - curStartTime),
-          space: !!w.space
-        });
-        curText = '';
-      }
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+      isFullScreen.value = false;
     }
-    return combined;
-  }
-
-  // 'syllable' or 'auto'
-  return item.words;
-};
-
-const getFocusStyle = (index: number) => {
-  const alignment = config.value.centerLyrics
-    ? 'center'
-    : config.value.lyricsTextPosition === 'RIGHT'
-      ? 'right'
-      : 'left';
-
-  const baseStyle = computeLyricLineStyle({
-    index,
-    nowIndex: nowIndex.value,
-    style: config.value.lyricsAnimationStyle || 'apple_spring',
-    alignment,
-    focusEnabled: true
-  });
-
-  const isCurrent = index === nowIndex.value;
-  const userFontSize = config.value.fontSize ? `${config.value.fontSize}px` : undefined;
-  const userLineHeight = config.value.lineHeight ? `${config.value.lineHeight}` : undefined;
-  const userLetterSpacing = config.value.letterSpacing !== undefined ? `${config.value.letterSpacing}px` : undefined;
-  const userFontWeight = isCurrent
-    ? Math.min(900, (config.value.fontWeight || 700) + 100)
-    : config.value.fontWeight || 700;
-
-  return {
-    ...baseStyle,
-    ...(userFontSize ? { fontSize: userFontSize } : {}),
-    ...(userLineHeight ? { lineHeight: userLineHeight } : {}),
-    ...(userLetterSpacing ? { letterSpacing: userLetterSpacing } : {}),
-    fontWeight: userFontWeight
-  };
-};
-
-const getWordStyle = (lineIndex: number, _wordIndex: number, word: any) => {
-  const colors = textColors.value || getTextColors();
-  const activeClr = colors.active || '#ffffff';
-  const inactiveClr = colors.primary || 'rgba(255, 255, 255, 0.54)';
-
-  if (lineIndex !== nowIndex.value) {
-    return {
-      color: inactiveClr,
-      transition: 'color 0.25s ease'
-    };
-  }
-
-  const currentTime = (nowTime.value + correctionTime.value) * 1000;
-  const wordStartTime = word.startTime;
-  const wordEndTime = word.startTime + word.duration;
-
-  if (currentTime >= wordStartTime && currentTime < wordEndTime) {
-    const progress = Math.min(Math.max((currentTime - wordStartTime) / word.duration, 0), 1);
-    const progressPercent = Math.round(progress * 100);
-
-    return {
-      backgroundImage: `linear-gradient(to right, ${activeClr} 0%, ${activeClr} ${progressPercent}%, ${inactiveClr} ${progressPercent}%, ${inactiveClr} 100%)`,
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      transition: 'all 0.1s ease'
-    };
-  } else if (currentTime >= wordEndTime) {
-    return {
-      color: activeClr,
-      WebkitTextFillColor: 'initial',
-      transition: 'none'
-    };
-  } else {
-    return {
-      color: inactiveClr,
-      WebkitTextFillColor: 'initial',
-      transition: 'color 0.25s ease'
-    };
-  }
-};
-
-const router = useRouter();
-
-const { navigateToArtist } = useArtist();
-
-const handleArtistClick = (id: string | undefined) => {
-  isVisible.value = false;
-  navigateToArtist(id);
-};
-
-watch(
-  () => [setData.value.fontFamily, setData.value.fontScope],
-  ([newFont, fontScope]) => {
-    const defaultFonts =
-      'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-
-    if (fontScope !== 'lyric' && fontScope !== 'global') {
-      document.documentElement.style.setProperty('--current-font-family', defaultFonts);
-      return;
-    }
-
-    if (!newFont || newFont === 'system-ui') {
-      document.documentElement.style.setProperty('--current-font-family', defaultFonts);
-    } else {
-      const fontList = newFont.split(',').map((font: string) => {
-        const trimmedFont = font.trim();
-
-        return /[\s'"()]/.test(trimmedFont) && !/^['"].*['"]$/.test(trimmedFont)
-          ? `"${trimmedFont}"`
-          : trimmedFont;
-      });
-
-      document.documentElement.style.setProperty(
-        '--current-font-family',
-        `${fontList.join(', ')}, ${defaultFonts}`
-      );
-    }
-  },
-  { immediate: true }
-);
-
-const handleScroll = () => {
-  if (!lrcSider.value) return;
-  const { scrollTop } = lrcSider.value.$el;
-  if (config.value.hideCover) {
-    showStickyHeader.value = scrollTop > 100;
-  }
-};
-
-const closeMusicFull = async () => {
-  if (isFullScreen.value) {
-    if (isDesktop()) {
-      await window.api.toggleFullscreen();
-    } else if (document.fullscreenElement) {
-      await document.exitFullscreen();
-    }
-    isFullScreen.value = false;
-  }
-  isVisible.value = false;
-  playerStore.setMusicFull(false);
-};
-
-
-
-const toggleFullScreen = async () => {
-  try {
-    if (isDesktop()) {
-      const nextState = await window.api.toggleFullscreen();
-      isFullScreen.value = !!nextState;
-    } else {
-      if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
-        isFullScreen.value = true;
-      } else {
-        await document.exitFullscreen();
-        isFullScreen.value = false;
-      }
-    }
-  } catch (error) {
-    console.error('Full screen switch failed:', error);
   }
 };
 
@@ -955,88 +398,47 @@ const handleFullScreenChange = () => {
   isFullScreen.value = !!document.fullscreenElement;
 };
 
+const handleArtistClick = (id: string | number | undefined) => {
+  if (!id) return;
+  isVisible.value = false;
+  navigateToArtist(String(id));
+};
+
+const lrcScroll = (behavior: ScrollBehavior | boolean = 'smooth', force: boolean = false) => {
+  if (!isVisible.value) return;
+  const isSnap = behavior === 'instant' || behavior === true;
+  lyricsViewRef.value?.scrollToActive(isSnap, force);
+};
+
 onMounted(() => {
   config.value = readLyricConfig();
-  if (lrcSider.value?.$el) {
-    lrcSider.value.$el.addEventListener('scroll', handleScroll);
-  }
   document.addEventListener('fullscreenchange', handleFullScreenChange);
   window.addEventListener(LYRIC_CONFIG_CHANGE_EVENT, handleLyricConfigChange);
 });
 
 onBeforeUnmount(() => {
-  if (userScrollTimeout) {
-    clearTimeout(userScrollTimeout);
-    userScrollTimeout = null;
-  }
-  if (lrcSider.value?.$el) {
-    lrcSider.value.$el.removeEventListener('scroll', handleScroll);
-  }
+  clearMorphTimers();
   document.removeEventListener('fullscreenchange', handleFullScreenChange);
   window.removeEventListener(LYRIC_CONFIG_CHANGE_EVENT, handleLyricConfigChange);
-
   if (document.fullscreenElement) {
     document.exitFullscreen();
   }
 });
 
 watch(
-  () => config.value.fontSize,
-  (newSize) => {
-    document.documentElement.style.setProperty('--lyric-font-size', `${newSize}px`);
-  },
-  { immediate: true }
-);
-
-watch(
-  () => config.value.fontWeight,
-  (newWeight) => {
-    document.documentElement.style.setProperty('--lyric-font-weight', newWeight.toString());
-  },
-  { immediate: true }
-);
-
-watch(
-  () => config.value.letterSpacing,
-  (newSpacing) => {
-    document.documentElement.style.setProperty('--lyric-letter-spacing', `${newSpacing}px`);
-  },
-  { immediate: true }
-);
-
-watch(
-  () => config.value.lineHeight,
-  (newLineHeight) => {
-    document.documentElement.style.setProperty('--lyric-line-height', newLineHeight.toString());
-  },
-  { immediate: true }
-);
-
-watch(
-  () => config.value.preferredLyricProvider,
-  (newProvider, oldProvider) => {
-    if (newProvider !== oldProvider && playMusic.value?.id) {
-      void ensureLyricsLoaded(true);
-    }
-  }
-);
-
-watch(
-  () => playMusic.value.id,
-  (newId, oldId) => {
-    if (newId !== oldId && newId) {
-      isSongChanging.value = true;
-
-      setTimeout(() => {
-        showSyncButton.value = false;
+  isVisible,
+  (newVal) => {
+    clearMorphTimers();
+    if (newVal) {
+      morphState.value = 'normal';
+      nextTick(() => {
         lrcScroll('instant', true);
-
-        setTimeout(() => {
-          isSongChanging.value = false;
-        }, 300);
-      }, 100);
+      });
+    } else {
+      morphState.value = 'collapsed';
     }
-  }
+  },
+  { immediate: true }
 );
 
 defineExpose({
@@ -1046,25 +448,6 @@ defineExpose({
 </script>
 
 <style scoped lang="scss">
-@keyframes round {
-  0% {
-    transform: rotate(0deg);
-  }
-
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes shimmerSkeleton {
-  0% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0 50%;
-  }
-}
-
 .background-layer {
   position: absolute;
   top: 0;
@@ -1077,319 +460,223 @@ defineExpose({
   z-index: 0;
 }
 
-.drawer-back {
-  @apply absolute bg-cover bg-center;
-  z-index: -1;
-  width: 200%;
-  height: 200%;
-  top: -50%;
-  left: -50%;
-}
-
-.drawer-back.paused {
-  animation-play-state: paused;
-}
-
 #drawer-target {
-  @apply top-0 left-0 absolute overflow-hidden w-full h-full;
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
   border-radius: inherit;
-  animation-duration: 300ms;
 
   .content-wrapper {
-    @apply grid items-center mx-auto h-full;
-    grid-template-columns: minmax(300px, 40%) 1fr;
-    gap: 4rem;
-    max-width: 1600px;
-    padding: 2rem;
-    transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+    display: grid;
+    align-items: center;
+    margin: 0 auto;
+    height: 100%;
+    grid-template-columns: minmax(260px, 34%) 1fr;
+    gap: 2rem;
+    max-width: 1750px;
+    padding: 2rem 2.5rem;
+    box-sizing: border-box;
 
     @media (max-width: 1024px) {
+      grid-template-columns: minmax(220px, 36%) 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem 2rem;
+    }
+
+    @media (max-width: 768px) {
       grid-template-columns: 1fr;
-      grid-template-rows: auto 1fr;
-      gap: 2rem;
+      grid-template-rows: auto;
+      gap: 1rem;
+      padding: 1rem 1.5rem;
+      overflow-y: auto;
+
+      .right-side {
+        display: none;
+      }
     }
   }
 
   .left-side {
-    @apply flex flex-col items-center justify-center h-full min-h-0;
-    transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 0;
 
     &.only-cover {
-      @apply col-span-2;
+      grid-column: span 2;
 
       .img-container {
-        @apply w-[50vh] max-h-[50vh] aspect-square;
+        width: 50vh;
+        max-height: 50vh;
+        aspect-ratio: 1 / 1;
       }
 
       .music-info {
-        @apply max-w-[800px];
+        max-width: 800px;
       }
     }
 
     .img-container {
-      @apply relative w-[36vh] max-h-[36vh] mb-5 aspect-square flex-shrink-0;
+      position: relative;
+      width: clamp(160px, 28vh, 360px);
+      max-height: 32vh;
+      margin-bottom: 1rem;
+      aspect-ratio: 1 / 1;
+      flex-shrink: 0;
       max-width: 100%;
+      transform-origin: bottom center;
+      transition:
+        transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+        opacity 0.35s cubic-bezier(0.32, 0.72, 0, 1);
     }
 
     .music-info {
-      @apply w-full text-center max-w-[400px];
+      width: 100%;
+      text-align: center;
+      max-width: 440px;
+      transition:
+        transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+        opacity 0.35s cubic-bezier(0.32, 0.72, 0, 1);
 
       .music-content-name {
-        @apply text-3xl font-bold mb-2 line-clamp-2;
-        color: var(--text-color-active);
+        font-size: clamp(1.4rem, 2vw, 1.85rem);
+        font-weight: 700;
+        margin-bottom: 0.35rem;
+        color: var(--text-color-active, #ffffff);
+        line-height: 1.25;
       }
 
       .music-content-singer {
-        @apply text-lg opacity-80;
-        color: var(--text-color-primary);
+        font-size: 1rem;
+        opacity: 0.8;
+        color: var(--text-color-primary, rgba(255, 255, 255, 0.7));
+      }
+
+      :deep(.simple-play-bar) {
+        transition:
+          transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+          opacity 0.35s cubic-bezier(0.32, 0.72, 0, 1);
       }
     }
   }
 
   .right-side {
-    @apply flex flex-col justify-center h-full relative overflow-hidden;
-
-    .lyrics-sync-button {
-      @apply absolute right-5 top-5 z-20 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold;
-      @apply bg-black/70 text-white shadow-lg backdrop-blur-md transition-colors;
-
-      &:hover {
-        @apply bg-black/85;
-      }
-    }
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    text-align: left;
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+    transition:
+      transform 0.42s cubic-bezier(0.32, 0.72, 0, 1),
+      opacity 0.35s cubic-bezier(0.32, 0.72, 0, 1);
 
     &.full-width {
-      @apply col-span-2;
-    }
-
-    &.center {
-      .music-lrc {
-        @apply w-full mx-auto text-center;
-      }
-
-      .music-lrc-text {
-        @apply text-center;
-        transform-origin: center center;
-      }
-
-      .word-by-word-lyric {
-        @apply justify-center;
-      }
+      grid-column: span 2;
     }
 
     &.hide {
-      @apply hidden;
-    }
-
-    .music-lrc {
-      @apply w-full h-full bg-transparent;
-      mask-image: linear-gradient(
-        to bottom,
-        transparent 0%,
-        black 15%,
-        black 85%,
-        transparent 100%
-      );
-      -webkit-mask-image: linear-gradient(
-        to bottom,
-        transparent 0%,
-        black 15%,
-        black 85%,
-        transparent 100%
-      );
-
-      .music-info-header {
-        @apply mb-8;
-
-        .music-info-name {
-          @apply text-4xl font-bold mb-2 line-clamp-2;
-          color: var(--text-color-active);
-        }
-
-        .music-info-singer {
-          @apply text-xl opacity-80;
-          color: var(--text-color-primary);
-        }
-      }
-    }
-
-    .music-lrc-container {
-      padding: 50vh 0;
-      min-height: 100%;
-    }
-
-    .music-lrc-text {
-      @apply text-2xl cursor-pointer font-bold px-4 py-3;
-      font-family: var(--current-font-family);
-      font-weight: var(--lyric-font-weight, bold) !important;
-      background-color: transparent;
-      font-size: var(--lyric-font-size, 22px) !important;
-      letter-spacing: var(--lyric-letter-spacing, 0) !important;
-      line-height: var(--lyric-line-height, 2) !important;
-      transform-origin: left center;
-
-      max-width: 94.3%;
-
-      &.now-text {
-        opacity: 1;
-      }
-
-      &.no-scroll-tip {
-        @apply text-base opacity-60 cursor-default py-2;
-        color: var(--text-color-primary);
-        font-weight: normal;
-
-        span {
-          padding-right: 0;
-        }
-
-        &:hover {
-          background-color: transparent;
-        }
-      }
-
-      > span {
-        padding-right: 30px;
-      }
-
-      &-tr {
-        @apply font-normal;
-        opacity: 0.7;
-        color: var(--text-color-primary);
-      }
-
-      .word-by-word-lyric {
-        display: inline;
-        word-break: break-word;
-
-        .lyric-word {
-          display: inline;
-          padding-right: 0 !important;
-          font-weight: inherit;
-          font-size: inherit;
-          letter-spacing: inherit;
-          line-height: inherit;
-          cursor: inherit;
-          position: relative;
-        }
-
-        .lyric-space {
-          display: inline;
-          padding-right: 0 !important;
-        }
-      }
-    }
-
-    .music-lyrics-loading {
-      display: flex;
-      flex-direction: column;
-      gap: 28px;
-      padding: 20px 16px;
-      width: 100%;
-
-      .lyrics-skeleton-line {
-        height: 36px;
-        border-radius: 12px;
-        background: linear-gradient(
-          90deg,
-          rgba(255, 255, 255, 0.08) 25%,
-          rgba(255, 255, 255, 0.18) 37%,
-          rgba(255, 255, 255, 0.08) 63%
-        );
-        background-size: 400% 100%;
-        animation: shimmerSkeleton 1.4s ease infinite;
-      }
-    }
-
-    .hover-text {
-      &:hover {
-        @apply font-bold rounded-xl;
-
-        opacity: 1 !important;
-        filter: none !important;
-        background-color: var(--hover-bg-color);
-
-        span {
-          color: var(--text-color-active) !important;
-        }
-      }
-    }
-  }
-}
-
-.compact {
-  #drawer-target {
-    @apply p-4 pt-8;
-
-    .content-wrapper {
-      @apply flex-col justify-start p-0;
-    }
-
-    .music-img {
       display: none;
     }
+  }
 
-    .music-lrc {
-      height: calc(100vh - 260px) !important;
-      width: 100vw;
+  &.morph-state-expanding {
+    .left-side .img-container {
+      transform: scale(0.68) translateY(36px) translateX(-18px);
+      opacity: 0.82;
+      transition: none;
+    }
 
-      span {
-        padding-right: 0px !important;
-      }
+    .left-side .music-info {
+      transform: translateY(28px) translateX(-10px);
+      opacity: 0.6;
+      transition: none;
 
-      .hover-text {
-        &:hover {
-          background-color: transparent;
-        }
-      }
-
-      .music-lrc-text {
-        @apply text-xl text-center;
+      :deep(.simple-play-bar) {
+        transform: translateY(20px) scale(0.96);
+        opacity: 0.4;
+        transition: none;
       }
     }
 
-    .music-content {
-      @apply h-[calc(100vh-120px)];
-      width: 100vw !important;
+    .right-side {
+      opacity: 0.75;
+      transform: translateY(16px);
+      transition: none;
     }
   }
-}
 
-:deep(.n-drawer) {
-  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease !important;
-}
+  &.morph-state-morphing,
+  &.morph-state-settling,
+  &.morph-state-normal {
+    .left-side .img-container {
+      transform: scale(1) translateY(0) translateX(0);
+      opacity: 1;
+    }
 
-:deep(.n-drawer-mask) {
-  transition: opacity 0.35s ease !important;
-}
+    .left-side .music-info {
+      transform: translateY(0) translateX(0);
+      opacity: 1;
 
-:root {
-  --current-font-family:
-    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
-}
+      :deep(.simple-play-bar) {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+    }
 
-.close-btn {
-  opacity: 0.3;
-  transition: opacity 0.3s ease;
+    .right-side {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
 
-  &:hover {
-    opacity: 1;
+  &.morph-state-collapsing {
+    .left-side .img-container {
+      transform: scale(0.68) translateY(36px) translateX(-18px);
+      opacity: 0.45;
+    }
+
+    .left-side .music-info {
+      transform: translateY(28px) translateX(-10px);
+      opacity: 0.3;
+
+      :deep(.simple-play-bar) {
+        transform: translateY(20px) scale(0.96);
+        opacity: 0.2;
+      }
+    }
+
+    .right-side {
+      transform: translateY(20px);
+      opacity: 0;
+    }
   }
 }
 
 .control-left,
-.control-right {
+.control-bottom-right {
+  transition: opacity 0.3s ease;
+
   &.pure-mode {
-    @apply pointer-events-auto;
+    pointer-events: auto;
 
     .control-btn {
-      @apply opacity-0 transition-all duration-300;
+      opacity: 0;
       pointer-events: none;
+      transition: all 0.3s ease;
     }
 
     &:hover .control-btn {
-      @apply opacity-100;
+      opacity: 1;
       pointer-events: auto;
     }
   }
@@ -1399,100 +686,98 @@ defineExpose({
   }
 }
 
-.control-right {
-  @apply flex items-center gap-2;
-}
+@media (max-height: 720px) {
+  #drawer-target {
+    .content-wrapper {
+      padding: 1rem 1.5rem;
+      gap: 1.25rem;
+    }
 
-.pure-mode-tip-layer {
-  @apply absolute inset-0 z-[9999] pointer-events-none;
-  --tip-accent: rgba(255, 255, 255, 0.8);
-}
+    .left-side {
+      .img-container {
+        width: clamp(130px, 22vh, 220px);
+        max-height: 24vh;
+        margin-bottom: 0.5rem;
+      }
 
-.pure-mode-tip-highlight {
-  @apply absolute top-8 right-8 w-20 h-9 rounded-lg;
-  border: 1.5px dashed rgba(255, 255, 255, 0.75);
-  animation: pure-tip-pulse 1.8s ease-out infinite;
+      .music-info {
+        .music-content-name {
+          font-size: 1.25rem;
+          margin-bottom: 0.2rem;
+        }
 
-  &--left {
-    @apply right-auto left-8 w-9;
-  }
-}
+        .music-content-singer {
+          font-size: 0.875rem;
+        }
 
-.pure-mode-tip-bubble {
-  @apply absolute top-[4.75rem] right-8 flex w-fit max-w-[320px] flex-col gap-2 rounded-xl px-4 py-3 text-sm pointer-events-auto;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-
-  &--left {
-    @apply right-auto left-8;
-  }
-}
-
-.pure-mode-tip-content {
-  @apply flex items-start gap-2;
-
-  i {
-    @apply mt-0.5 shrink-0 text-base;
-    color: rgba(255, 255, 255, 0.85);
-  }
-}
-
-.pure-mode-tip-actions {
-  @apply flex items-center justify-end gap-2;
-}
-
-.pure-mode-tip-btn {
-  @apply cursor-pointer rounded-lg border px-3 py-1 text-xs transition-colors;
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.75);
-
-  &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.14);
-    color: rgba(255, 255, 255, 0.9);
-  }
-
-  &:disabled {
-    @apply cursor-not-allowed opacity-40;
-  }
-
-  &--primary {
-    background: rgba(255, 255, 255, 0.22);
-    border-color: rgba(255, 255, 255, 0.35);
-    color: #fff;
-    font-weight: 600;
-
-    &:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.32);
-      border-color: rgba(255, 255, 255, 0.5);
-      color: #fff;
+        :deep(.simple-play-bar) {
+          margin-top: 0.5rem;
+        }
+      }
     }
   }
 }
 
-.pure-mode-tip-dots {
-  @apply ml-0.5 flex items-center gap-1 self-center;
+.window-controls-top-right {
+  display: flex !important;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 4px 6px;
+  gap: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  z-index: 99999 !important;
+  pointer-events: auto !important;
 
-  span {
-    @apply h-1.5 w-1.5 rounded-full bg-white/25 transition-colors;
-  }
+  .window-control-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 26px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.9);
+    transition: all 0.15s ease;
 
-  span.is-active {
-    background: rgba(255, 255, 255, 0.8);
+    &:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+
+    &.close-btn:hover {
+      background: #ef4444;
+      color: #ffffff;
+    }
   }
 }
 
-@keyframes pure-tip-pulse {
-  0% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.3);
+.control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 36px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-color-active, #ffffff);
+  transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.16);
+    transform: scale(1.05);
   }
 
-  70%,
-  100% {
-    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+  i {
+    font-size: 16px;
+    line-height: 1;
   }
 }
 
@@ -1512,95 +797,21 @@ defineExpose({
   opacity: 0;
 }
 
-.control-btn {
-  @apply flex items-center justify-center cursor-pointer;
-  width: 36px;
-  height: 28px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.08);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: var(--text-color-active);
-  transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
-
-  .dark & {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.15);
-    transform: scale(1.05);
-
-    .dark & {
-      background: rgba(255, 255, 255, 0.16);
-    }
-
-    svg {
-      opacity: 1;
-    }
-
-    i {
-      opacity: 1;
-    }
-  }
-
-  i {
-    font-size: 16px;
-    line-height: 1;
-  }
-
-  svg {
-    flex-shrink: 0;
-    opacity: 0.85;
-    transition: opacity 0.15s ease;
-  }
+.lossless-quality-badge {
+  @apply ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded tracking-wider uppercase border border-current;
+  color: var(--primary-color, #ff4e4e);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(4px);
+  line-height: 1;
 }
 
-.close-window-btn {
-  &:hover {
-    background: rgba(239, 68, 68, 0.85) !important;
-    color: #fff !important;
-
-    svg {
-      opacity: 1;
-    }
-  }
+:global(.n-drawer-container .n-drawer.n-drawer--bottom-placement) {
+  transition: transform 0.42s cubic-bezier(0.32, 0.72, 0, 1) !important;
+  box-sizing: border-box !important;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.25);
 }
 
-.lyric-correction {
-  .music-lrc:hover & {
-    opacity: 1 !important;
-    pointer-events: auto !important;
-  }
-}
-.bg-vocal {
-  font-size: 0.85em !important;
-  font-style: italic !important;
-  opacity: 0.85 !important;
-}
-</style>
-
-<style lang="scss">
-.n-drawer-container {
-  .n-drawer.n-drawer--bottom-placement {
-    transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1) !important;
-    box-sizing: border-box !important;
-  }
-
-  &.n-drawer-transition-enter-from .n-drawer.n-drawer--bottom-placement,
-  &.n-drawer-transition-leave-to .n-drawer.n-drawer--bottom-placement {
-    transform: translateY(100%) !important;
-  }
-
-  &.n-drawer-transition-enter-to .n-drawer.n-drawer--bottom-placement,
-  &.n-drawer-transition-leave-from .n-drawer.n-drawer--bottom-placement {
-    transform: translateY(0) !important;
-  }
-
-  .n-drawer-mask {
-    transition: opacity 0.35s ease !important;
-  }
+:global(.n-drawer-container .n-drawer-mask) {
+  transition: opacity 0.42s cubic-bezier(0.32, 0.72, 0, 1) !important;
 }
 </style>

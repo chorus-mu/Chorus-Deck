@@ -30,6 +30,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+
 import logoImg from '@/assets/logo.png';
 
 interface Props {
@@ -44,9 +45,9 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
-  maxTilt: 12,
-  scale: 1.03,
-  shineIntensity: 0.25,
+  maxTilt: 18,
+  scale: 1.05,
+  shineIntensity: 0.38,
   objectFit: 'cover',
   disabled: false
 });
@@ -112,16 +113,21 @@ const onImageLoad = (e: Event) => {
 const coverTransformStyle = computed(() => {
   if (!isHovering.value || props.disabled) {
     return {
-      transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)',
-      transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+      transform: 'perspective(1200px) rotateX(0deg) rotateY(0deg) scale(1)',
+      boxShadow: '0 12px 32px -4px rgba(0, 0, 0, 0.45)',
+      transition: 'transform 0.5s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.5s cubic-bezier(0.25, 1, 0.5, 1)'
     };
   }
 
   const tiltX = Math.round((mouseY.value - 0.5) * props.maxTilt * 100) / 100;
   const tiltY = Math.round((mouseX.value - 0.5) * -props.maxTilt * 100) / 100;
 
+  const shadowX = Math.round((mouseX.value - 0.5) * -20);
+  const shadowY = Math.round((mouseY.value - 0.5) * -20 + 20);
+
   return {
-    transform: `perspective(1000px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale(${props.scale})`,
+    transform: `perspective(1200px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale3d(${props.scale}, ${props.scale}, ${props.scale})`,
+    boxShadow: `${shadowX}px ${shadowY}px 45px -8px rgba(0, 0, 0, 0.65)`,
     transition: 'none'
   };
 });
@@ -131,7 +137,7 @@ const shineStyle = computed(() => {
     return {
       opacity: 0,
       background: 'transparent',
-      transition: 'opacity 0.3s ease-out'
+      transition: 'opacity 0.4s ease-out'
     };
   }
 
@@ -139,8 +145,8 @@ const shineStyle = computed(() => {
   const shineY = Math.round(mouseY.value * 100);
 
   return {
-    opacity: props.shineIntensity * 0.7,
-    background: `radial-gradient(280px circle at ${shineX}% ${shineY}%, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.08) 40%, transparent 70%)`,
+    opacity: props.shineIntensity,
+    background: `radial-gradient(380px circle at ${shineX}% ${shineY}%, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.18) 35%, transparent 75%)`,
     transition: 'none'
   };
 });
@@ -203,11 +209,10 @@ onBeforeUnmount(() => {
 .cover-wrapper {
   @apply relative w-full h-full rounded-xl overflow-hidden;
   transform-style: preserve-3d;
-  will-change: transform;
+  will-change: transform, box-shadow;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
-  transition: box-shadow 0.3s ease;
+  contain: layout;
 }
 
 .cover-image {

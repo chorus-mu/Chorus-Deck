@@ -1,21 +1,263 @@
-import type { LyricAnimationStyle } from '@/types/lyric';
+import type { LyricAnimationStyle, LyricConfig } from '@/types/lyric';
 
 export interface LyricLineStyleOptions {
   index: number;
   nowIndex: number;
-  style: LyricAnimationStyle | string;
+  style?: LyricAnimationStyle | string;
   alignment?: 'left' | 'center' | 'right';
   focusEnabled?: boolean;
+  activeGrowth?: number;
+  morphState?: 'collapsed' | 'expanding' | 'morphing' | 'settling' | 'normal' | 'collapsing';
+}
+
+export interface ContinuousScrollSpringConfig {
+  initial?: number;
+  stiffness?: number;
+  damping?: number;
+  mass?: number;
+  precision?: number;
+  snapThreshold?: number;
+  style?: LyricAnimationStyle | string;
+}
+
+export class ContinuousScrollSpring {
+  private current: number;
+  private target: number;
+  private velocity: number;
+  private stiffness: number;
+  private damping: number;
+  private mass: number;
+  private precision: number;
+  private snapThreshold: number;
+
+  constructor(options: ContinuousScrollSpringConfig = {}) {
+    this.current = options.initial ?? 0;
+    this.target = options.initial ?? 0;
+    this.velocity = 0;
+    this.mass = options.mass ?? 1.0;
+    this.precision = options.precision ?? 0.25;
+    this.snapThreshold = options.snapThreshold ?? 500;
+
+    if (options.style === 'chorus_bouncy') {
+      this.stiffness = options.stiffness ?? 85;
+      this.damping = options.damping ?? 15.0;
+    } else {
+      this.stiffness = options.stiffness ?? 55;
+      this.damping = options.damping ?? 14.5;
+    }
+  }
+
+  public setStyle(style: LyricAnimationStyle | string): void {
+    if (style === 'chorus_bouncy') {
+      this.stiffness = 85;
+      this.damping = 15.0;
+    } else {
+      this.stiffness = 55;
+      this.damping = 14.5;
+    }
+  }
+
+  public setTarget(newTarget: number, snap = false): void {
+    const delta = Math.abs(newTarget - this.current);
+    if (snap || delta > this.snapThreshold) {
+      this.current = newTarget;
+      this.target = newTarget;
+      this.velocity = 0;
+      return;
+    }
+    this.target = newTarget;
+  }
+
+  public setPosition(pos: number): void {
+    this.current = pos;
+    this.velocity = 0;
+  }
+
+  public getCurrent(): number {
+    return this.current;
+  }
+
+  public getTarget(): number {
+    return this.target;
+  }
+
+  public getVelocity(): number {
+    return this.velocity;
+  }
+
+  public isSettled(): boolean {
+    return (
+      Math.abs(this.current - this.target) < this.precision &&
+      Math.abs(this.velocity) < this.precision
+    );
+  }
+
+  public reset(): void {
+    this.velocity = 0;
+  }
+
+  public step(dt: number): { current: number; settled: boolean } {
+    const safeDt = Math.min(Math.max(dt, 0.0005), 0.032);
+    const subSteps = safeDt > 0.016 ? 2 : 1;
+    const subDt = safeDt / subSteps;
+
+    for (let i = 0; i < subSteps; i++) {
+      const displacement = this.current - this.target;
+      const springForce = -this.stiffness * displacement;
+      const dampingForce = -this.damping * this.velocity;
+      const acceleration = (springForce + dampingForce) / this.mass;
+
+      this.velocity += acceleration * subDt;
+      this.current += this.velocity * subDt;
+    }
+
+    if (this.isSettled()) {
+      this.current = this.target;
+      this.velocity = 0;
+      return { current: this.current, settled: true };
+    }
+
+    return { current: this.current, settled: false };
+  }
+}
+
+export interface LyricLineLayout {
+  index: number;
+  top: number;
+  height: number;
+}
+
+export class LyricLayoutCache {
+  private cache: Map<number, LyricLineLayout> = new Map();
+
+  public set(index: number, top: number, height: number): void {
+    this.cache.set(index, { index, top, height });
+  }
+
+  public get(index: number): LyricLineLayout | undefined {
+    return this.cache.get(index);
+  }
+
+  public has(index: number): boolean {
+    return this.cache.has(index);
+  }
+
+  public clear(): void {
+    this.cache.clear();
+  }
+
+  public size(): number {
+    return this.cache.size;
+  }
+}
+
+export interface WordSweepOptions {
+  lineIndex: number;
+  nowIndex: number;
+  currentTime: number;
+  word: {
+    text: string;
+    startTime: number;
+    duration: number;
+  };
+  isTailWord?: boolean;
+  activeClr: string;
+  inactiveClr: string;
+  backlitClr?: string;
+  config?: Partial<LyricConfig>;
+}
+
+export function computeWordSweepStyle(options: WordSweepOptions): Record<string, any> {
+  const {
+    lineIndex,
+    nowIndex,
+    currentTime,
+    word,
+    activeClr,
+    inactiveClr,
+    backlitClr,
+    config = {}
+  } = options;
+
+  if (lineIndex !== nowIndex) {
+    return {
+      color: inactiveClr,
+      textShadow: 'none',
+      filter: 'none',
+      transition: 'color 0.25s ease'
+    };
+  }
+
+  if (word?.startTime == null || Number.isNaN(Number(word.startTime))) {
+    return {
+      color: inactiveClr,
+      WebkitTextFillColor: 'initial',
+      textShadow: 'none',
+      filter: 'none',
+      transition: 'color 0.25s ease'
+    };
+  }
+
+  const wordStartTime = Number(word.startTime);
+  const duration = Math.max(Number(word.duration) || 0, 1);
+  const wordEndTime = wordStartTime + duration;
+
+  const hasGlow = config.lyricsGlowEffect !== false;
+  const backlitShadow = backlitClr
+    ? `0 0 8px ${backlitClr}, 0 0 20px ${backlitClr}`
+    : '0 0 8px var(--lrc-active-backlit), 0 0 20px var(--lrc-active-backlit-halo)';
+  const filterGlow = backlitClr
+    ? `drop-shadow(0 0 14px ${backlitClr})`
+    : 'drop-shadow(0 0 14px var(--lrc-active-backlit, rgba(255, 255, 255, 0.45)))';
+
+  if (currentTime < wordStartTime) {
+    return {
+      color: inactiveClr,
+      WebkitTextFillColor: 'initial',
+      textShadow: hasGlow
+        ? backlitClr
+          ? `0 0 6px ${backlitClr}`
+          : '0 0 6px var(--lrc-active-backlit)'
+        : 'none',
+      filter: 'none',
+      transition: 'color 0.25s ease'
+    };
+  }
+
+  if (currentTime >= wordEndTime) {
+    return {
+      color: activeClr,
+      WebkitTextFillColor: 'initial',
+      textShadow: hasGlow ? backlitShadow : 'none',
+      filter: hasGlow ? filterGlow : 'none',
+      transition: 'none'
+    };
+  }
+
+  const progress = Math.min(Math.max((currentTime - wordStartTime) / duration, 0), 1);
+  const p = progress * 100;
+
+  const feather = 1.5;
+  const startStop = Math.max(0, p - feather).toFixed(2);
+  const midStop = p.toFixed(2);
+  const endStop = Math.min(100, p + feather).toFixed(2);
+
+  return {
+    backgroundImage: `linear-gradient(to right, ${activeClr} 0%, ${activeClr} ${startStop}%, color-mix(in srgb, ${activeClr} 65%, ${inactiveClr}) ${midStop}%, ${inactiveClr} ${endStop}%, ${inactiveClr} 100%)`,
+    backgroundClip: 'text',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    textShadow: 'none',
+    filter: hasGlow ? filterGlow : 'none',
+    transition: 'none'
+  };
 }
 
 export function computeLyricLineStyle(options: LyricLineStyleOptions): Record<string, any> {
-  const { index, nowIndex, style, alignment = 'left', focusEnabled = true } = options;
+  const { index, nowIndex, alignment = 'left', focusEnabled = true } = options;
   if (!focusEnabled) return {};
 
-  const distance = Math.abs(index - nowIndex);
-  const isPast = index < nowIndex;
   const isCurrent = index === nowIndex;
-  const isUpcoming = index > nowIndex;
 
   const origin =
     alignment === 'center'
@@ -24,125 +266,53 @@ export function computeLyricLineStyle(options: LyricLineStyleOptions): Record<st
         ? 'right center'
         : 'left center';
 
-  switch (style) {
-    case 'apple_spring': {
-      let transform = 'translateY(0px) scale(1.05)';
-      let opacity = 1;
-      let filter = 'none';
+  const springTiming = 'cubic-bezier(0.25, 1, 0.5, 1)';
 
-      if (isPast) {
-        // Smooth logarithmic decay upwards
-        const offset = Math.min(distance * 8, 28);
-        const scale = Math.max(0.88, 1 - distance * 0.035);
-        transform = `translateY(-${offset}px) scale(${scale})`;
-        opacity = distance === 1 ? 0.42 : Math.max(0.18, 0.3 - distance * 0.04);
-        filter = distance === 1 ? 'blur(0.6px)' : `blur(${Math.min(distance * 0.9, 2.4)}px)`;
-      } else if (isUpcoming) {
-        // Natural Apple Music bottom-up lead-in
-        const offset = Math.min(distance * 10, 36);
-        const scale = Math.max(0.9, 1 - distance * 0.03);
-        transform = `translateY(${offset}px) scale(${scale})`;
-        opacity = distance === 1 ? 0.5 : Math.max(0.2, 0.36 - distance * 0.05);
-        filter = distance === 1 ? 'blur(0.5px)' : `blur(${Math.min(distance * 0.8, 2.2)}px)`;
-      }
-
-      return {
-        opacity,
-        filter,
-        transform,
-        transformOrigin: origin,
-        willChange: 'transform, opacity, filter',
-        transition:
-          'transform 0.65s cubic-bezier(0.2, 0.9, 0.25, 1), opacity 0.5s cubic-bezier(0.2, 0.9, 0.25, 1), filter 0.5s ease'
-      };
-    }
-
-    case 'bouncy_pop': {
-      const scale = isCurrent ? 1.08 : 0.94;
-      const opacity = isCurrent ? 1 : distance === 1 ? 0.5 : 0.28;
-      return {
-        opacity,
-        transform: `scale(${scale})`,
-        transformOrigin: origin,
-        transition:
-          'transform 0.48s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.4s ease'
-      };
-    }
-
-    case 'carousel_3d': {
-      if (isCurrent) {
-        return {
-          opacity: 1,
-          transform: 'perspective(1200px) rotateX(0deg) translateZ(28px) scale(1.04)',
-          transformOrigin: origin,
-          transition: 'transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease'
-        };
-      }
-      const d = Math.min(3, distance);
-      const rot = isPast ? Math.min(32, d * 16) : -Math.min(32, d * 16);
-      const ty = isPast ? -d * 8 : d * 8;
-      const tz = -d * 28;
-      const opacity = Math.max(0.18, 0.52 - d * 0.14);
-      return {
-        opacity,
-        transform: `perspective(1200px) rotateX(${rot}deg) translateZ(${tz}px) translateY(${ty}px)`,
-        transformOrigin: origin,
-        transition: 'transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease'
-      };
-    }
-
-    case 'cyberpunk_glow': {
-      const scale = isCurrent ? 1.04 : 0.98;
-      const opacity = isCurrent ? 1 : distance === 1 ? 0.45 : 0.25;
-      return {
-        opacity,
-        transform: `scale(${scale})`,
-        transformOrigin: origin,
-        transition:
-          'transform 0.35s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.35s ease'
-      };
-    }
-
-    case 'kinetic_slant': {
-      let transform = 'skewX(0deg) translateX(0px) scale(1.05)';
-      let opacity = 1;
-      if (isPast) {
-        transform = 'skewX(2.5deg) translateX(14px) scale(0.96)';
-        opacity = 0.35;
-      } else if (isUpcoming) {
-        transform = 'skewX(-2.5deg) translateX(-14px) scale(0.96)';
-        opacity = 0.35;
-      }
-      return {
-        opacity,
-        transform,
-        transformOrigin: origin,
-        transition:
-          'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease'
-      };
-    }
-
-    case 'minimal_fade': {
-      return {
-        opacity: isCurrent ? 1 : distance === 1 ? 0.5 : 0.25,
-        fontWeight: isCurrent ? 700 : 400,
-        transform: 'none',
-        transition: 'opacity 0.4s ease, font-weight 0.3s ease'
-      };
-    }
-
-    case 'smooth_fluid':
-    case 'chorusmusic_1':
-    default: {
-      const opacity = isCurrent ? 1 : distance === 1 ? 0.55 : 0.35;
-      const scale = isCurrent ? 1.05 : 1;
-      return {
-        opacity,
-        transform: `scale(${scale})`,
-        transformOrigin: origin,
-        transition:
-          'transform 0.45s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.45s cubic-bezier(0.25, 1, 0.5, 1)'
-      };
-    }
+  if (isCurrent) {
+    return {
+      opacity: 1,
+      transform: 'scale(1)',
+      filter: 'blur(0px)',
+      transformOrigin: origin,
+      willChange: 'opacity, transform, filter',
+      transition: `opacity 0.45s ${springTiming}, transform 0.45s ${springTiming}, filter 0.45s ${springTiming}`
+    };
   }
+
+  const dist = Math.abs(index - nowIndex);
+  let opacity = 0.16;
+  let scale = 0.93;
+  let blur = 2.2;
+
+  if (dist === 1) {
+    opacity = 0.68;
+    scale = 0.98;
+    blur = 0.6;
+  } else if (dist === 2) {
+    opacity = 0.44;
+    scale = 0.96;
+    blur = 1.2;
+  } else if (dist === 3) {
+    opacity = 0.28;
+    scale = 0.94;
+    blur = 1.8;
+  } else {
+    opacity = Math.max(0.12, 0.2 - (dist - 4) * 0.02);
+    scale = 0.93;
+    blur = Math.min(2.5, 2.2 + (dist - 4) * 0.05);
+  }
+
+  return {
+    opacity,
+    transform: `scale(${scale.toFixed(3)})`,
+    filter: `blur(${blur.toFixed(1)}px)`,
+    transformOrigin: origin,
+    willChange: dist <= 3 ? 'opacity, transform, filter' : 'auto',
+    transition: `opacity 0.45s ${springTiming}, transform 0.45s ${springTiming}, filter 0.45s ${springTiming}`
+  };
+}
+
+export function isIdeographicScript(text: string): boolean {
+  if (!text) return false;
+  return /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/.test(text);
 }

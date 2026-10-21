@@ -217,7 +217,11 @@ export const usePlayHistoryStore = defineStore(
     persist: {
       key: PERSIST_KEY,
 
-      storage: debouncedLocalStorage,
+      storage: {
+        getItem: (k: string) => localStorage.getItem(k),
+        setItem: (k: string, v: string) => debouncedLocalStorage.setItem(k, v),
+        removeItem: (k: string) => debouncedLocalStorage.removeItem(k)
+      },
       pick: ['musicHistory', 'playlistHistory', 'albumHistory'],
 
       serializer: {

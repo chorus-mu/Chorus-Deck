@@ -1,6 +1,10 @@
+import { ref } from 'vue';
+
+import { invalidateYTMStreamCache } from '@/api/ytmusic';
 import type { AudioOutputDevice } from '@/types/audio';
 import type { SongResult } from '@/types/music';
-import { getImgUrl, isDesktop } from '@/utils';
+import { isDesktop } from '@/utils/env';
+import { getImgUrl } from '@/utils/thumbnail';
 
 class AudioService {
   private currentTrack: SongResult | null = null;
@@ -9,18 +13,20 @@ class AudioService {
 
   private playbackRate = 1.0;
   private currentSinkId: string = 'default';
-  private _isLoading = false;
-  private _isBuffering = false;
-  private _isPlayingNative = false;
+  private _isLoading = ref(false);
+  private _isBuffering = ref(false);
+  private _isPlayingNative = ref(false);
+  private _isSeeking: boolean = false;
+  private _targetSeekTime: number | null = null;
+  private _seekTimestamp: number = 0;
   private currentUrl: string | null = null;
   private _currentNativeDuration: number | null = null;
+  private isTransitioningTrack = false;
 
   private operationLock = false;
   private operationLockTimer: ReturnType<typeof setTimeout> | null = null;
-
+  private currentPlaySessionToken = 0;
   private pendingLoadCleanup: (() => void) | null = null;
-
-  private readonly frequencies = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
   private defaultEQSettings: { [key: string]: number } = {
     '31': 0,
@@ -50,20 +56,31 @@ class AudioService {
     this.bypass = bypassState ? JSON.parse(bypassState) : false;
 
     this.forceResetOperationLock();
+    if (isDesktop()) {
+      this.restoreSavedAudioDevice();
+    }
     window.addEventListener('beforeunload', () => this.forceResetOperationLock());
   }
 
   private bindAudioEvents() {
-    if (!window?.api?.onPlaybackProgress) return;
+    if (!isDesktop() || !window?.api?.onPlaybackProgress) return;
     window.api.onPlaybackProgress((timeSecs: number) => {
+      this._isPlayingNative.value = true;
+      if (this._isBuffering.value) {
+        this._isBuffering.value = false;
+        this.emit('buffering', false);
+      }
+      if (this._isLoading.value) {
+        this._isLoading.value = false;
+      }
       this.emit('timeupdate', timeSecs);
 
       const duration = this.getDuration();
       if (
-        this._isPlayingNative &&
+        this._isPlayingNative.value &&
         !this.hasEmittedEndForCurrentSong &&
-        duration > 5 &&
-        timeSecs >= duration - 0.4
+        duration > 3 &&
+        timeSecs >= duration - 0.5
       ) {
         console.log('[audioService] Playback reached end boundary via progress, triggering end');
         this.triggerPlaybackEnded();
@@ -77,8 +94,24 @@ class AudioService {
 
     if (window.api.onPlaybackBuffering) {
       window.api.onPlaybackBuffering((isBuffering: boolean) => {
-        this._isBuffering = isBuffering;
+        this._isBuffering.value = isBuffering;
         this.emit('buffering', isBuffering);
+      });
+    }
+
+    if (window.api.onPlaybackStateChanged) {
+      window.api.onPlaybackStateChanged((isPlaying: boolean) => {
+        this._isPlayingNative.value = isPlaying;
+        if (isPlaying) {
+          this._isBuffering.value = false;
+          this._isLoading.value = false;
+          this.emit('buffering', false);
+          this.emit('play');
+        } else {
+          if (!this.isTransitioningTrack) {
+            this.emit('pause');
+          }
+        }
       });
     }
   }
@@ -90,15 +123,20 @@ class AudioService {
       clearTimeout(this.endWatchdogTimer);
       this.endWatchdogTimer = null;
     }
-    this._isPlayingNative = false;
+    this._isPlayingNative.value = false;
+    this._isBuffering.value = false;
+    this._isLoading.value = false;
     this.emit('end');
   }
 
   private initMediaSession() {
     navigator.mediaSession.setActionHandler('play', () => {
       window.api.audioResume();
-      this._isPlayingNative = true;
+      this._isPlayingNative.value = true;
+      this._isBuffering.value = false;
+      this._isLoading.value = false;
       this.updateMediaSessionState(true);
+      this.emit('buffering', false);
       this.emit('play');
     });
 
@@ -309,8 +347,11 @@ class AudioService {
   ): Promise<void> {
     if (this.currentUrl && !url && !track) {
       window.api.audioResume();
-      this._isPlayingNative = true;
+      this._isPlayingNative.value = true;
+      this._isBuffering.value = false;
+      this._isLoading.value = false;
       this.updateMediaSessionState(true);
+      this.emit('buffering', false);
       this.emit('play');
       return Promise.resolve();
     }
@@ -334,8 +375,11 @@ class AudioService {
       this.currentTrack = track;
       if (isPlay) {
         window.api.audioResume();
-        this._isPlayingNative = true;
+        this._isPlayingNative.value = true;
+        this._isBuffering.value = false;
+        this._isLoading.value = false;
         this.updateMediaSessionState(true);
+        this.emit('buffering', false);
         this.emit('play');
       }
       this.updateMediaSessionMetadata(track);
@@ -348,29 +392,33 @@ class AudioService {
       this.pendingLoadCleanup = null;
     }
 
+    const sessionToken = ++this.currentPlaySessionToken;
+
     return new Promise<void>((resolve, reject) => {
       let retryCount = 0;
       const maxRetries = 1;
 
       const tryPlay = async () => {
-        this._isLoading = true;
+        if (sessionToken !== this.currentPlaySessionToken) {
+          console.log(`[audioService] Play session #${sessionToken} superseded before starting`);
+          this.releaseOperationLock();
+          resolve(undefined as any);
+          return;
+        }
+
+        if (!this._isBuffering.value) {
+          this._isLoading.value = true;
+          this._isBuffering.value = true;
+          this.emit('buffering', true);
+        }
         this.currentTrack = track;
         this.hasEmittedEndForCurrentSong = false;
 
         try {
           if (isPlay) {
-            // Hand the known duration to the native side so it never has to
-            // seek to the end of the HTTP stream just to measure it.
             const rawDur = track.dt || track.duration || 0;
             const durationMs = rawDur > 1000 ? rawDur : rawDur * 1000;
-            // The resolved stream carries the real container (e.g. `audio/mp4`).
-            // Passing it lets the native side pick a decoder that can actually
-            // read these bytes instead of failing inside the probe.
             const container = track.mimeType || undefined;
-            // Google's CDN rejects a download that does not impersonate the
-            // InnerTube client which resolved the URL, and it answers 403 — the
-            // same response an expired link gives, which is why this went
-            // unnoticed for so long.
             const userAgent = track.streamUserAgent || undefined;
             await window.api.audioPlay(
               url,
@@ -380,7 +428,18 @@ class AudioService {
               userAgent,
               seekTime > 0 ? seekTime : undefined
             );
-            this._isPlayingNative = true;
+
+            if (sessionToken !== this.currentPlaySessionToken) {
+              console.log(`[audioService] Play session #${sessionToken} superseded after audioPlay`);
+              this.releaseOperationLock();
+              resolve(undefined as any);
+              return;
+            }
+
+            this._isPlayingNative.value = true;
+            this._isLoading.value = false;
+            this._isBuffering.value = false;
+            this.emit('buffering', false);
             try {
               this._currentNativeDuration = await window.api.audioGetDuration();
             } catch (e) {
@@ -388,7 +447,16 @@ class AudioService {
             }
             this.updateMediaSessionState(true);
           }
-          this._isLoading = false;
+
+          if (sessionToken !== this.currentPlaySessionToken) {
+            console.log(`[audioService] Play session #${sessionToken} superseded before finalize`);
+            this.releaseOperationLock();
+            resolve(undefined as any);
+            return;
+          }
+
+          this._isLoading.value = false;
+          this._isBuffering.value = false;
 
           const savedVolume = localStorage.getItem('volume');
           this.applyVolume(savedVolume ? parseFloat(savedVolume) : 1);
@@ -397,31 +465,62 @@ class AudioService {
 
           this.updateMediaSessionMetadata(track);
           this.emit('play');
+          this.emit('buffering', false);
           this.releaseOperationLock();
           resolve(undefined as any);
         } catch (err) {
-          this._isLoading = false;
+          this._isLoading.value = false;
+          this._isBuffering.value = false;
+          this.emit('buffering', false);
+
+          if (sessionToken !== this.currentPlaySessionToken) {
+            console.log(`[audioService] Play session #${sessionToken} superseded, ignoring error silently`);
+            this.releaseOperationLock();
+            resolve(undefined as any);
+            return;
+          }
+
           console.error('Audio play failed:', err);
           this.emit('playerror', { track, error: err });
 
-          // A retry reuses the same URL, so retrying a URL the CDN already
-          // refused just burns a second and produces the identical failure. A
-          // rejected URL is unrecoverable without resolving a fresh one, which
-          // is what the `url_expired` path does.
           const message = err instanceof Error ? err.message : String(err ?? '');
-          const urlRejected = /status 40[13]|403 Forbidden|429 Too Many/i.test(message);
-
-          if (urlRejected) {
-            console.warn(
-              '[audioService] resolved URL was refused by the CDN; skipping retry and re-resolving'
+          const isNetworkOrDecodeError =
+            /status 40[13]|403 Forbidden|429 Too Many|Failed to fetch|ERR_CONNECTION_REFUSED|Decode error|Stream request error/i.test(
+              message
             );
-            // Mark the URL so the store stops handing back the same dead link on
-            // a later lookup. The recovery path clears both the marker and the
-            // URL together when it re-resolves.
-            this.markUrlRejected(track);
-            this.emit('url_expired', track);
+
+          const isLosslessTrack = Boolean(
+            (track as any).qualityBadge ||
+            track.mimeType === 'audio/flac' ||
+            (url && url.includes('.flac'))
+          );
+
+          if (isLosslessTrack) {
+            console.warn(
+              '[audioService] Lossless stream failed to play; marking failed and falling back to YouTube audio:',
+              message
+            );
+            if (track?.id) {
+              invalidateYTMStreamCache(track.id);
+            }
+            (track as any).losslessAttemptFailed = true;
+            (track as any).qualityBadge = undefined;
+            track.playMusicUrl = undefined;
             this.releaseOperationLock();
-            reject(new Error('Stream URL was refused by the server, re-resolving'));
+            this.emit('url_expired', track);
+            reject(new Error('Lossless stream failed, falling back to YouTube audio'));
+            return;
+          }
+
+          if (isNetworkOrDecodeError) {
+            console.warn(
+              '[audioService] resolved URL failed or was refused; skipping retry and re-resolving'
+            );
+
+            const rejected = this.markUrlRejected(track);
+            this.emit('url_expired', rejected);
+            this.releaseOperationLock();
+            reject(new Error('Stream URL failed, re-resolving'));
             return;
           }
 
@@ -430,7 +529,8 @@ class AudioService {
             console.log(`Retrying playback (${retryCount}/${maxRetries})...`);
             setTimeout(tryPlay, 1000 * retryCount);
           } else {
-            this.emit('url_expired', track);
+            const rejected = this.markUrlRejected(track);
+            this.emit('url_expired', rejected);
             this.releaseOperationLock();
             reject(new Error('Audio loading failed, please try switching to other songs'));
           }
@@ -443,7 +543,10 @@ class AudioService {
     });
   }
 
-  private markUrlRejected(track: SongResult) {
+  private markUrlRejected(track: SongResult): SongResult {
+    if (track?.id) {
+      invalidateYTMStreamCache(track.id);
+    }
     const rejected = { ...track, urlRejectedAt: Date.now() };
     this.currentTrack = rejected;
 
@@ -466,11 +569,15 @@ class AudioService {
   }
 
   public async pause(): Promise<void> {
+    this.currentPlaySessionToken++;
     this.forceResetOperationLock();
     try {
       await window.api.audioPause();
-      this._isPlayingNative = false;
+      this._isPlayingNative.value = false;
+      this._isBuffering.value = false;
+      this._isLoading.value = false;
       this.updateMediaSessionState(false);
+      this.emit('buffering', false);
       this.emit('pause');
     } catch (error) {
       console.error('Failed to pause audio:', error);
@@ -481,18 +588,57 @@ class AudioService {
     this.forceResetOperationLock();
     try {
       await window.api.audioResume();
-      this._isPlayingNative = true;
+      this._isPlayingNative.value = true;
+      this._isBuffering.value = false;
+      this._isLoading.value = false;
       this.updateMediaSessionState(true);
+      this.emit('buffering', false);
       this.emit('play');
     } catch (error) {
       console.error('Failed to resume audio:', error);
     }
   }
 
-  public async stop(): Promise<void> {
+  public async prepareNextTrack(): Promise<void> {
+    this.currentPlaySessionToken++;
     this.forceResetOperationLock();
     this.hasEmittedEndForCurrentSong = false;
     this._currentNativeDuration = null;
+    this.clearSeeking();
+    if (this.endWatchdogTimer) {
+      clearTimeout(this.endWatchdogTimer);
+      this.endWatchdogTimer = null;
+    }
+
+    if (this.pendingLoadCleanup) {
+      this.pendingLoadCleanup();
+      this.pendingLoadCleanup = null;
+    }
+    this._isPlayingNative.value = false;
+    this._isBuffering.value = true;
+    this._isLoading.value = true;
+    this.currentUrl = null;
+    this.currentTrack = null;
+    this.emit('buffering', true);
+    this.emit('timeupdate', 0);
+    this.isTransitioningTrack = true;
+    try {
+      await window.api.audioStop();
+    } catch (error) {
+      console.error('Failed to prepare next track audio:', error);
+    } finally {
+      setTimeout(() => {
+        this.isTransitioningTrack = false;
+      }, 400);
+    }
+  }
+
+  public async stop(): Promise<void> {
+    this.currentPlaySessionToken++;
+    this.forceResetOperationLock();
+    this.hasEmittedEndForCurrentSong = false;
+    this._currentNativeDuration = null;
+    this.clearSeeking();
     if (this.endWatchdogTimer) {
       clearTimeout(this.endWatchdogTimer);
       this.endWatchdogTimer = null;
@@ -504,8 +650,11 @@ class AudioService {
     }
     try {
       await window.api.audioStop();
-      this._isPlayingNative = false;
+      this._isPlayingNative.value = false;
+      this._isBuffering.value = false;
+      this._isLoading.value = false;
       this.updateMediaSessionState(false);
+      this.emit('buffering', false);
       this.emit('stop');
       this.currentUrl = null;
     } catch (error) {
@@ -517,6 +666,27 @@ class AudioService {
     }
   }
 
+  public isSeeking(): boolean {
+    if (!this._isSeeking) return false;
+    if (Date.now() - this._seekTimestamp > 1500) {
+      this._isSeeking = false;
+      this._targetSeekTime = null;
+      return false;
+    }
+    return true;
+  }
+
+  public getTargetSeekTime(): number | null {
+    if (!this.isSeeking()) return null;
+    return this._targetSeekTime;
+  }
+
+  public clearSeeking(): void {
+    this._isSeeking = false;
+    this._targetSeekTime = null;
+    this._seekTimestamp = 0;
+  }
+
   public async seek(time: number): Promise<void> {
     this.forceResetOperationLock();
     this.hasEmittedEndForCurrentSong = false;
@@ -526,11 +696,15 @@ class AudioService {
     }
 
     const duration = this.getDuration();
-    if (duration > 5 && time >= duration - 0.5) {
+    if (duration > 2 && time >= duration - 0.8) {
       console.log('[audioService] Seeked directly to end of track, triggering playback end');
       this.triggerPlaybackEnded();
       return;
     }
+
+    this._isSeeking = true;
+    this._targetSeekTime = time;
+    this._seekTimestamp = Date.now();
 
     try {
       this.emit('seek_start', time);
@@ -538,20 +712,8 @@ class AudioService {
       this.emit('seek', time);
       this.updateMediaSessionPositionState();
     } catch (error) {
-      console.error('SeekOperation failed:', error);
-      if (this.currentTrack && this.currentUrl) {
-        console.warn('[audioService] Seek failed, attempting reload at seek position:', time);
-        try {
-          await this.play(this.currentUrl, this.currentTrack, true, time);
-        } catch (playErr) {
-          console.error('[audioService] Seek reload failed, emitting url_expired to re-resolve:', playErr);
-          this.markUrlRejected(this.currentTrack);
-          this.emit('url_expired', { ...this.currentTrack, seekTargetTime: time });
-        }
-      } else if (this.currentTrack) {
-        this.markUrlRejected(this.currentTrack);
-        this.emit('url_expired', { ...this.currentTrack, seekTargetTime: time });
-      }
+      this.clearSeeking();
+      console.warn('[audioService] SeekOperation non-fatal warning:', error);
     }
   }
 
@@ -590,19 +752,35 @@ class AudioService {
     return this.currentTrack;
   }
 
+  public setBuffering(buffering: boolean): void {
+    this._isBuffering.value = buffering;
+    this.emit('buffering', buffering);
+  }
+
+  public setLoading(loading: boolean): void {
+    this._isLoading.value = loading;
+    if (loading) {
+      this.emit('buffering', true);
+    } else if (!this._isBuffering.value) {
+      this.emit('buffering', false);
+    }
+  }
+
   isLoading(): boolean {
-    return this._isLoading || this.operationLock;
+    return this._isLoading.value;
   }
 
   isBuffering(): boolean {
-    return this._isBuffering || this.isLoading();
+    if (this._isPlayingNative.value && !this._isBuffering.value) {
+      return false;
+    }
+    return this._isBuffering.value || this._isLoading.value;
   }
 
   isActuallyPlaying(): boolean {
     if (!this.currentUrl && !this.currentTrack) return false;
     try {
-      const isPlaying = this._isPlayingNative;
-      return isPlaying && !this._isLoading;
+      return this._isPlayingNative.value;
     } catch (error) {
       console.error('Error checking playback status:', error);
       return false;

@@ -178,10 +178,11 @@ import {
   type YTMSection,
   type YTMSong
 } from '@/api/ytmusic';
-import { useQueueStore } from '@/store/modules/queue';
-import type { SongResult } from '@/types/music';
 import logoImg from '@/assets/logo.png';
 import { handleImgError } from '@/services/coverService';
+import { useQueueStore } from '@/store/modules/queue';
+import type { SongResult } from '@/types/music';
+import { parseDurationToSeconds } from '@/utils';
 
 defineOptions({ name: 'Charts' });
 
@@ -209,6 +210,8 @@ function playSong(item: YTMSong | YTMPlaylist) {
     picUrl: item.thumbnail,
     album: item.album,
     source: 'ytmusic',
+    duration: parseDurationToSeconds(item.duration),
+    dt: parseDurationToSeconds(item.duration) ? parseDurationToSeconds(item.duration)! * 1000 : undefined,
     artists: item.artists.map((a) => ({ name: a.name, id: a.id }))
   };
   playlistStore.setQueue([track], false, false);

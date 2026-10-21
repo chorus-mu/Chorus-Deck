@@ -25,7 +25,6 @@ export const useSettingsStore = defineStore('settings', () => {
   const systemFonts = ref<{ label: string; value: string }[]>([
     { label: 'System default', value: 'system-ui' }
   ]);
-  const showDownloadDrawer = ref(false);
 
   let systemThemeCleanup: (() => void) | null = null;
 
@@ -135,7 +134,7 @@ export const useSettingsStore = defineStore('settings', () => {
         }
       });
     } else {
-      const manualTheme = setData.value.manualTheme || 'light';
+      const manualTheme = setData.value.manualTheme || 'dark';
       theme.value = manualTheme;
       applyTheme(manualTheme);
 
@@ -178,9 +177,6 @@ export const useSettingsStore = defineStore('settings', () => {
     ];
   };
 
-  const setShowDownloadDrawer = (show: boolean) => {
-    showDownloadDrawer.value = show;
-  };
 
   const setLanguage = async (language: string) => {
     setSetData({ language });
@@ -313,7 +309,6 @@ export const useSettingsStore = defineStore('settings', () => {
     showArtistDrawer,
     currentArtistId,
     systemFonts,
-    showDownloadDrawer,
     setSetData,
     toggleTheme,
     setAutoTheme,
@@ -322,7 +317,6 @@ export const useSettingsStore = defineStore('settings', () => {
     setShowArtistDrawer,
     setCurrentArtistId,
     setSystemFonts,
-    setShowDownloadDrawer,
     setLanguage,
     initializeSettings,
     getInitialSettings,

@@ -5,7 +5,7 @@ import useIndexedDB from '@/hooks/IndexDBHook';
 import { audioService } from '@/services/audioService';
 import type { usePlayerStore } from '@/store';
 import type { Artist, ILyricText, SongResult } from '@/types/music';
-import { isDesktop } from '@/utils';
+import { isDesktop, parseDurationToSeconds } from '@/utils';
 import { getTextColors } from '@/utils/linearColor';
 import { readLyricConfig } from '@/utils/lyricConfig';
 import { parseLyrics } from '@/utils/yrcParser';
@@ -23,7 +23,7 @@ export const normalizeArtistList = (artists: any[] | undefined, albumName?: stri
       const parts = item.split(/\s*[/]\s*/).map((s) => s.trim()).filter(Boolean);
       for (const p of parts) {
         if (/^\d{4}$/.test(p) || /(plays|views)/i.test(p)) continue;
-        const clean = p.replace(/\s*[•·]\s*\d{4}\b.*$/g, '').replace(/\s*[\(\[]\s*\d{4}\s*[\)\]]$/g, '').trim();
+        const clean = p.replace(/\s*[•·]\s*\d{4}\b.*$/g, '').replace(/\s*[([]\s*\d{4}\s*[)\]]$/g, '').trim();
         if (clean && !/^\d{4}$/.test(clean)) {
           rawList.push({ name: clean });
         }
@@ -36,13 +36,13 @@ export const normalizeArtistList = (artists: any[] | undefined, albumName?: stri
           const parts = rawName.split(/\s*[/]\s*/).map((s: string) => s.trim()).filter(Boolean);
           for (const p of parts) {
             if (/^\d{4}$/.test(p) || /(plays|views)/i.test(p)) continue;
-            const clean = p.replace(/\s*[•·]\s*\d{4}\b.*$/g, '').replace(/\s*[\(\[]\s*\d{4}\s*[\)\]]$/g, '').trim();
+            const clean = p.replace(/\s*[•·]\s*\d{4}\b.*$/g, '').replace(/\s*[([]\s*\d{4}\s*[)\]]$/g, '').trim();
             if (clean && !/^\d{4}$/.test(clean)) {
               rawList.push({ name: clean, id: item.id });
             }
           }
         } else {
-          const clean = rawName.replace(/\s*[•·]\s*\d{4}\b.*$/g, '').replace(/\s*[\(\[]\s*\d{4}\s*[\)\]]$/g, '').trim();
+          const clean = rawName.replace(/\s*[•·]\s*\d{4}\b.*$/g, '').replace(/\s*[([]\s*\d{4}\s*[)\]]$/g, '').trim();
           if (clean && !/^\d{4}$/.test(clean)) {
             rawList.push({ ...item, name: clean });
           }
@@ -149,15 +149,48 @@ export const lrcTimeArray = ref<number[]>([]);
 export const nowTime = ref(0);
 export const allTime = ref(0);
 export const nowIndex = ref(0);
+export const smoothTrackTimeMs = ref(0);
 export const currentLrcProgress = ref(0);
 export const sound = ref<any>(null);
 export const isLyricWindowOpen = ref(false);
 export const textColors = ref<any>(getTextColors());
 
+export const supportAutoScroll = computed(() => {
+  if (!lrcArray.value || lrcArray.value.length === 0) return false;
+  return lrcArray.value.some((line) => line.startTime !== undefined && line.startTime !== -1);
+});
+
 export let playMusic: ComputedRef<SongResult>;
 export let artistList: ComputedRef<Artist[]>;
 
 let lastIndex = -1;
+let lastAudioTimeSec = 0;
+let lastAudioPerfTime = 0;
+let smoothRafId: number | null = null;
+
+export const updateSmoothProgress = () => {
+  if (typeof window === 'undefined') return;
+  const store = getPlayerStore();
+  const isPlaying = store ? Boolean(store.isPlay ?? store.play) : false;
+  if (isPlaying) {
+    const elapsedSec = (performance.now() - lastAudioPerfTime) / 1000;
+    const estTime = Math.max(0, lastAudioTimeSec + elapsedSec + correctionTime.value);
+    smoothTrackTimeMs.value = estTime * 1000;
+    smoothRafId = requestAnimationFrame(updateSmoothProgress);
+  } else {
+    smoothTrackTimeMs.value = Math.max(0, (nowTime.value + correctionTime.value) * 1000);
+    smoothRafId = null;
+  }
+};
+
+export const syncAudioTimestamp = (timeSecs: number) => {
+  lastAudioTimeSec = timeSecs;
+  lastAudioPerfTime = performance.now();
+  smoothTrackTimeMs.value = Math.max(0, (timeSecs + correctionTime.value) * 1000);
+  if (!smoothRafId && typeof window !== 'undefined') {
+    smoothRafId = requestAnimationFrame(updateSmoothProgress);
+  }
+};
 
 // Tauri has no synchronous IPC, so the platform is resolved once at startup.
 let cachedPlatform = 'web';
@@ -209,10 +242,14 @@ const setupKeyboardListeners = () => {
   document.addEventListener('keyup', handleKeyUp);
 };
 
+import { containsKana, romanizeJapaneseLine } from '@/utils/romanize/japaneseRomanizer';
+
 let audioListenersInitialized = false;
 
 export const processLyricsDualLanguage = (lines: ILyricText[]): ILyricText[] => {
   if (!lines || lines.length === 0) return [];
+  const hasJapanese = lines.some((l) => containsKana(l.text || ''));
+  const isCjkText = (t: string) => /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af]/.test(t || '');
   const result: ILyricText[] = [];
   for (let i = 0; i < lines.length; i++) {
     const curr = lines[i];
@@ -220,12 +257,24 @@ export const processLyricsDualLanguage = (lines: ILyricText[]): ILyricText[] => 
       const prev = result[result.length - 1];
       const prevTime = prev.startTime ?? 0;
       const currTime = curr.startTime ?? 0;
-      if (Math.abs(currTime - prevTime) <= 250 && !prev.trText && curr.text) {
+      if (
+        Math.abs(currTime - prevTime) <= 50 &&
+        !prev.trText &&
+        curr.text &&
+        ((isCjkText(prev.text) && !isCjkText(curr.text)) || (!isCjkText(prev.text) && isCjkText(curr.text)))
+      ) {
         prev.trText = curr.text;
         continue;
       }
     }
-    result.push({ ...curr });
+    const cloned = { ...curr };
+    if (hasJapanese && (!cloned.romaText || !cloned.romaText.trim()) && cloned.text && cloned.text !== '•••') {
+      const rom = romanizeJapaneseLine(cloned.text);
+      if (rom && rom !== cloned.text) {
+        cloned.romaText = rom;
+      }
+    }
+    result.push(cloned);
   }
   return result;
 };
@@ -236,8 +285,7 @@ export const insertPreambleIfNeeded = (lines: ILyricText[]): ILyricText[] => {
   const result: ILyricText[] = [];
   const first = lines[0];
   const firstTimeMs = first.startTime ?? 0;
-  // Intro preamble only if the first vocal line starts after at least 5.0 seconds
-  if (firstTimeMs >= 5000 && !first.isPreamble && first.text?.trim() !== '•••') {
+  if (firstTimeMs >= 4000 && !first.isPreamble && first.text?.trim() !== '•••') {
     result.push({
       text: '•••',
       trText: '',
@@ -249,12 +297,10 @@ export const insertPreambleIfNeeded = (lines: ILyricText[]): ILyricText[] => {
     });
   }
 
-  const MIN_INTERLUDE_GAP = 7000; // Genuine instrumental break (>= 7 seconds)
   for (let i = 0; i < lines.length; i++) {
     const curr = lines[i];
     const textTrimmed = curr.text ? curr.text.trim() : '';
 
-    // If this line already represents explicit instrumental dots or preamble
     if (curr.isPreamble || textTrimmed === '•••') {
       const duration = curr.duration ?? 0;
       if (duration >= 3000) {
@@ -268,14 +314,12 @@ export const insertPreambleIfNeeded = (lines: ILyricText[]): ILyricText[] => {
       continue;
     }
 
-    // Never convert a line that has words or lyrics into dots
     if (textTrimmed === '') {
       continue;
     }
 
     result.push(curr);
 
-    // Check gap to the next vocal line
     if (i < lines.length - 1) {
       const next = lines[i + 1];
       const nextTrimmed = next.text ? next.text.trim() : '';
@@ -283,47 +327,63 @@ export const insertPreambleIfNeeded = (lines: ILyricText[]): ILyricText[] => {
 
       const currStart = curr.startTime ?? 0;
       const nextStart = next.startTime ?? 0;
-      const totalGap = nextStart - currStart;
 
-      // Calculate actual end of vocals in the current line
       let vocalEnd = currStart;
       if (curr.words && curr.words.length > 0) {
         const lastWord = curr.words[curr.words.length - 1];
         const lastWordEnd = (lastWord.startTime ?? 0) + (lastWord.duration ?? 0);
         vocalEnd = Math.max(vocalEnd, lastWordEnd);
-      }
-      if (curr.duration && curr.duration > 0) {
+      } else if (curr.duration && curr.duration > 0) {
         vocalEnd = Math.max(vocalEnd, currStart + curr.duration);
+      } else {
+        const totalGap = nextStart - currStart;
+        const wordCount = (curr.text || '').trim().split(/\s+/).length;
+        const estimatedSungMs = Math.max(2200, Math.min(wordCount * 280 + 800, 5000));
+        vocalEnd = currStart + Math.min(estimatedSungMs, totalGap * 0.7);
       }
 
-      // If vocalEnd wasn't explicitly determined (e.g. standard line LRC without duration),
-      // we must give the singer enough time so dots never overlap their singing.
-      // An average sung line takes 3.5s - 4.5s.
-      if (vocalEnd <= currStart) {
-        vocalEnd = currStart + Math.min(Math.max(totalGap * 0.65, 3500), 5500);
+      const musicStart = vocalEnd + 200;
+      const musicEnd = nextStart;
+      const breakDuration = musicEnd - musicStart;
+      if (breakDuration >= 4500 && musicStart < musicEnd) {
+        result.push({
+          text: '•••',
+          trText: '',
+          romaText: '',
+          startTime: musicStart,
+          duration: breakDuration,
+          isPreamble: true,
+          hasWordByWord: false
+        });
+      }
+    } else {
+      const currStart = curr.startTime ?? 0;
+      let vocalEnd = currStart;
+      if (curr.words && curr.words.length > 0) {
+        const lastWord = curr.words[curr.words.length - 1];
+        const lastWordEnd = (lastWord.startTime ?? 0) + (lastWord.duration ?? 0);
+        vocalEnd = Math.max(vocalEnd, lastWordEnd);
+      } else if (curr.duration && curr.duration > 0) {
+        vocalEnd = Math.max(vocalEnd, currStart + curr.duration);
+      } else {
+        const wordCount = (curr.text || '').trim().split(/\s+/).length;
+        const estimatedSungMs = Math.max(2200, Math.min(wordCount * 280 + 800, 5000));
+        vocalEnd = currStart + estimatedSungMs;
       }
 
-      const breakDuration = nextStart - vocalEnd;
-
-      // Only insert interlude dots if there is a substantial instrumental gap (>= 7s)
-      // and ensure the dots start after the singer has finished with a safety buffer.
-      // In genuine Apple Music, dots appear as a lead-in / countdown (3-5s before the next line).
-      if (totalGap >= MIN_INTERLUDE_GAP && breakDuration >= 4000) {
-        const dotDuration = Math.min(breakDuration, 5000);
-        const dotStartTime = nextStart - dotDuration;
-
-        // Verify dots start strictly after the singer finished singing
-        if (dotStartTime >= vocalEnd) {
-          result.push({
-            text: '•••',
-            trText: '',
-            romaText: '',
-            startTime: dotStartTime,
-            duration: dotDuration,
-            isPreamble: true,
-            hasWordByWord: false
-          });
-        }
+      const totalMs = (allTime.value > 0 ? allTime.value : getExactSongDuration(getPlayerStore().playMusic)) * 1000;
+      const musicStart = vocalEnd + 200;
+      const breakDuration = totalMs - musicStart;
+      if (totalMs > 0 && breakDuration >= 4000) {
+        result.push({
+          text: '•••',
+          trText: '',
+          romaText: '',
+          startTime: musicStart,
+          duration: breakDuration,
+          isPreamble: true,
+          hasWordByWord: false
+        });
       }
     }
   }
@@ -397,6 +457,63 @@ export const ensureLyricsLoaded = async (force = false) => {
 
   try {
 
+  const attemptBackgroundKaraokeUpgrade = async () => {
+    if (!playMusic.value || playMusic.value.playMusicUrl?.startsWith('local://')) return;
+    try {
+      const title = playMusic.value.name || '';
+      const artist = playMusic.value.ar?.[0]?.name || playMusic.value.artists?.[0]?.name || '';
+      const videoId = playMusic.value.id;
+      const durationSec = playMusic.value.dt
+        ? playMusic.value.dt / 1000
+        : (playMusic.value.duration || undefined);
+      const config = readLyricConfig();
+      const preferredProvider = config.preferredLyricProvider || 'auto';
+      const fetchedLyrics = await window.api.fetchBestLyrics(title, artist, videoId, durationSec, preferredProvider);
+      if (fetchedLyrics?.lines?.some((l: any) => l.words && l.words.length > 0)) {
+        const rawLines = fetchedLyrics.lines.map((line: any) => ({
+          text: line.text,
+          trText: line.translation || line.trText || '',
+          romaText: line.romaji || line.romaText || '',
+          startTime: line.time,
+          hasWordByWord: Array.isArray(line.words) && line.words.length > 0,
+          words: Array.isArray(line.words)
+            ? line.words.map((w: any, wIdx: number) => {
+                const wordText = String(w.word || '');
+                const nextWord = line.words[wIdx + 1];
+                const nextText = nextWord ? String(nextWord.word || '') : '';
+                const hasTrailingSpace = wordText.endsWith(' ') || nextText.startsWith(' ');
+                const rawStart = Number(w.start) || 0;
+                const lineTime = Number(line.time) || 0;
+                const startTime = (rawStart < lineTime && rawStart < 60000 && lineTime > 5000)
+                  ? lineTime + rawStart
+                  : rawStart;
+                return {
+                  text: wordText.trim(),
+                  word: wordText.trim(),
+                  startTime,
+                  duration: Math.max(Number(w.duration) || 0, 50),
+                  space: hasTrailingSpace || (wIdx < line.words.length - 1 && !/[\u4e00-\u9fa5\u3040-\u30ff]/.test(wordText))
+                };
+              })
+            : undefined
+        }));
+        const dualUpgraded = processLyricsDualLanguage(rawLines);
+        const upgraded = insertPreambleIfNeeded(dualUpgraded);
+        lrcArray.value = upgraded;
+        lrcTimeArray.value = upgraded.map((l) => (l.startTime ?? 0) / 1000);
+        if (playMusic.value) {
+          (playMusic.value as any).lyric = {
+            lrcArray: upgraded,
+            lrcTimeArray: lrcTimeArray.value,
+            hasWordByWord: true
+          };
+        }
+      }
+    } catch (upgradeErr) {
+      console.warn('Background syllable upgrade check error:', upgradeErr);
+    }
+  };
+
   const lyricData = playMusic.value.lyric;
   if (lyricData && typeof lyricData === 'string') {
     const {
@@ -409,6 +526,9 @@ export const ensureLyricsLoaded = async (force = false) => {
 
     if (playMusic.value.lyric && typeof playMusic.value.lyric === 'object') {
       playMusic.value.lyric.hasWordByWord = hasWordByWord;
+    }
+    if (!hasWordByWord) {
+      void attemptBackgroundKaraokeUpgrade();
     }
   } else if (lyricData && typeof lyricData === 'object' && lyricData.lrcArray?.length > 0) {
     const rawLrc = lyricData.lrcArray || [];
@@ -424,6 +544,11 @@ export const ensureLyricsLoaded = async (force = false) => {
     const finalLines = insertPreambleIfNeeded(dual);
     lrcArray.value = finalLines;
     lrcTimeArray.value = finalLines.map((l) => (l.startTime ?? 0) / 1000);
+
+    const hasAnyWordSync = finalLines.some((l) => l.hasWordByWord && l.words && l.words.length > 0);
+    if (!hasAnyWordSync) {
+      void attemptBackgroundKaraokeUpgrade();
+    }
   } else if (playMusic.value.playMusicUrl?.startsWith('local://')) {
     try {
       let filePath = decodeURIComponent(playMusic.value.playMusicUrl.replace('local://', ''));
@@ -431,7 +556,9 @@ export const ensureLyricsLoaded = async (force = false) => {
       if (/^\/[a-zA-Z]:\//.test(filePath)) {
         filePath = filePath.slice(1);
       }
-      const embeddedLyrics = await window.api.getEmbeddedLyrics(filePath);
+      const embeddedLyrics = typeof (window.api as any)?.getEmbeddedLyrics === 'function'
+        ? await (window.api as any).getEmbeddedLyrics(filePath)
+        : null;
       if (embeddedLyrics) {
         const {
           lrcArray: parsedLrcArray,
@@ -474,11 +601,16 @@ export const ensureLyricsLoaded = async (force = false) => {
                       const nextWord = line.words[wIdx + 1];
                       const nextText = nextWord ? String(nextWord.word || '') : '';
                       const hasTrailingSpace = wordText.endsWith(' ') || nextText.startsWith(' ');
+                      const rawStart = Number(w.start) || 0;
+                      const lineTime = Number(line.time) || 0;
+                      const startTime = (rawStart < lineTime && rawStart < 60000 && lineTime > 5000)
+                        ? lineTime + rawStart
+                        : rawStart;
                       return {
                         text: wordText.trim(),
                         word: wordText.trim(),
-                        startTime: w.start,
-                        duration: w.duration,
+                        startTime,
+                        duration: Math.max(Number(w.duration) || 0, 50),
                         space: hasTrailingSpace || (wIdx < line.words.length - 1 && !/[\u4e00-\u9fa5\u3040-\u30ff]/.test(wordText))
                       };
                     })
@@ -488,6 +620,15 @@ export const ensureLyricsLoaded = async (force = false) => {
             const finalLines = insertPreambleIfNeeded(dual);
             lrcArray.value = finalLines;
             lrcTimeArray.value = finalLines.map((l) => (l.startTime ?? 0) / 1000);
+            
+            const anyWords = finalLines.some((l) => l.hasWordByWord && l.words && l.words.length > 0);
+            if (playMusic.value) {
+              (playMusic.value as any).lyric = {
+                lrcArray: finalLines,
+                lrcTimeArray: lrcTimeArray.value,
+                hasWordByWord: anyWords
+              };
+            }
             
             console.log(`Successfully loaded lyrics from provider: ${fetchedLyrics.provider} (synced: ${fetchedLyrics.is_synced})`);
         }
@@ -505,21 +646,115 @@ export const ensureLyricsLoaded = async (force = false) => {
   }
 };
 
+export const getExactSongDuration = (song: SongResult | null | undefined): number => {
+  if (!song) return 0;
+
+  const rawDuration = (song as any).duration;
+  if (typeof rawDuration === 'number' && !isNaN(rawDuration) && rawDuration > 0) {
+    return rawDuration > 1000 ? Math.round(rawDuration / 1000) : Math.round(rawDuration);
+  }
+  if (typeof rawDuration === 'string') {
+    const parsed = parseDurationToSeconds(rawDuration);
+    if (parsed && parsed > 0) return parsed;
+  }
+
+  const rawDt = song.dt ?? (song as any).durationMs;
+  if (typeof rawDt === 'number' && !isNaN(rawDt) && rawDt > 0) {
+    return rawDt > 1000 ? Math.round(rawDt / 1000) : Math.round(rawDt);
+  }
+  if (typeof rawDt === 'string') {
+    const parsed = parseDurationToSeconds(rawDt);
+    if (parsed && parsed > 0) return parsed;
+  }
+
+  const other =
+    (song as any).durationSeconds ??
+    (song as any).duration_seconds ??
+    (song as any).lengthSeconds ??
+    (song as any).length_seconds ??
+    (song as any).approxDurationMs ??
+    (song as any).time;
+  if (typeof other === 'number' && !isNaN(other) && other > 0) {
+    return other > 1000 ? Math.round(other / 1000) : Math.round(other);
+  }
+  if (typeof other === 'string') {
+    const parsed = parseDurationToSeconds(other);
+    if (parsed && parsed > 0) return parsed;
+  }
+
+  if (song.id && typeof window !== 'undefined') {
+    try {
+      const queueRaw = localStorage.getItem('queue-store');
+      if (queueRaw) {
+        const queueParsed = JSON.parse(queueRaw);
+        const items = queueParsed.queueItems || queueParsed.originalQueueItems;
+        if (Array.isArray(items)) {
+          const match = items.find((item: any) => String(item?.id) === String(song.id));
+          if (match) {
+            const mDur = (match as any).duration ?? match.dt;
+            if (typeof mDur === 'number' && mDur > 0) {
+              return mDur > 1000 ? Math.round(mDur / 1000) : Math.round(mDur);
+            }
+            if (typeof mDur === 'string') {
+              const parsed = parseDurationToSeconds(mDur);
+              if (parsed && parsed > 0) return parsed;
+            }
+          }
+        }
+      }
+    } catch {
+    }
+  }
+
+  if (song.id && typeof window !== 'undefined') {
+    try {
+      const saved = JSON.parse(localStorage.getItem('playProgress') || '{}');
+      if (saved.songId && String(saved.songId) === String(song.id) && saved.duration > 0) {
+        return Math.round(saved.duration);
+      }
+    } catch {
+    }
+  }
+
+  return 0;
+};
+
 const setupMusicWatchers = () => {
   const store = getPlayerStore();
 
   watch(
-    () => store.playMusic.id,
+    () => store.playMusic?.id,
     async (newId, oldId) => {
-      if (newId !== oldId) {
+      if (oldId !== undefined && newId !== oldId) {
         isLyricsLoading.value = true;
         lrcArray.value = [];
         lrcTimeArray.value = [];
-        nowTime.value = 0;
+        const targetSeek = (store.playMusic as any)?.seekTargetTime || 0;
+        nowTime.value = targetSeek;
+        syncAudioTimestamp(targetSeek);
         nowIndex.value = 0;
         lastIndex = -1;
       }
+      if (store.playMusic?.id) {
+        const dur = getExactSongDuration(store.playMusic);
+        allTime.value = dur > 0 ? dur : 0;
+      } else {
+        allTime.value = 0;
+      }
       await ensureLyricsLoaded(true);
+    },
+    { immediate: true }
+  );
+
+  watch(
+    [() => store.playMusic?.dt, () => (store.playMusic as any)?.duration],
+    () => {
+      if (store.playMusic?.id) {
+        const dur = getExactSongDuration(store.playMusic);
+        if (dur > 0) {
+          allTime.value = dur;
+        }
+      }
     },
     { immediate: true }
   );
@@ -546,8 +781,8 @@ const setupAudioListeners = () => {
 
   let interval: number | null = null;
   let recoveryTimer: number | null = null;
-  const lyricThrottleCounter = 0;
   let lastSavedProgress = 0;
+  let lyricLastSend = 0;
 
   const clearInterval = () => {
     if (interval) {
@@ -576,13 +811,27 @@ const setupAudioListeners = () => {
           return;
         }
 
+        if (audioService.isSeeking()) {
+          const target = audioService.getTargetSeekTime();
+          if (target !== null) {
+            if (Math.abs(currentTime - target) <= 1.2) {
+              audioService.clearSeeking();
+            } else {
+              return;
+            }
+          }
+        }
+
         nowTime.value = currentTime;
-        allTime.value = audioService.getDuration() || 0;
+        syncAudioTimestamp(currentTime);
+        const nativeDur = audioService.getDuration();
+        if (nativeDur && nativeDur > 0) {
+          allTime.value = nativeDur;
+        }
 
         if (
-          allTime.value > 5 &&
-          nowTime.value >= allTime.value - 0.4 &&
-          audioService.isActuallyPlaying()
+          allTime.value > 2 &&
+          nowTime.value >= allTime.value - 0.5
         ) {
           console.log('[MusicHook] Playback reached duration in progress interval, advancing to next song');
           audioService.triggerPlaybackEnded();
@@ -591,6 +840,12 @@ const setupAudioListeners = () => {
 
         const newIndex = getLrcIndex(nowTime.value);
         if (newIndex !== nowIndex.value) {
+          if (newIndex < nowIndex.value) {
+            const currentLineStart = lrcTimeArray.value[nowIndex.value] ?? 0;
+            if (nowTime.value >= currentLineStart - 0.25) {
+              return;
+            }
+          }
           nowIndex.value = newIndex;
           currentLrcProgress.value = 0;
           if (isLyricWindowOpen.value) {
@@ -612,16 +867,19 @@ const setupAudioListeners = () => {
           currentLrcProgress.value = Math.min(Math.max(progress, 0), 100);
         }
 
-        let lyricLastSend = 0;
         const now = Date.now();
         if (now - lyricLastSend >= 50) {
           try {
+            const currentLine = lrcArray.value[nowIndex.value];
             window.api.sendLyric(
               JSON.stringify({
                 type: 'update',
                 nowIndex: nowIndex.value,
                 nowTime: nowTime.value,
-                isPlay: getPlayerStore().play
+                isPlay: getPlayerStore().play,
+                text: currentLine?.text || '',
+                romaText: currentLine?.romaText || '',
+                trText: currentLine?.trText || ''
               })
             );
             lyricLastSend = now;
@@ -636,11 +894,14 @@ const setupAudioListeners = () => {
         ) {
           lastSavedProgress = currentTime;
           if (getPlayerStore().playMusic?.id) {
+            const currentDur =
+              allTime.value > 0 ? allTime.value : getExactSongDuration(getPlayerStore().playMusic);
             localStorage.setItem(
               'playProgress',
               JSON.stringify({
                 songId: getPlayerStore().playMusic.id,
-                progress: currentTime
+                progress: currentTime,
+                duration: currentDur > 0 ? currentDur : undefined
               })
             );
           }
@@ -670,22 +931,78 @@ const setupAudioListeners = () => {
 
   startRecoveryMonitor();
 
+  audioService.on('play', () => {
+    const store = getPlayerStore();
+    store.setIsPlay(true);
+    audioService.setBuffering(false);
+    audioService.setLoading(false);
+    const curr = store.playMusic;
+    if (curr) {
+      curr.playLoading = false;
+      const dur = audioService.getDuration();
+      if (dur && dur > 0) {
+        allTime.value = dur;
+        curr.dt = Math.round(dur * 1000);
+        (curr as any).duration = Math.round(dur);
+      }
+    }
+  });
+
+  audioService.on('pause', () => {
+    const store = getPlayerStore();
+    store.setIsPlay(false);
+  });
+
   audioService.on('timeupdate', (timeSecs: number) => {
     nowTime.value = timeSecs;
-    if (!allTime.value || allTime.value <= 0) {
-      allTime.value = audioService.getDuration() || 0;
+    syncAudioTimestamp(timeSecs);
+    const store = getPlayerStore();
+    if (!store.isPlay && audioService.isActuallyPlaying()) {
+      store.setIsPlay(true);
+    }
+    const dur = audioService.getDuration() || 0;
+    if (dur > 0) {
+      allTime.value = dur;
+    }
+    const curr = store.playMusic;
+    if (curr) {
+      if (dur > 0 && (!curr.dt || !curr.duration)) {
+        curr.dt = Math.round(dur * 1000);
+        (curr as any).duration = Math.round(dur);
+      }
+      if (curr.playLoading) {
+        curr.playLoading = false;
+      }
+    }
+  });
+
+  audioService.on('buffering', (isBuffering: boolean) => {
+    if (!isBuffering) {
+      const curr = getPlayerStore().playMusic;
+      if (curr && curr.playLoading) {
+        curr.playLoading = false;
+      }
     }
   });
 
   audioService.on('seek_start', (time: number) => {
     nowTime.value = time;
+    syncAudioTimestamp(time);
   });
 
   audioService.on('seek', async () => {
     try {
       const currentTime = await window.api.audioGetTime();
       if (typeof currentTime === 'number' && !Number.isNaN(currentTime)) {
+        if (audioService.isSeeking()) {
+          const target = audioService.getTargetSeekTime();
+          if (target !== null && Math.abs(currentTime - target) > 1.2) {
+            return;
+          }
+          audioService.clearSeeking();
+        }
         nowTime.value = currentTime;
+        syncAudioTimestamp(currentTime);
 
         if (lrcArray.value[nowIndex.value]) {
           if (lastIndex !== nowIndex.value) {
@@ -712,7 +1029,10 @@ const setupAudioListeners = () => {
       const currentTime = await window.api.audioGetTime();
       if (typeof currentTime === 'number' && !Number.isNaN(currentTime)) {
         nowTime.value = currentTime;
-        allTime.value = audioService.getDuration() || 0;
+        const dur = audioService.getDuration();
+        if (dur && dur > 0) {
+          allTime.value = dur;
+        }
       }
     } catch (error) {
       console.error('Initialization time and progress failed:', error);
@@ -724,6 +1044,9 @@ const setupAudioListeners = () => {
   audioService.on('play', () => {
     getPlayerStore().setPlayMusic(true);
     const curr = getPlayerStore().playMusic;
+    if (curr) {
+      curr.playLoading = false;
+    }
     window.api.sendSong({ ...cloneDeep(curr), is_playing: true });
     window.api.updatePlayState(true);
 
@@ -734,9 +1057,21 @@ const setupAudioListeners = () => {
   });
 
   audioService.on('pause', () => {
+    const curr = getPlayerStore().playMusic;
+    if (curr?.playLoading || audioService.isLoading() || audioService.isBuffering()) {
+      return;
+    }
     console.log('Audio pause event triggered');
     getPlayerStore().setPlayMusic(false);
-    const curr = getPlayerStore().playMusic;
+    if (curr?.id && nowTime.value > 0) {
+      localStorage.setItem(
+        'playProgress',
+        JSON.stringify({
+          songId: curr.id,
+          progress: nowTime.value
+        })
+      );
+    }
     window.api.sendSong({ ...cloneDeep(curr), is_playing: false });
     window.api.updatePlayState(false);
     clearInterval();
@@ -887,13 +1222,12 @@ export const getLrcIndex = (time: number): number => {
   }
 
   if (correctedTime < lrcTimeArray.value[0]) {
-    nowIndex.value = 0;
-    return 0;
+    const isPreamble = !!lrcArray.value[0]?.isPreamble;
+    return isPreamble ? 0 : -1;
   }
 
   const lastIndex = lrcTimeArray.value.length - 1;
   if (correctedTime >= lrcTimeArray.value[lastIndex]) {
-    nowIndex.value = lastIndex;
     return lastIndex;
   }
 
@@ -902,7 +1236,6 @@ export const getLrcIndex = (time: number): number => {
     const nextTime = lrcTimeArray.value[i + 1];
 
     if (correctedTime >= currentTime && correctedTime < nextTime) {
-      nowIndex.value = i;
       return i;
     }
   }
@@ -917,22 +1250,17 @@ const currentLrcTiming = computed(() => {
 });
 
 export const getLrcStyle = (index: number) => {
-  const currentTime = nowTime.value + correctionTime.value;
-  const start = lrcTimeArray.value[index];
-  const end = lrcTimeArray.value[index + 1] ?? start + 1;
-
-  if (currentTime >= start && currentTime < end) {
-    const progress = ((currentTime - start) / (end - start)) * 100;
+  if (index === nowIndex.value) {
     return {
-      backgroundImage: `linear-gradient(to right, #ffffff ${progress}%, #ffffff8a ${progress}%)`,
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      color: 'transparent',
-      transition: 'background-image 0.1s linear'
+      color: '#ffffff',
+      transition: 'color 0.25s ease'
     };
   }
 
-  return {};
+  return {
+    color: '#ffffff8a',
+    transition: 'color 0.25s ease'
+  };
 };
 
 export const useLyricProgress = () => {
@@ -1177,3 +1505,24 @@ const handleAudioReady = ((event: CustomEvent) => {
 
 window.removeEventListener('audio-ready', handleAudioReady);
 window.addEventListener('audio-ready', handleAudioReady);
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    try {
+      const store = getPlayerStore();
+      if (store?.playMusic?.id && nowTime.value > 0) {
+        const dur = allTime.value > 0 ? allTime.value : getExactSongDuration(store.playMusic);
+        localStorage.setItem(
+          'playProgress',
+          JSON.stringify({
+            songId: store.playMusic.id,
+            progress: nowTime.value,
+            duration: dur > 0 ? dur : undefined
+          })
+        );
+      }
+    } catch {
+      // ignore
+    }
+  });
+}

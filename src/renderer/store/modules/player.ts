@@ -22,6 +22,9 @@ export const usePlayerStore = defineStore('player', () => {
     playMusic,
     playMusicUrl,
     musicFull,
+    asideOpen,
+    asideTab,
+    lyricsDrawer,
     playbackRate,
     volume,
     isMuted,
@@ -35,8 +38,7 @@ export const usePlayerStore = defineStore('player', () => {
     playMode,
     repeatMode,
     shuffleEnabled,
-    originalQueueItems,
-    queueVisible
+    originalQueueItems
   } =
     storeToRefs(playlist);
 
@@ -99,7 +101,12 @@ export const usePlayerStore = defineStore('player', () => {
     repeatMode,
     shuffleEnabled,
     originalQueueItems,
-    queueVisible,
+
+    asideOpen,
+    asideTab,
+    setAsideOpen: playerCore.setAsideOpen,
+    setAsideTab: playerCore.setAsideTab,
+    toggleAside: playerCore.toggleAside,
 
     currentQueueItems,
     currentQueueIndex,
@@ -118,7 +125,43 @@ export const usePlayerStore = defineStore('player', () => {
     preloadNextSongs: playlist.preloadNextSongs,
     nextPlay: playlist.nextPlay,
     prevPlay: playlist.prevPlay,
-    setQueueVisible: playlist.setQueueVisible,
+    setQueueVisible: (visible: boolean) => {
+      playlist.setQueueVisible(visible);
+      if (visible) {
+        playerCore.setAsideTab('queue');
+        playerCore.setAsideOpen(true);
+      } else if (playerCore.asideTab === 'queue') {
+        playerCore.setAsideOpen(false);
+      }
+    },
+    queueVisible: computed({
+      get: () => playerCore.asideOpen && playerCore.asideTab === 'queue',
+      set: (val: boolean) => {
+        if (val) {
+          playerCore.setAsideTab('queue');
+          playerCore.setAsideOpen(true);
+        } else if (playerCore.asideTab === 'queue') {
+          playerCore.setAsideOpen(false);
+        }
+      }
+    }),
+    lyricsDrawer: computed({
+      get: () => playerCore.asideOpen && playerCore.asideTab === 'lyrics',
+      set: (val: boolean) => {
+        if (val) {
+          playerCore.setAsideTab('lyrics');
+          playerCore.setAsideOpen(true);
+        } else if (playerCore.asideTab === 'lyrics') {
+          playerCore.setAsideOpen(false);
+        }
+      }
+    }),
+    setLyricsDrawer: (visible: boolean) => {
+      playerCore.setLyricsDrawer(visible);
+    },
+    toggleLyricsDrawer: () => {
+      playerCore.toggleAside('lyrics');
+    },
     setPlay: playlist.setPlay,
 
     favoriteList,

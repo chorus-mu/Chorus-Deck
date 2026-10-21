@@ -82,6 +82,34 @@ const lightThemeOverrides = reactive<GlobalThemeOverrides>({
     borderRadiusLarge: '9999px',
     borderRadiusSmall: '9999px',
     borderRadiusTiny: '9999px'
+  },
+  Dropdown: {
+    color: 'rgba(255, 255, 255, 0.84)',
+    borderRadius: '10px',
+    padding: '4px',
+    optionHeightMedium: '28px',
+    optionColorHover: 'rgba(0, 0, 0, 0.06)',
+    optionColorActive: 'rgba(0, 0, 0, 0.1)',
+    optionTextColorHover: '#000000',
+    optionTextColor: '#1f2937',
+    dividerColor: 'rgba(0, 0, 0, 0.06)',
+    fontSizeMedium: '12.5px',
+    prefixSizeMedium: '14px',
+    suffixSizeMedium: '12px'
+  },
+  Select: {
+    peers: {
+      InternalSelectMenu: {
+        color: 'rgba(255, 255, 255, 0.86)',
+        borderRadius: '10px',
+        optionHeightMedium: '28px',
+        optionColorPending: 'rgba(0, 0, 0, 0.06)',
+        optionColorActive: 'rgba(0, 0, 0, 0.1)',
+        optionTextColor: '#1f2937',
+        actionDividerColor: 'rgba(0, 0, 0, 0.06)',
+        optionFontSizeMedium: '12.5px'
+      }
+    }
   }
 });
 
@@ -100,6 +128,34 @@ const darkThemeOverrides = reactive<GlobalThemeOverrides>({
     borderRadiusLarge: '9999px',
     borderRadiusSmall: '9999px',
     borderRadiusTiny: '9999px'
+  },
+  Dropdown: {
+    color: 'rgba(20, 20, 24, 0.72)',
+    borderRadius: '10px',
+    padding: '4px',
+    optionHeightMedium: '28px',
+    optionColorHover: 'rgba(255, 255, 255, 0.09)',
+    optionColorActive: 'rgba(255, 255, 255, 0.14)',
+    optionTextColorHover: '#ffffff',
+    optionTextColor: 'rgba(250, 250, 250, 0.88)',
+    dividerColor: 'rgba(255, 255, 255, 0.07)',
+    fontSizeMedium: '12.5px',
+    prefixSizeMedium: '14px',
+    suffixSizeMedium: '12px'
+  },
+  Select: {
+    peers: {
+      InternalSelectMenu: {
+        color: 'rgba(20, 20, 24, 0.76)',
+        borderRadius: '10px',
+        optionHeightMedium: '28px',
+        optionColorPending: 'rgba(255, 255, 255, 0.09)',
+        optionColorActive: 'rgba(255, 255, 255, 0.14)',
+        optionTextColor: 'rgba(250, 250, 250, 0.88)',
+        actionDividerColor: 'rgba(255, 255, 255, 0.07)',
+        optionFontSizeMedium: '12.5px'
+      }
+    }
   }
 });
 
@@ -173,213 +229,211 @@ onMounted(async () => {
   }
 
   try {
-
-  if (navigator.onLine === false && router.currentRoute.value.path === '/') {
-    router.replace('/local-music');
-  }
-
-  initMusicHook(playerStore);
-
-  const { setupUrlExpiredHandler, setupYTMusicPlayHandler } =
-    await import('@/services/playbackController');
-  setupUrlExpiredHandler();
-  setupYTMusicPlayHandler();
-
-  const applyThemeFromColor = (argb: number) => {
-    const m3Theme = themeFromSourceColor(argb);
-    const primaryLight = hexFromArgb(m3Theme.palettes.primary.tone(40));
-    const primaryDark = hexFromArgb(m3Theme.palettes.primary.tone(80));
-
-    lightThemeOverrides.common = {
-      primaryColor: primaryLight,
-      primaryColorHover: hexFromArgb(m3Theme.palettes.primary.tone(50)),
-      primaryColorPressed: hexFromArgb(m3Theme.palettes.primary.tone(30)),
-      primaryColorSuppl: hexFromArgb(m3Theme.palettes.primary.tone(60))
-    };
-
-    darkThemeOverrides.common = {
-      primaryColor: primaryDark,
-      primaryColorHover: hexFromArgb(m3Theme.palettes.primary.tone(90)),
-      primaryColorPressed: hexFromArgb(m3Theme.palettes.primary.tone(70)),
-      primaryColorSuppl: hexFromArgb(m3Theme.palettes.primary.tone(90))
-    };
-
-    const hexToRgb = (hex: string) => {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      return result
-        ? `${parseInt(result[1], 16)} ${parseInt(result[2], 16)} ${parseInt(result[3], 16)}`
-        : '0 0 0';
-    };
-
-    const primaryLightRgb = hexToRgb(primaryLight);
-    const primaryDarkRgb = hexToRgb(primaryDark);
-    const secondaryLight = hexFromArgb(m3Theme.palettes.secondary.tone(50));
-    const secondaryDark = hexFromArgb(m3Theme.palettes.secondary.tone(80));
-    const secondaryLightVariant1 = hexFromArgb(m3Theme.palettes.secondary.tone(60));
-    const secondaryLightVariant2 = hexFromArgb(m3Theme.palettes.secondary.tone(40));
-    const secondaryDarkVariant1 = hexFromArgb(m3Theme.palettes.secondary.tone(90));
-    const secondaryDarkVariant2 = hexFromArgb(m3Theme.palettes.secondary.tone(70));
-
-    const secondaryLightRgb = hexToRgb(secondaryLight);
-    const secondaryDarkRgb = hexToRgb(secondaryDark);
-    const secondaryLightVariant1Rgb = hexToRgb(secondaryLightVariant1);
-    const secondaryLightVariant2Rgb = hexToRgb(secondaryLightVariant2);
-    const secondaryDarkVariant1Rgb = hexToRgb(secondaryDarkVariant1);
-    const secondaryDarkVariant2Rgb = hexToRgb(secondaryDarkVariant2);
-
-    const applyColors = (isDark: boolean) => {
-      document.documentElement.style.setProperty(
-        '--color-primary',
-        isDark ? primaryDarkRgb : primaryLightRgb
-      );
-      document.documentElement.style.setProperty(
-        '--color-secondary',
-        isDark ? secondaryDarkRgb : secondaryLightRgb
-      );
-      document.documentElement.style.setProperty(
-        '--color-secondary-light',
-        isDark ? secondaryDarkVariant1Rgb : secondaryLightVariant1Rgb
-      );
-      document.documentElement.style.setProperty(
-        '--color-secondary-dark',
-        isDark ? secondaryDarkVariant2Rgb : secondaryLightVariant2Rgb
-      );
-
-      const surfaceDark = hexFromArgb(m3Theme.palettes.neutral.tone(10));
-      const canvasDark = hexFromArgb(m3Theme.palettes.neutral.tone(4));
-      const surfaceLight = hexFromArgb(m3Theme.palettes.neutral.tone(99));
-      const canvasLight = hexFromArgb(m3Theme.palettes.neutral.tone(94));
-
-      document.documentElement.style.setProperty(
-        '--shell-surface',
-        isDark ? surfaceDark : surfaceLight
-      );
-      document.documentElement.style.setProperty(
-        '--shell-canvas',
-        isDark ? canvasDark : canvasLight
-      );
-      document.documentElement.style.setProperty(
-        '--bg-color-100',
-        isDark ? surfaceDark : surfaceLight
-      );
-      document.documentElement.style.setProperty(
-        '--bg-color-200',
-        isDark ? canvasDark : canvasLight
-      );
-    };
-
-    applyColors(theme.value === 'dark');
-
-    window._applyColors = applyColors;
-    window._applyThemeFromColor = applyThemeFromColor;
-  };
-
-  if (!window._themeWatcherInitialized) {
-    watch(theme, (newTheme) => {
-      if (window._applyColors) {
-        window._applyColors(newTheme === 'dark');
-      }
-    });
-    window._themeWatcherInitialized = true;
-  }
-
-  const applySystemAccentColor = async () => {
-    try {
-      const brandColor = '#4f4f4f';
-      applyThemeFromColor(argbFromHex(brandColor));
-    } catch (e) {
-      console.error('Failed to apply brand color', e);
-      const brandColor = '#6366f1';
-      applyThemeFromColor(argbFromHex(brandColor));
+    if (navigator.onLine === false && router.currentRoute.value.path === '/') {
+      router.replace('/local-music');
     }
-  };
 
-  window._restoreTheme = () => {
-    if (playerStore.playMusic && playerStore.playMusic.id) {
-      // logic will re-trigger via watch when needed, or we just rely on song playing
-      const picUrl =
-        playerStore.playMusic.al?.picUrl ||
-        playerStore.playMusic.picUrl ||
-        playerStore.playMusic.coverImgUrl;
-      if (picUrl) {
-        loadImageSafe(getImgUrl(picUrl, '500y500'))
-          .then((img) => {
-            if (img) {
-              themeFromImage(img).then((m3Theme) => {
-                applyThemeFromColor(m3Theme.source);
-              });
-            } else {
-              applySystemAccentColor();
-            }
-          })
-          .catch(() => applySystemAccentColor());
-      } else {
-        applySystemAccentColor();
-      }
-    } else {
-      applySystemAccentColor();
+    initMusicHook(playerStore);
+
+    const { setupUrlExpiredHandler, setupYTMusicPlayHandler } =
+      await import('@/services/playbackController');
+    setupUrlExpiredHandler();
+    setupYTMusicPlayHandler();
+
+    const applyThemeFromColor = (argb: number) => {
+      const m3Theme = themeFromSourceColor(argb);
+      const primaryLight = hexFromArgb(m3Theme.palettes.primary.tone(40));
+      const primaryDark = hexFromArgb(m3Theme.palettes.primary.tone(80));
+
+      lightThemeOverrides.common = {
+        primaryColor: primaryLight,
+        primaryColorHover: hexFromArgb(m3Theme.palettes.primary.tone(50)),
+        primaryColorPressed: hexFromArgb(m3Theme.palettes.primary.tone(30)),
+        primaryColorSuppl: hexFromArgb(m3Theme.palettes.primary.tone(60))
+      };
+
+      darkThemeOverrides.common = {
+        primaryColor: primaryDark,
+        primaryColorHover: hexFromArgb(m3Theme.palettes.primary.tone(90)),
+        primaryColorPressed: hexFromArgb(m3Theme.palettes.primary.tone(70)),
+        primaryColorSuppl: hexFromArgb(m3Theme.palettes.primary.tone(90))
+      };
+
+      const hexToRgb = (hex: string) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result
+          ? `${parseInt(result[1], 16)} ${parseInt(result[2], 16)} ${parseInt(result[3], 16)}`
+          : '0 0 0';
+      };
+
+      const primaryLightRgb = hexToRgb(primaryLight);
+      const primaryDarkRgb = hexToRgb(primaryDark);
+      const secondaryLight = hexFromArgb(m3Theme.palettes.secondary.tone(50));
+      const secondaryDark = hexFromArgb(m3Theme.palettes.secondary.tone(80));
+      const secondaryLightVariant1 = hexFromArgb(m3Theme.palettes.secondary.tone(60));
+      const secondaryLightVariant2 = hexFromArgb(m3Theme.palettes.secondary.tone(40));
+      const secondaryDarkVariant1 = hexFromArgb(m3Theme.palettes.secondary.tone(90));
+      const secondaryDarkVariant2 = hexFromArgb(m3Theme.palettes.secondary.tone(70));
+
+      const secondaryLightRgb = hexToRgb(secondaryLight);
+      const secondaryDarkRgb = hexToRgb(secondaryDark);
+      const secondaryLightVariant1Rgb = hexToRgb(secondaryLightVariant1);
+      const secondaryLightVariant2Rgb = hexToRgb(secondaryLightVariant2);
+      const secondaryDarkVariant1Rgb = hexToRgb(secondaryDarkVariant1);
+      const secondaryDarkVariant2Rgb = hexToRgb(secondaryDarkVariant2);
+
+      const applyColors = (isDark: boolean) => {
+        document.documentElement.style.setProperty(
+          '--color-primary',
+          isDark ? primaryDarkRgb : primaryLightRgb
+        );
+        document.documentElement.style.setProperty(
+          '--color-secondary',
+          isDark ? secondaryDarkRgb : secondaryLightRgb
+        );
+        document.documentElement.style.setProperty(
+          '--color-secondary-light',
+          isDark ? secondaryDarkVariant1Rgb : secondaryLightVariant1Rgb
+        );
+        document.documentElement.style.setProperty(
+          '--color-secondary-dark',
+          isDark ? secondaryDarkVariant2Rgb : secondaryLightVariant2Rgb
+        );
+
+        const surfaceDark = hexFromArgb(m3Theme.palettes.neutral.tone(10));
+        const canvasDark = hexFromArgb(m3Theme.palettes.neutral.tone(4));
+        const surfaceLight = hexFromArgb(m3Theme.palettes.neutral.tone(99));
+        const canvasLight = hexFromArgb(m3Theme.palettes.neutral.tone(94));
+
+        document.documentElement.style.setProperty(
+          '--shell-surface',
+          isDark ? surfaceDark : surfaceLight
+        );
+        document.documentElement.style.setProperty(
+          '--shell-canvas',
+          isDark ? canvasDark : canvasLight
+        );
+        document.documentElement.style.setProperty(
+          '--bg-color-100',
+          isDark ? surfaceDark : surfaceLight
+        );
+        document.documentElement.style.setProperty(
+          '--bg-color-200',
+          isDark ? canvasDark : canvasLight
+        );
+      };
+
+      applyColors(theme.value === 'dark');
+
+      window._applyColors = applyColors;
+      window._applyThemeFromColor = applyThemeFromColor;
+    };
+
+    if (!window._themeWatcherInitialized) {
+      watch(theme, (newTheme) => {
+        if (window._applyColors) {
+          window._applyColors(newTheme === 'dark');
+        }
+      });
+      window._themeWatcherInitialized = true;
     }
-  };
 
-  applySystemAccentColor();
+    const applySystemAccentColor = async () => {
+      try {
+        const brandColor = '#4f4f4f';
+        applyThemeFromColor(argbFromHex(brandColor));
+      } catch (e) {
+        console.error('Failed to apply brand color', e);
+        const brandColor = '#6366f1';
+        applyThemeFromColor(argbFromHex(brandColor));
+      }
+    };
 
-  watch(
-    () => playerStore.playMusic,
-    async (newMusic) => {
-      if (newMusic) {
-        const picUrl = newMusic.al?.picUrl || newMusic.picUrl || newMusic.coverImgUrl;
+    window._restoreTheme = () => {
+      if (playerStore.playMusic && playerStore.playMusic.id) {
+        // logic will re-trigger via watch when needed, or we just rely on song playing
+        const picUrl =
+          playerStore.playMusic.al?.picUrl ||
+          playerStore.playMusic.picUrl ||
+          playerStore.playMusic.coverImgUrl;
         if (picUrl) {
-          try {
-            // Sized, and shared through the loader: the raw URL pulled the
-            // full-size original, a third request for art the preloader and the
-            // color sampler had already asked for at a different size.
-            const img = await loadImageSafe(getImgUrl(picUrl, '500y500'));
-            if (img) {
-              const m3Theme = await themeFromImage(img);
-              applyThemeFromColor(m3Theme.source);
-            } else {
-              applySystemAccentColor();
-            }
-          } catch (e) {
-            console.error('Failed to apply theme from image', e);
-            applySystemAccentColor();
-          }
+          loadImageSafe(getImgUrl(picUrl, '500y500'))
+            .then((img) => {
+              if (img) {
+                themeFromImage(img).then((m3Theme) => {
+                  applyThemeFromColor(m3Theme.source);
+                });
+              } else {
+                applySystemAccentColor();
+              }
+            })
+            .catch(() => applySystemAccentColor());
         } else {
           applySystemAccentColor();
         }
       } else {
         applySystemAccentColor();
       }
-    },
-    { deep: true }
-  );
+    };
 
-  await playerStore.initializePlayState();
+    applySystemAccentColor();
 
-  playerCoreStore.initAudioDeviceListener();
+    watch(
+      () => playerStore.playMusic,
+      async (newMusic) => {
+        if (newMusic) {
+          const picUrl = newMusic.al?.picUrl || newMusic.picUrl || newMusic.coverImgUrl;
+          if (picUrl) {
+            try {
+              // Sized, and shared through the loader: the raw URL pulled the
+              // full-size original, a third request for art the preloader and the
+              // color sampler had already asked for at a different size.
+              const img = await loadImageSafe(getImgUrl(picUrl, '500y500'));
+              if (img) {
+                const m3Theme = await themeFromImage(img);
+                applyThemeFromColor(m3Theme.source);
+              } else {
+                applySystemAccentColor();
+              }
+            } catch (e) {
+              console.error('Failed to apply theme from image', e);
+              applySystemAccentColor();
+            }
+          } else {
+            applySystemAccentColor();
+          }
+        } else {
+          applySystemAccentColor();
+        }
+      },
+      { deep: true }
+    );
 
-  if (playerStore.playMusic && playerStore.playMusic.id) {
-    await nextTick();
-    initAudioListeners();
-    if (window.api && window.api.sendSong) {
-      window.api.sendSong({ ...cloneDeep(playerStore.playMusic), is_playing: false });
+    await playerStore.initializePlayState();
+
+    playerCoreStore.initAudioDeviceListener();
+
+    if (playerStore.playMusic && playerStore.playMusic.id) {
+      await nextTick();
+      initAudioListeners();
+      if (window.api && window.api.sendSong) {
+        window.api.sendSong({ ...cloneDeep(playerStore.playMusic), is_playing: false });
+      }
+      if (window.api && window.api.updatePlayState) {
+        window.api.updatePlayState(false);
+      }
     }
-    if (window.api && window.api.updatePlayState) {
-      window.api.updatePlayState(false);
+
+    audioService.releaseOperationLock();
+
+    if (playerStore.playMusic && playerStore.playMusic.id) {
+      const { useLocalMusicStore } = await import('@/store/modules/localMusic');
+      const localMusicStore = useLocalMusicStore();
+      await localMusicStore.loadFromCache();
+      localMusicStore.scanFolders().catch((error) => {
+        console.error('[App] Automatic scanning of local music failed at startup:', error);
+      });
     }
-  }
-
-  audioService.releaseOperationLock();
-
-  if (playerStore.playMusic && playerStore.playMusic.id) {
-    const { useLocalMusicStore } = await import('@/store/modules/localMusic');
-    const localMusicStore = useLocalMusicStore();
-    await localMusicStore.loadFromCache();
-    localMusicStore.scanFolders().catch((error) => {
-      console.error('[App] Automatic scanning of local music failed at startup:', error);
-    });
-  }
-
   } catch (err) {
     console.error('[App] Startup initialization error:', err);
   } finally {

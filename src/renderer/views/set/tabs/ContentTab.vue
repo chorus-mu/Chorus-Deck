@@ -11,41 +11,6 @@
         width="w-40 max-md:w-full"
       />
     </setting-item>
-
-    <setting-item v-if="isDesktop()" icon="ri-download-cloud-2-line" title="Download Management">
-      <template #description>
-        <n-switch v-model:value="setData.alwaysShowDownloadButton" class="mr-2">
-          <template #checked>Show</template>
-          <template #unchecked>Hide</template>
-        </n-switch>
-        Always show download list button
-      </template>
-      <s-btn @click="router.push('/downloads')"> Download Management </s-btn>
-    </setting-item>
-
-    <setting-item icon="ri-infinity-line" title="Unlimited Download">
-      <template #description>
-        <n-switch v-model:value="setData.unlimitedDownload" class="mr-2">
-          <template #checked>On</template>
-          <template #unchecked>Off</template>
-        </n-switch>
-        Enable unlimited download mode for music , default limit 300 songs
-      </template>
-    </setting-item>
-
-    <setting-item icon="ri-folder-download-line" title="Download Directory">
-      <template #description>
-        <span class="break-all">{{
-          setData.downloadPath || 'Choose download location for music files'
-        }}</span>
-      </template>
-      <template #action>
-        <div class="flex items-center gap-2">
-          <s-btn @click="openDownloadPath">Open</s-btn>
-          <s-btn @click="selectDownloadPath">Modify</s-btn>
-        </div>
-      </template>
-    </setting-item>
   </setting-section>
 
   <setting-section title="General Content Settings">
@@ -196,19 +161,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, inject } from 'vue';
 
 import { isDesktop } from '@/utils';
-import { openDirectory, selectDirectory } from '@/utils/fileOperation';
 
 import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
-import SBtn from '../SBtn.vue';
 import SettingItem from '../SettingItem.vue';
 import SettingSection from '../SettingSection.vue';
 import SSelect from '../SSelect.vue';
 
-const router = useRouter();
 const setData = inject(SETTINGS_DATA_KEY)!;
 const message = inject(SETTINGS_MESSAGE_KEY)!;
 
@@ -227,15 +188,4 @@ const ipVersionOptions = computed(() => [
   { label: 'IPv4', value: 'IPV4' },
   { label: 'IPv6', value: 'IPV6' }
 ]);
-
-const selectDownloadPath = async () => {
-  const path = await selectDirectory(message);
-  if (path) {
-    setData.value = { ...setData.value, downloadPath: path };
-  }
-};
-
-const openDownloadPath = () => {
-  openDirectory(setData.value.downloadPath, message);
-};
 </script>

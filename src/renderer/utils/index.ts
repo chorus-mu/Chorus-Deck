@@ -56,6 +56,29 @@ export const secondToMinute = (s: number) => {
   return `${pad(minute)}:${pad(second)}`;
 };
 
+export const parseDurationToSeconds = (dur?: string | number): number | undefined => {
+  if (!dur) return undefined;
+  if (typeof dur === 'number') {
+    return dur > 1000 ? Math.round(dur / 1000) : Math.round(dur);
+  }
+  if (typeof dur === 'string') {
+    if (dur.includes(':')) {
+      const parts = dur.split(':').map((p) => parseInt(p, 10));
+      if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        return parts[0] * 60 + parts[1];
+      }
+      if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+    }
+    const parsed = Number(dur);
+    if (!isNaN(parsed) && parsed > 0) {
+      return parsed > 1000 ? Math.round(parsed / 1000) : Math.round(parsed);
+    }
+  }
+  return undefined;
+};
+
 const units = [
   { value: 1e8, symbol: '100 million' },
   { value: 1e4, symbol: 'Ten thousand' }
@@ -78,8 +101,7 @@ export const isCompact = computed(() => {
   return settingsStore.isCompact;
 });
 
-export const isDesktop = (): boolean =>
-  typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
+export { isDesktop } from './env';
 
 export const isDynamicIslandWindow = computed(() => {
   return typeof window !== 'undefined' && window.location.hash.includes('dynamic-island');

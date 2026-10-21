@@ -19,7 +19,7 @@
           <span v-if="(playerStore.playMusic as any)?.qualityBadge" class="simple-lossless-badge">
             {{ (playerStore.playMusic as any).qualityBadge }}
           </span>
-          <span class="total-time">{{ formatTime(allTime) }}</span>
+          <span class="total-time">{{ formatTime(effectiveTotalTime) }}</span>
         </div>
       </div>
 
@@ -101,7 +101,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 
 import AnimatedPlayPause from '@/components/player/AnimatedPlayPause.vue';
-import { allTime, nowTime } from '@/hooks/MusicHook';
+import { allTime, getExactSongDuration, nowTime } from '@/hooks/MusicHook';
 import { usePlaybackControl } from '@/hooks/usePlaybackControl';
 import { usePlayMode } from '@/hooks/usePlayMode';
 import { useVolumeControl } from '@/hooks/useVolumeControl';
@@ -136,19 +136,26 @@ const {
 const isDragging = ref(false);
 const dragProgress = ref(0);
 
+const effectiveTotalTime = computed(() => {
+  const metaDur = getExactSongDuration(playerStore.playMusic);
+  if (metaDur > 0) return metaDur;
+  if (allTime.value > 0) return allTime.value;
+  return 0;
+});
+
 const progressPercentage = computed(() => {
   if (isDragging.value) {
     return dragProgress.value;
   }
-  if (allTime.value === 0) {
+  if (effectiveTotalTime.value === 0) {
     return isBuffering.value ? 100 : 0;
   }
-  return (nowTime.value / allTime.value) * 100;
+  return (nowTime.value / effectiveTotalTime.value) * 100;
 });
 
 const displayTime = computed(() => {
   if (isDragging.value) {
-    return (dragProgress.value / 100) * allTime.value;
+    return (dragProgress.value / 100) * effectiveTotalTime.value;
   }
   return nowTime.value;
 });
@@ -159,7 +166,7 @@ let seekTimeout: any = null;
 
 watch(nowTime, (newTime) => {
   if (isSeeking.value && targetSeekTime.value !== null) {
-    if (Math.abs(newTime - targetSeekTime.value) <= 0.8) {
+    if (Math.abs(newTime - targetSeekTime.value) <= 1.0) {
       isSeeking.value = false;
       targetSeekTime.value = null;
       if (seekTimeout) {
@@ -172,15 +179,18 @@ watch(nowTime, (newTime) => {
 
 const hasSong = computed(() => {
   const m = playerStore.playMusic;
-  return Boolean(m && (m.id !== undefined && m.id !== null && m.id !== '') && (m.name || m.title));
+  return Boolean(
+    m && m.id !== undefined && m.id !== null && m.id !== '' && (m.name || (m as any).title)
+  );
 });
 
 const isBuffering = computed(() => {
   if (!hasSong.value) return false;
   if (isSeeking.value) return true;
-  if (audioService.isBuffering() || Boolean(playerStore.playMusic?.playLoading)) return true;
-  if (!audioService.isActuallyPlaying() && Boolean(playerStore.play)) return true;
-  return false;
+  if (audioService.isActuallyPlaying() || nowTime.value > 0.05) {
+    return audioService.isBuffering();
+  }
+  return Boolean(playerStore.playMusic?.playLoading) || audioService.isLoading() || audioService.isBuffering();
 });
 
 const calculateProgress = (clientX: number, element: HTMLElement): number => {
@@ -190,7 +200,7 @@ const calculateProgress = (clientX: number, element: HTMLElement): number => {
 };
 
 const seekToProgress = (percentage: number) => {
-  const targetTime = (percentage / 100) * allTime.value;
+  const targetTime = (percentage / 100) * effectiveTotalTime.value;
   isSeeking.value = true;
   targetSeekTime.value = targetTime;
   if (seekTimeout) clearTimeout(seekTimeout);
@@ -199,7 +209,7 @@ const seekToProgress = (percentage: number) => {
   seekTimeout = setTimeout(() => {
     isSeeking.value = false;
     targetSeekTime.value = null;
-  }, 1500);
+  }, 1200);
 };
 
 const handleProgressMouseDown = (e: MouseEvent) => {
@@ -315,12 +325,17 @@ watch(
   (newVal) => {
     if (newVal) {
       applyThemeColor(newVal);
+      document.documentElement.style.setProperty('--current-album-color', newVal);
     }
   }
 );
 
 onMounted(() => {
   if (playerStore.playMusic?.primaryColor) {
+    document.documentElement.style.setProperty(
+      '--current-album-color',
+      playerStore.playMusic.primaryColor as string
+    );
     setTimeout(() => {
       applyThemeColor(playerStore.playMusic.primaryColor as string);
     }, 50);
@@ -490,7 +505,8 @@ onMounted(() => {
   }
 
   @keyframes simple-buffer-pulse {
-    0%, 100% {
+    0%,
+    100% {
       opacity: 0.95;
     }
     50% {
@@ -513,9 +529,16 @@ onMounted(() => {
       text-transform: uppercase;
       line-height: 1;
       color: var(--fill-color, var(--text-color, #ffffff)) !important;
-      background: color-mix(in srgb, var(--fill-color, #ffffff) 18%, rgba(255, 255, 255, 0.08)) !important;
-      border: 1px solid color-mix(in srgb, var(--fill-color, #ffffff) 45%, rgba(255, 255, 255, 0.25)) !important;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2), 0 0 12px var(--fill-color-transparent, rgba(255, 255, 255, 0.15));
+      background: color-mix(
+        in srgb,
+        var(--fill-color, #ffffff) 18%,
+        rgba(255, 255, 255, 0.08)
+      ) !important;
+      border: 1px solid
+        color-mix(in srgb, var(--fill-color, #ffffff) 45%, rgba(255, 255, 255, 0.25)) !important;
+      box-shadow:
+        0 2px 10px rgba(0, 0, 0, 0.2),
+        0 0 12px var(--fill-color-transparent, rgba(255, 255, 255, 0.15));
       backdrop-filter: blur(10px);
     }
 

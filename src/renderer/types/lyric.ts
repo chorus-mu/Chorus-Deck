@@ -1,23 +1,9 @@
-export type LyricGranularity = 'auto' | 'sentence' | 'word' | 'syllable';
+export type LyricGranularity = 'karaoke' | 'phrase';
 
-export type LyricAnimationStyle =
-  | 'apple_spring'
-  | 'smooth_fluid'
-  | 'bouncy_pop'
-  | 'carousel_3d'
-  | 'cyberpunk_glow'
-  | 'kinetic_slant'
-  | 'minimal_fade'
-  | 'chorusmusic_1';
+export type LyricAnimationStyle = 'fluid_motion' | 'chorus_bouncy';
 
 export type LyricProviderPreference =
-  | 'auto'
-  | 'betterlyrics'
-  | 'youlyplus'
-  | 'lrclib'
-  | 'kugou'
-  | 'paxsenix'
-  | 'simpmusic';
+  'auto' | 'betterlyrics' | 'youlyplus' | 'lrclib' | 'kugou' | 'paxsenix' | 'simpmusic';
 
 export interface LyricConfig {
   hideCover: boolean;
@@ -46,6 +32,13 @@ export interface LyricConfig {
   lyricsGlowEffect?: boolean;
   appleMusicLyricsBlur?: boolean;
 
+  fluidSweepStretch?: number;
+  fluidSweepLeast?: number;
+  fluidFeatherWidth?: number;
+  fluidScriptAware?: boolean;
+  fluidLandingSoftness?: number;
+  fluidActiveGrowth?: number;
+
   compactLayout: 'default' | 'ios' | 'android';
   compactCoverStyle: 'record' | 'square' | 'full';
   compactShowLyricLines: number;
@@ -66,10 +59,10 @@ export interface LyricConfig {
 export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   hideCover: false,
   centerLyrics: false,
-  fontSize: 22,
+  fontSize: 34,
   letterSpacing: 0,
-  fontWeight: 700,
-  lineHeight: 2,
+  fontWeight: 800,
+  lineHeight: 1.35,
   showTranslation: true,
   showRoma: true,
   theme: 'default',
@@ -77,20 +70,27 @@ export const DEFAULT_LYRIC_CONFIG: LyricConfig = {
   pureModeEnabled: false,
   featherEdge: true,
   hideLyrics: false,
-  focusCurrentLyric: false,
-  contentWidth: 75,
+  focusCurrentLyric: true,
+  contentWidth: 100,
 
   lyricsTextPosition: 'LEFT',
-  lyricsAnimationStyle: 'apple_spring',
-  lyricGranularity: 'auto',
+  lyricsAnimationStyle: 'fluid_motion',
+  lyricGranularity: 'karaoke',
   preferredLyricProvider: 'auto',
   lyricsClick: true,
   lyricsScroll: true,
   lyricsGlowEffect: true,
   appleMusicLyricsBlur: true,
 
+  fluidSweepStretch: 1.4,
+  fluidSweepLeast: 180,
+  fluidFeatherWidth: 12,
+  fluidScriptAware: true,
+  fluidLandingSoftness: 0.2,
+  fluidActiveGrowth: 1.05,
+
   compactLayout: 'ios',
-  compactCoverStyle: 'full',
+  compactCoverStyle: 'square',
   compactShowLyricLines: 3,
 
   translationEngine: 'none',

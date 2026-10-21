@@ -34,6 +34,14 @@ const parseDuration = (duration: string): number => {
   return (parts[0] || 0) * 1000;
 };
 
+export interface QueueOrigin {
+  title?: string;
+  name?: string;
+  type?: 'album' | 'playlist' | 'artist' | 'radio' | 'library' | 'local';
+  id?: string | number;
+  path?: string;
+}
+
 export const useQueueStore = defineStore(
   'queue',
   () => {
@@ -43,6 +51,10 @@ export const useQueueStore = defineStore(
     const shuffleEnabled = ref(false);
     const originalQueueItems = shallowRef<SongResult[]>([]);
     const queueVisible = ref(false);
+    const queueOrigin = ref<QueueOrigin | null>(null);
+    const manualQueueIds = ref<Array<string | number>>([]);
+    const hasReordered = ref(false);
+    const initialQueueItems = shallowRef<SongResult[]>([]);
     const playMode = computed(() => {
       if (shuffleEnabled.value) return 2;
       return repeatMode.value === 2 ? 1 : 0;
@@ -340,10 +352,17 @@ export const useQueueStore = defineStore(
       const insertIndex = queueIndex.value + 1;
       list.splice(insertIndex, 0, song);
 
+      if (song.id && !manualQueueIds.value.includes(song.id)) {
+        manualQueueIds.value.push(song.id);
+      }
+
       setQueue(list, true, true);
     };
 
     const addToQueue = (song: SongResult) => {
+      if (song.id && !manualQueueIds.value.includes(song.id)) {
+        manualQueueIds.value.push(song.id);
+      }
       setQueue([...queueItems.value, song], true, true);
     };
 
@@ -356,6 +375,11 @@ export const useQueueStore = defineStore(
         toIndex >= queueItems.value.length
       ) {
         return;
+      }
+
+      if (!hasReordered.value) {
+        initialQueueItems.value = [...queueItems.value];
+        hasReordered.value = true;
       }
 
       const list = [...queueItems.value];
@@ -381,6 +405,27 @@ export const useQueueStore = defineStore(
       }
 
       queueItems.value = list;
+    };
+
+    const resetQueueOrder = () => {
+      if (initialQueueItems.value.length > 0) {
+        setQueue([...initialQueueItems.value], true, true);
+        hasReordered.value = false;
+        initialQueueItems.value = [];
+      }
+    };
+
+    const clearUpcoming = () => {
+      if (queueIndex.value >= queueItems.value.length - 1) return;
+      const kept = queueItems.value.slice(0, queueIndex.value + 1);
+      setQueue(kept, true, true);
+      manualQueueIds.value = [];
+      hasReordered.value = false;
+      initialQueueItems.value = [];
+    };
+
+    const setQueueOrigin = (origin: QueueOrigin | null) => {
+      queueOrigin.value = origin;
     };
 
     const removeFromQueue = (id: number | string) => {
@@ -436,11 +481,20 @@ export const useQueueStore = defineStore(
     };
 
     let nextPlayRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let skipDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastSkipTimestamp = 0;
 
     const cancelRetryTimer = () => {
       if (nextPlayRetryTimer) {
         clearTimeout(nextPlayRetryTimer);
         nextPlayRetryTimer = null;
+      }
+    };
+
+    const cancelSkipDebounce = () => {
+      if (skipDebounceTimer) {
+        clearTimeout(skipDebounceTimer);
+        skipDebounceTimer = null;
       }
     };
 
@@ -469,7 +523,10 @@ export const useQueueStore = defineStore(
           return;
         }
 
-        // Align baseIndex with currently playing song if possible to avoid index drift
+        if (!autoEnd) {
+          audioService.forceResetOperationLock();
+        }
+
         const currentSongId = playerCore.playMusic?.id;
         let baseIndex = queueIndex.value;
         if (currentSongId !== undefined && currentSongId !== null) {
@@ -508,41 +565,87 @@ export const useQueueStore = defineStore(
         );
 
         queueIndex.value = nowQueueIndex;
-
-        const { playTrack } = await import('@/services/playbackController');
-        const success = await playTrack(nextSong, true);
-
-        if (String(playerCore.playMusic?.id) !== String(nextSong.id)) {
-          console.log('[nextPlay] Replaced by new operation, exit silently');
-          return;
+        playerCore.playMusic = { ...nextSong, playLoading: !autoEnd };
+        if (!autoEnd) {
+          playerCore.isPlay = false;
+          audioService.setLoading(true);
+          audioService.setBuffering(true);
+        } else {
+          playerCore.play = true;
+          playerCore.userPlayIntent = true;
         }
 
-        if (success) {
-          consecutiveFailCount.value = 0;
-          console.log(`[nextPlay] Play successfully, index: ${nowQueueIndex}`);
-          sleepTimerStore.handleSongChange();
-        } else {
-          consecutiveFailCount.value++;
-          console.log(
-            `[nextPlay] Playback fails, skips directly, fails continuously: ${consecutiveFailCount.value}/${MAX_CONSECUTIVE_FAILS}`
+        try {
+          const { nowTime, allTime, smoothTrackTimeMs, getExactSongDuration } = await import(
+            '@/hooks/MusicHook'
           );
-          if (queueItems.value.length > 1) {
-            queueIndex.value = nowQueueIndex;
-            nextPlayRetryTimer = setTimeout(() => {
-              nextPlayRetryTimer = null;
-              _nextPlay(false, true);
-            }, 500);
-          } else {
-            getMessage().error('Play Failed, Play Next Song');
-            playerCore.setIsPlay(false);
+          const songDur = getExactSongDuration(nextSong);
+          if (songDur > 0) {
+            allTime.value = songDur;
+            (nextSong as any).duration = songDur;
           }
+          nowTime.value = 0;
+          smoothTrackTimeMs.value = 0;
+        } catch {
+          // non-critical
+        }
+
+        const executePlay = async () => {
+          if (String(playerCore.playMusic?.id) !== String(nextSong.id)) {
+            console.log('[nextPlay] Replaced by newer skip before playback, exit silently');
+            return;
+          }
+
+          const { playTrack } = await import('@/services/playbackController');
+          const success = await playTrack(nextSong, true, autoEnd);
+
+          if (String(playerCore.playMusic?.id) !== String(nextSong.id)) {
+            console.log('[nextPlay] Replaced by new operation, exit silently');
+            return;
+          }
+
+          if (success) {
+            consecutiveFailCount.value = 0;
+            console.log(`[nextPlay] Play successfully, index: ${nowQueueIndex}`);
+            sleepTimerStore.handleSongChange();
+          } else {
+            consecutiveFailCount.value++;
+            console.log(
+              `[nextPlay] Playback fails, skips directly, fails continuously: ${consecutiveFailCount.value}/${MAX_CONSECUTIVE_FAILS}`
+            );
+            if (queueItems.value.length > 1) {
+              queueIndex.value = nowQueueIndex;
+              nextPlayRetryTimer = setTimeout(() => {
+                nextPlayRetryTimer = null;
+                _nextPlay(false, true);
+              }, 500);
+            } else {
+              getMessage().error('Play Failed, Play Next Song');
+              playerCore.setIsPlay(false);
+            }
+          }
+        };
+
+        const now = Date.now();
+        const isRapidBurst = !autoEnd && !fromFailover && (now - lastSkipTimestamp < 350);
+        lastSkipTimestamp = now;
+
+        cancelSkipDebounce();
+
+        if (isRapidBurst) {
+          skipDebounceTimer = setTimeout(() => {
+            skipDebounceTimer = null;
+            void executePlay();
+          }, 180);
+        } else {
+          await executePlay();
         }
       } catch (error) {
         console.error('Error switching to next song:', error);
       }
     };
 
-    const nextPlay = useThrottleFn(_nextPlay, 300);
+    const nextPlay = useThrottleFn(_nextPlay, 50);
 
     let isAdvancingOnEnd = false;
     let lastEndTimestamp = 0;
@@ -609,6 +712,8 @@ export const useQueueStore = defineStore(
           }
         }
 
+        audioService.forceResetOperationLock();
+
         const nowQueueIndex =
           (baseIndex - 1 + queueItems.value.length) % queueItems.value.length;
         const prevSong = { ...queueItems.value[nowQueueIndex] };
@@ -617,23 +722,70 @@ export const useQueueStore = defineStore(
           `[prevPlay] ${prevSong.name}, baseIndex: ${baseIndex} -> ${nowQueueIndex}`
         );
 
-        const { playTrack } = await import('@/services/playbackController');
-        const success = await playTrack(prevSong);
+        queueIndex.value = nowQueueIndex;
+        playerCore.playMusic = { ...prevSong, playLoading: true };
+        playerCore.isPlay = false;
+        audioService.setLoading(true);
+        audioService.setBuffering(true);
 
-        if (success) {
-          queueIndex.value = nowQueueIndex;
-          console.log(`[prevPlay] Play successfully, index: ${nowQueueIndex}`);
-          preloadNextSongs(nowQueueIndex);
-        } else if (String(playerCore.playMusic?.id) === String(prevSong.id)) {
-          playerCore.setIsPlay(false);
-          getMessage().error('Play Failed, Play Next Song');
+        try {
+          const { nowTime, allTime, smoothTrackTimeMs, getExactSongDuration } = await import(
+            '@/hooks/MusicHook'
+          );
+          const songDur = getExactSongDuration(prevSong);
+          if (songDur > 0) {
+            allTime.value = songDur;
+            (prevSong as any).duration = songDur;
+          }
+          nowTime.value = 0;
+          smoothTrackTimeMs.value = 0;
+        } catch {
+          // non-critical
+        }
+
+        const executePrevPlay = async () => {
+          if (String(playerCore.playMusic?.id) !== String(prevSong.id)) {
+            console.log('[prevPlay] Replaced by newer skip before playback, exit silently');
+            return;
+          }
+
+          const { playTrack } = await import('@/services/playbackController');
+          const success = await playTrack(prevSong);
+
+          if (String(playerCore.playMusic?.id) !== String(prevSong.id)) {
+            console.log('[prevPlay] Replaced by new operation, exit silently');
+            return;
+          }
+
+          if (success) {
+            console.log(`[prevPlay] Play successfully, index: ${nowQueueIndex}`);
+            preloadNextSongs(nowQueueIndex);
+          } else {
+            playerCore.setIsPlay(false);
+            getMessage().error('Play Failed, Play Next Song');
+          }
+        };
+
+        const now = Date.now();
+        const isRapidBurst = now - lastSkipTimestamp < 350;
+        lastSkipTimestamp = now;
+
+        cancelSkipDebounce();
+
+        if (isRapidBurst) {
+          skipDebounceTimer = setTimeout(() => {
+            skipDebounceTimer = null;
+            void executePrevPlay();
+          }, 180);
+        } else {
+          await executePrevPlay();
         }
       } catch (error) {
         console.error('Error switching to previous song:', error);
       }
     };
 
-    const prevPlay = useThrottleFn(_prevPlay, 250);
+    const prevPlay = useThrottleFn(_prevPlay, 50);
 
     const setQueueVisible = (value: boolean) => {
       queueVisible.value = value;
@@ -661,27 +813,43 @@ export const useQueueStore = defineStore(
             await audioService.pause();
             playerCore.userPlayIntent = false;
           } else {
-            playerCore.setPlayMusic(true);
+            if (audioService.isActuallyPlaying() || (audioService.getCurrentTrack() && String(audioService.getCurrentTrack()?.id) === String(song.id))) {
+              try {
+                const duration = await window.api.audioGetDuration();
+                if (duration === null) throw new Error("Native player is not running");
+                playerCore.setPlayMusic(true);
+                playerCore.userPlayIntent = true;
+                await audioService.resume();
+                return;
+              } catch {}
+            }
+
+            if (playerCore.playMusic) {
+              playerCore.playMusic.playLoading = true;
+            }
+            playerCore.play = true;
+            playerCore.isPlay = false;
             playerCore.userPlayIntent = true;
-            try {
-              const duration = await window.api.audioGetDuration();
-              if (duration === null) throw new Error("Native player is not running");
-              await audioService.resume();
-            } catch {
-              // Native player is not running; restart the track from scratch.
-              const { playTrack } = await import('@/services/playbackController');
-              const recoverSong = {
-                ...playerCore.playMusic,
-                isFirstPlay: true,
-                playMusicUrl: playerCore.playMusic.playMusicUrl?.startsWith('local://')
-                  ? playerCore.playMusic.playMusicUrl
-                  : undefined
-              };
-              const recovered = await playTrack(recoverSong, true);
-              if (!recovered) {
-                playerCore.setIsPlay(false);
-                getMessage().error('Play Failed, Play Next Song');
+            audioService.setLoading(true);
+
+            const { playTrack } = await import('@/services/playbackController');
+            const { nowTime } = await import('@/hooks/MusicHook');
+            const isLocal = playerCore.playMusic.playMusicUrl?.startsWith('local://');
+            const recoverSong = {
+              ...playerCore.playMusic,
+              isFirstPlay: true,
+              playLoading: true,
+              seekTargetTime: nowTime.value > 0 ? nowTime.value : undefined,
+              playMusicUrl: isLocal ? playerCore.playMusic.playMusicUrl : undefined
+            };
+            const recovered = await playTrack(recoverSong, true, false);
+            if (!recovered) {
+              playerCore.setIsPlay(false);
+              audioService.setLoading(false);
+              if (playerCore.playMusic) {
+                playerCore.playMusic.playLoading = false;
               }
+              getMessage().error('Play Failed, Play Next Song');
             }
           }
           return;
@@ -689,7 +857,22 @@ export const useQueueStore = defineStore(
 
         if (song.isFirstPlay) song.isFirstPlay = false;
 
-        playerCore.playMusic = song;
+        song.playLoading = true;
+        playerCore.isPlay = false;
+        playerCore.play = true;
+        playerCore.userPlayIntent = true;
+        playerCore.playMusic = { ...song, playLoading: true };
+
+        const { nowTime, allTime, smoothTrackTimeMs, getExactSongDuration } = await import(
+          '@/hooks/MusicHook'
+        );
+        const songDur = getExactSongDuration(song);
+        if (songDur > 0) {
+          allTime.value = songDur;
+          (song as any).duration = songDur;
+        }
+        nowTime.value = (song as any).seekTargetTime || 0;
+        smoothTrackTimeMs.value = nowTime.value * 1000;
 
         let songIndex = queueItems.value.findIndex(
           (item: SongResult) => String(item.id) === String(song.id)
@@ -750,11 +933,17 @@ export const useQueueStore = defineStore(
       shuffleEnabled,
       originalQueueItems,
       queueVisible,
+      queueOrigin,
+      manualQueueIds,
+      hasReordered,
 
       currentQueueItems,
       currentQueueIndex,
 
       setQueue,
+      setQueueOrigin,
+      resetQueueOrder,
+      clearUpcoming,
       addToNextPlay,
       addToQueue,
       moveInQueue,
@@ -788,7 +977,11 @@ export const useQueueStore = defineStore(
   {
     persist: {
       key: 'queue-store',
-      storage: debouncedLocalStorage,
+      storage: {
+        getItem: (k: string) => localStorage.getItem(k),
+        setItem: (k: string, v: string) => debouncedLocalStorage.setItem(k, v),
+        removeItem: (k: string) => debouncedLocalStorage.removeItem(k)
+      },
       pick: ['queueItems', 'queueIndex', 'repeatMode', 'shuffleEnabled', 'originalQueueItems'],
       serializer: {
         serialize: (state: any) => {

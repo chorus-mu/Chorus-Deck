@@ -273,132 +273,6 @@
       </setting-item>
     </setting-section>
 
-    <setting-section title="Lyrics Appearance">
-      <setting-item
-        icon="ri-text-spacing"
-        title="Lyric Granularity"
-        description="Choose sync mode: whole sentence/line, word-by-word, or syllable-by-syllable"
-      >
-        <template #action>
-          <n-select
-            v-model:value="setData.lyricGranularity"
-            :options="lyricGranularityOptions"
-            class="w-56 max-md:w-full"
-          />
-        </template>
-      </setting-item>
-      <setting-item
-        icon="ri-film-line"
-        title="Lyrics Animation Style"
-        description="Select the transition physics and animation for lyric lines"
-      >
-        <template #action>
-          <n-select
-            v-model:value="setData.lyricsAnimationStyle"
-            :options="lyricsAnimationOptions"
-            class="w-56 max-md:w-full"
-          />
-        </template>
-      </setting-item>
-      <setting-item
-        icon="ri-music-2-line"
-        title="Preferred Lyric Provider"
-        description="Priority provider for multi-source lyric searching"
-      >
-        <template #action>
-          <n-select
-            v-model:value="setData.preferredLyricProvider"
-            :options="preferredProviderOptions"
-            class="w-64 max-md:w-full"
-          />
-        </template>
-      </setting-item>
-      <setting-item
-        icon="ri-align-left"
-        title="Lyrics Position"
-        description="Alignment of the lyrics text"
-      >
-        <template #action>
-          <n-select
-            v-model:value="setData.lyricsTextPosition"
-            :options="lyricsPositionOptions"
-            class="w-48 max-md:w-full"
-          />
-        </template>
-      </setting-item>
-      <setting-item
-        icon="ri-font-size-2"
-        title="Lyrics Text Size"
-        description="Adjust the font size for lyrics"
-      >
-        <template #action>
-          <div class="w-40 flex justify-end">
-            <n-slider v-model:value="setData.lyricsTextSize" :min="16" :max="36" :step="1" />
-          </div>
-        </template>
-      </setting-item>
-      <setting-item
-        icon="ri-line-height"
-        title="Lyrics Line Spacing"
-        description="Adjust the spacing between lines of lyrics"
-      >
-        <template #action>
-          <div class="w-40 flex justify-end">
-            <n-slider v-model:value="setData.lyricsLineSpacing" :min="1.0" :max="4.0" :step="0.1" />
-          </div>
-        </template>
-      </setting-item>
-      <setting-item
-        icon="ri-cursor-line"
-        title="Click to Seek"
-        description="Click on a lyric line to seek to that position"
-      >
-        <n-switch v-model:value="setData.lyricsClick" />
-      </setting-item>
-      <setting-item
-        icon="ri-scroll-to-bottom-line"
-        title="Auto Scroll"
-        description="Automatically scroll lyrics as the song plays"
-      >
-        <n-switch v-model:value="setData.lyricsScroll" />
-      </setting-item>
-      <setting-item
-        icon="ri-sun-foggy-line"
-        title="Glow Effect"
-        description="Enable glow effect for the active lyric line"
-      >
-        <n-switch v-model:value="setData.lyricsGlowEffect" />
-      </setting-item>
-      <setting-item
-        icon="ri-apple-line"
-        title="Apple Music Blur Style"
-        description="Use Apple Music style blur for lyrics background"
-      >
-        <n-switch v-model:value="setData.appleMusicLyricsBlur" />
-      </setting-item>
-      <setting-item
-        icon="ri-blur-off-line"
-        title="Standard Blur"
-        description="Use standard blur for lyrics background"
-      >
-        <n-switch v-model:value="setData.lyricsStandardBlur" />
-      </setting-item>
-      <setting-item
-        icon="ri-drag-move-line"
-        title="Swipe Lyrics"
-        description="Allow swiping on lyrics to change songs"
-      >
-        <n-switch v-model:value="setData.swipeLyrics" />
-      </setting-item>
-      <setting-item
-        icon="ri-play-line"
-        title="Show Play/Pause on Thumbnail"
-        description="Show play/pause controls on the lyrics thumbnail"
-      >
-        <n-switch v-model:value="setData.enableLyricsThumbnailPlayPause" />
-      </setting-item>
-    </setting-section>
-
     <setting-section title="Library & UI Appearance">
       <setting-item
         icon="ri-home-4-line"
@@ -458,14 +332,7 @@
         <n-switch v-model:value="setData.showLikedPlaylist" />
       </setting-item>
       <setting-item
-        icon="ri-download-2-line"
-        title="Show Downloaded Playlist"
-        description="Show Downloaded playlist in library"
-      >
-        <n-switch v-model:value="setData.showDownloadedPlaylist" />
-      </setting-item>
-      <setting-item
-        icon="ri-file-download-line"
+        icon="ri-share-forward-line"
         title="Show Exported Playlist"
         description="Show Exported playlist in library"
       >
@@ -507,34 +374,6 @@
         <n-switch v-model:value="setData.hideStatusBarOnFullscreen" />
       </setting-item>
     </setting-section>
-
-    <setting-section title="Dynamic Island">
-      <setting-item
-        icon="ri-layout-top-line"
-        title="Enable Dynamic Island"
-        description="Show dynamic content notch at the top of the screen"
-      >
-        <n-switch v-model:value="setData.dynamicIslandEnabled" />
-      </setting-item>
-
-      <setting-item
-        icon="ri-eye-line"
-        title="Dynamic Island Visibility"
-        description="Select when to show the Dynamic Island"
-      >
-        <template #action>
-          <n-switch
-            v-model:value="setData.dynamicIslandVisibility"
-            checked-value="permanent"
-            unchecked-value="auto-hide"
-            :disabled="!setData.dynamicIslandEnabled"
-          >
-            <template #checked>Permanent</template>
-            <template #unchecked>Auto-hide</template>
-          </n-switch>
-        </template>
-      </setting-item>
-    </setting-section>
   </div>
 </template>
 
@@ -544,13 +383,13 @@ import { computed, h, inject, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useSettingsStore } from '@/store/modules/settings';
 import { isCompact, isDesktop } from '@/utils';
 import { t } from '@/utils/i18n';
+import { LYRIC_CONFIG_CHANGE_EVENT, readLyricConfig, writeLyricConfig } from '@/utils/lyricConfig';
 import { applyTheme } from '@/utils/theme';
 
 import { SETTINGS_DATA_KEY, SETTINGS_MESSAGE_KEY } from '../keys';
 import SettingItem from '../SettingItem.vue';
 import SettingSection from '../SettingSection.vue';
 import SInput from '../SInput.vue';
-import { LYRIC_CONFIG_CHANGE_EVENT, readLyricConfig, writeLyricConfig } from '@/utils/lyricConfig';
 
 const fontPreviews = [
   { key: 'chinese' },
@@ -578,49 +417,7 @@ const playerButtonsOptions = [
   { label: 'Tertiary Color', value: 'TERTIARY' }
 ];
 
-const dynamicIslandVisibilityOptions = [
-  { label: 'Auto-hide', value: 'auto-hide' },
-  { label: 'Permanent', value: 'permanent' }
-];
-
 const sliderStyleOptions = [{ label: 'Default', value: 'DEFAULT' }];
-
-const lyricsPositionOptions = [
-  { label: 'Left', value: 'LEFT' },
-  { label: 'Center', value: 'CENTER' },
-  { label: 'Right', value: 'RIGHT' }
-];
-
-const lyricGranularityOptions = [
-  { label: 'Auto (Best Available)', value: 'auto' },
-  { label: 'Sentence / Line-by-Line', value: 'sentence' },
-  { label: 'Word-by-Word', value: 'word' },
-  { label: 'Syllable-by-Syllable', value: 'syllable' }
-];
-
-const preferredProviderOptions = [
-  { label: 'Auto (Smart Best Match)', value: 'auto' },
-  { label: 'BetterLyrics (Word / Syllable synced)', value: 'betterlyrics' },
-  { label: 'YouLyPlus (Rich Line & Word synced)', value: 'youlyplus' },
-  { label: 'LrcLib (Open Line / Word synced)', value: 'lrclib' },
-  { label: 'KuGou (Comprehensive Global & C-Pop)', value: 'kugou' },
-  { label: 'Paxsenix (Musixmatch / Spotify Mirror)', value: 'paxsenix' },
-  { label: 'SimpMusic (YouTube Music Syllables)', value: 'simpmusic' }
-];
-
-const lyricsAnimationOptions = [
-  { label: 'Apple Spring (Jump from Top)', value: 'apple_spring' },
-  { label: 'AMLL Fluid (Smooth Glide)', value: 'smooth_fluid' },
-  { label: 'Funky Bounce (Pop Overshoot)', value: 'bouncy_pop' },
-  { label: '3D Carousel (Perspective Cylinder)', value: 'carousel_3d' },
-  { label: 'Cyberpunk Glow (Neon Aura Snap)', value: 'cyberpunk_glow' },
-  { label: 'Kinetic Slant (Directional Skew)', value: 'kinetic_slant' },
-  { label: 'Minimal Fade (Pure Crossfade)', value: 'minimal_fade' },
-  { label: 'ChorusMusic Fluid (Legacy)', value: 'chorusmusic_1' },
-  { label: 'None', value: 'NONE' },
-  { label: 'Legacy Slide', value: 'SLIDE' },
-  { label: 'Legacy Karaoke', value: 'KARAOKE' }
-];
 
 const defaultOpenTabOptions = [
   { label: 'Home', value: 'HOME' },
@@ -743,16 +540,29 @@ onMounted(() => {
   const currentConfig = readLyricConfig();
   setData.value = {
     ...setData.value,
-    lyricGranularity: setData.value.lyricGranularity ?? (currentConfig.lyricGranularity || 'auto'),
-    preferredLyricProvider: setData.value.preferredLyricProvider ?? (currentConfig.preferredLyricProvider || 'auto'),
+    lyricGranularity:
+      setData.value.lyricGranularity ?? (currentConfig.lyricGranularity || 'karaoke'),
+    preferredLyricProvider:
+      setData.value.preferredLyricProvider ?? (currentConfig.preferredLyricProvider || 'auto'),
     lyricsTextSize: setData.value.lyricsTextSize ?? currentConfig.fontSize,
     lyricsLineSpacing: setData.value.lyricsLineSpacing ?? currentConfig.lineHeight,
-    lyricsTextPosition: setData.value.lyricsTextPosition ?? (currentConfig.centerLyrics ? 'CENTER' : (currentConfig.lyricsTextPosition || 'LEFT')),
-    lyricsGlowEffect: setData.value.lyricsGlowEffect ?? (currentConfig.lyricsGlowEffect ?? true),
-    appleMusicLyricsBlur: setData.value.appleMusicLyricsBlur ?? (currentConfig.appleMusicLyricsBlur ?? true),
-    lyricsClick: setData.value.lyricsClick ?? (currentConfig.lyricsClick ?? true),
-    lyricsScroll: setData.value.lyricsScroll ?? (currentConfig.lyricsScroll ?? true),
-    lyricsAnimationStyle: setData.value.lyricsAnimationStyle ?? (currentConfig.lyricsAnimationStyle || 'apple_spring')
+    lyricsTextPosition:
+      setData.value.lyricsTextPosition ??
+      (currentConfig.centerLyrics ? 'CENTER' : currentConfig.lyricsTextPosition || 'LEFT'),
+    lyricsGlowEffect: setData.value.lyricsGlowEffect ?? currentConfig.lyricsGlowEffect ?? true,
+    appleMusicLyricsBlur:
+      setData.value.appleMusicLyricsBlur ?? currentConfig.appleMusicLyricsBlur ?? true,
+    lyricsClick: setData.value.lyricsClick ?? currentConfig.lyricsClick ?? true,
+    lyricsScroll: setData.value.lyricsScroll ?? currentConfig.lyricsScroll ?? true,
+    lyricsAnimationStyle:
+      setData.value.lyricsAnimationStyle ?? (currentConfig.lyricsAnimationStyle || 'fluid_motion'),
+    fluidSweepStretch: setData.value.fluidSweepStretch ?? currentConfig.fluidSweepStretch ?? 1.4,
+    fluidSweepLeast: setData.value.fluidSweepLeast ?? currentConfig.fluidSweepLeast ?? 180,
+    fluidFeatherWidth: setData.value.fluidFeatherWidth ?? currentConfig.fluidFeatherWidth ?? 12,
+    fluidScriptAware: setData.value.fluidScriptAware ?? currentConfig.fluidScriptAware ?? true,
+    fluidLandingSoftness:
+      setData.value.fluidLandingSoftness ?? currentConfig.fluidLandingSoftness ?? 0.2,
+    fluidActiveGrowth: setData.value.fluidActiveGrowth ?? currentConfig.fluidActiveGrowth ?? 1.05
   };
 });
 
@@ -767,9 +577,32 @@ watch(
     () => setData.value.appleMusicLyricsBlur,
     () => setData.value.lyricsClick,
     () => setData.value.lyricsScroll,
-    () => setData.value.lyricsAnimationStyle
+    () => setData.value.lyricsAnimationStyle,
+    () => setData.value.fluidSweepStretch,
+    () => setData.value.fluidSweepLeast,
+    () => setData.value.fluidFeatherWidth,
+    () => setData.value.fluidScriptAware,
+    () => setData.value.fluidLandingSoftness,
+    () => setData.value.fluidActiveGrowth
   ],
-  ([granularity, provider, size, spacing, pos, glow, blur, click, scroll, anim]) => {
+  ([
+    granularity,
+    provider,
+    size,
+    spacing,
+    pos,
+    glow,
+    blur,
+    click,
+    scroll,
+    anim,
+    stretch,
+    least,
+    feather,
+    scriptAware,
+    landing,
+    growth
+  ]) => {
     settingsStore.setSetData({
       lyricGranularity: granularity,
       preferredLyricProvider: provider,
@@ -780,7 +613,13 @@ watch(
       appleMusicLyricsBlur: blur,
       lyricsClick: click,
       lyricsScroll: scroll,
-      lyricsAnimationStyle: anim
+      lyricsAnimationStyle: anim,
+      fluidSweepStretch: stretch,
+      fluidSweepLeast: least,
+      fluidFeatherWidth: feather,
+      fluidScriptAware: scriptAware,
+      fluidLandingSoftness: landing,
+      fluidActiveGrowth: growth
     });
     const current = readLyricConfig();
     const updated = {
@@ -795,7 +634,13 @@ watch(
       appleMusicLyricsBlur: blur ?? current.appleMusicLyricsBlur,
       lyricsClick: click ?? current.lyricsClick,
       lyricsScroll: scroll ?? current.lyricsScroll,
-      lyricsAnimationStyle: anim ?? current.lyricsAnimationStyle
+      lyricsAnimationStyle: anim ?? current.lyricsAnimationStyle,
+      fluidSweepStretch: stretch ?? current.fluidSweepStretch,
+      fluidSweepLeast: least ?? current.fluidSweepLeast,
+      fluidFeatherWidth: feather ?? current.fluidFeatherWidth,
+      fluidScriptAware: scriptAware ?? current.fluidScriptAware,
+      fluidLandingSoftness: landing ?? current.fluidLandingSoftness,
+      fluidActiveGrowth: growth ?? current.fluidActiveGrowth
     };
     writeLyricConfig(updated);
   }

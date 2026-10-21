@@ -1,7 +1,10 @@
 <template>
   <div class="notch idle-notch">
     <div class="notch-icon scalloped" style="background: transparent">
-      <img :src="isDark ? darkLogo : lightLogo" style="width: 100%; height: 100%; object-fit: contain" />
+      <img
+        :src="isDark ? darkLogo : lightLogo"
+        style="width: 100%; height: 100%; object-fit: contain"
+      />
     </div>
   </div>
 </template>

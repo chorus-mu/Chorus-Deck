@@ -9,7 +9,14 @@ export type MinifiedSong = {
   al?: NonNullable<SongResult['al']>;
   source?: SongResult['source'];
   dt?: SongResult['dt'];
+  duration?: number;
+  qualityBadge?: string;
+  quality?: string;
+  mimeType?: string;
+  bitRate?: number;
+  streamUserAgent?: string;
   playMusicUrl?: SongResult['playMusicUrl'];
+  expiredAt?: number;
 };
 
 export type MusicHistoryItem = MinifiedSong & {
@@ -38,7 +45,17 @@ export const minifySong = (s: SongResult): MinifiedSong => {
       : undefined) as MinifiedSong['al'],
     source: s.source,
     dt: s.dt,
-    playMusicUrl: s.playMusicUrl?.startsWith('local://') ? s.playMusicUrl : undefined
+    duration: (s as any).duration,
+    qualityBadge:
+      (s as any).qualityBadge === 'LOSSLESS' || (s as any).qualityBadge === 'HI-RES'
+        ? (s as any).qualityBadge
+        : undefined,
+    quality: (s as any).quality,
+    mimeType: (s as any).mimeType,
+    bitRate: (s as any).bitRate,
+    streamUserAgent: (s as any).streamUserAgent,
+    playMusicUrl: s.playMusicUrl,
+    expiredAt: (s as any).expiredAt
   };
 };
 

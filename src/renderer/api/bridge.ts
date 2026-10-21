@@ -1,18 +1,11 @@
 import type { AppUpdateState } from '@shared/appUpdate';
-import type {
-  CompletedDownload,
-  DownloadBatchCompleteEvent,
-  DownloadProgressEvent,
-  DownloadRequestUrlEvent,
-  DownloadStateChangeEvent,
-  DownloadTask
-} from '@shared/download';
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 import { listen as tauriListen, type UnlistenFn } from '@tauri-apps/api/event';
 
 import type { LocalMusicMeta } from '@/types/localMusic';
 import { getImgUrl } from '@/utils';
 import { extractCleanSongMeta } from '@/utils/songMeta';
+
 import { webAudio } from './webAudioEngine';
 
 const GENERIC_INVOKE_CHANNELS = [
@@ -23,7 +16,6 @@ const GENERIC_INVOKE_CHANNELS = [
   'get-content-zoom',
   'get-disk-cache-config',
   'get-disk-cache-stats',
-  'get-downloads-path',
   'get-platform',
   'get-store-value',
   'get-system-fonts',
@@ -57,8 +49,14 @@ const GENERIC_INVOKE_CHANNELS = [
   'toggle-fullscreen',
   'ytm:request',
   'ytm:validate-stream',
+  'audio:prewarm-stream',
   'fetch_best_lyrics',
-  'lossless:resolve-track'
+  'lossless:resolve-track',
+  'launch_performance_window',
+  'launch_dynamic_island',
+  'update_playback_telemetry',
+  'trigger_visual_pulse',
+  'get_canvas_telemetry'
 ] as const;
 
 const EVENT_CHANNELS = [
@@ -76,10 +74,6 @@ const EVENT_CHANNELS = [
   'lyric-window-ready',
   'app-update:state',
   'language-changed',
-  'download:progress',
-  'download:state-change',
-  'download:batch-complete',
-  'download:request-url',
   'playback-progress',
   'playback-ended',
   'playback-buffering'
@@ -251,7 +245,11 @@ async function rawInvoke<T>(channel: string, args?: unknown): Promise<T> {
     return await tauriInvoke<T>(channel, args as Record<string, unknown> | undefined);
   } catch (ipcErr: any) {
     const msg = String(ipcErr?.message || ipcErr || '');
-    if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('custom protocol')) {
+    const NO_RETRY_CHANNELS = ['audio-play', 'audio-stop', 'audio-pause'];
+    if (
+      !NO_RETRY_CHANNELS.includes(channel) &&
+      (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('custom protocol'))
+    ) {
       await new Promise((r) => setTimeout(r, 150));
       return await tauriInvoke<T>(channel, args as Record<string, unknown> | undefined);
     }
@@ -409,46 +407,6 @@ export const bridge = {
     void listenChannel<string>('language-changed', (locale) => callback(locale));
   },
 
-  downloadAdd: (task: unknown) => rawInvoke<string>('download:add', { task }),
-  downloadAddBatch: (tasks: unknown) =>
-    rawInvoke<{ batchId: string; taskIds: string[] }>('download:add-batch', { tasks }),
-  downloadPause: (taskId: string) => rawInvoke<void>('download:pause', { taskId }),
-  downloadResume: (taskId: string) => rawInvoke<void>('download:resume', { taskId }),
-  downloadCancel: (taskId: string) => rawInvoke<void>('download:cancel', { taskId }),
-  downloadCancelAll: () => rawInvoke<void>('download:cancel-all'),
-  downloadGetQueue: () => rawInvoke<DownloadTask[]>('download:get-queue'),
-  downloadSetConcurrency: (n: number) => rawInvoke<void>('download:set-concurrency', { n }),
-  downloadGetCompleted: () => rawInvoke<CompletedDownload[]>('download:get-completed'),
-  downloadDeleteCompleted: (filePath: string) =>
-    rawInvoke<boolean>('download:delete-completed', { filePath }),
-  downloadClearCompleted: () => rawInvoke<boolean>('download:clear-completed'),
-  getEmbeddedLyrics: (filePath: string) =>
-    rawInvoke<string | null>('download:get-embedded-lyrics', { filePath }),
-  downloadProvideUrl: (taskId: string, url: string) =>
-    rawInvoke<void>('download:provide-url', { taskId, url }),
-  onDownloadProgress: (cb: (data: DownloadProgressEvent) => void) => {
-    listenChannel<DownloadProgressEvent>('download:progress', cb);
-  },
-  onDownloadStateChange: (cb: (data: DownloadStateChangeEvent) => void) => {
-    listenChannel<DownloadStateChangeEvent>('download:state-change', cb);
-  },
-  onDownloadBatchComplete: (cb: (data: DownloadBatchCompleteEvent) => void) => {
-    listenChannel<DownloadBatchCompleteEvent>('download:batch-complete', cb);
-  },
-  onDownloadRequestUrl: (cb: (data: DownloadRequestUrlEvent) => void) => {
-    listenChannel<DownloadRequestUrlEvent>('download:request-url', cb);
-  },
-  removeDownloadListeners: () => {
-    for (const channel of [
-      'download:progress',
-      'download:state-change',
-      'download:batch-complete',
-      'download:request-url'
-    ]) {
-      for (const dispose of listenerRegistry.get(channel) ?? []) dispose();
-      listenerRegistry.delete(channel);
-    }
-  },
 
   scanLocalMusic: (folderPath: string) =>
     rawInvoke<{ files: string[]; count: number }>('scan-local-music', { folderPath }),
@@ -464,7 +422,6 @@ export const bridge = {
   dbAddLikedTrack: (trackId: string) => rawInvoke<void>('db_add_liked_track', { trackId }),
   dbAddDislikedTrack: (trackId: string) => rawInvoke<void>('db_add_disliked_track', { trackId }),
   dbGetTop50Tracks: () => rawInvoke<unknown[]>('db_get_top_50_tracks'),
-  dbGetDownloadedTracksFull: () => rawInvoke<unknown[]>('db_get_downloaded_tracks_full'),
   dbExportUserData: (exportPath: string) => rawInvoke<void>('db_export_user_data', { exportPath }),
   dbGetFollowedArtists: () => rawInvoke<unknown[]>('db_get_followed_artists'),
   dbFollowArtist: (artistId: string, artistName: string, artworkUrl?: string) => rawInvoke<void>('db_follow_artist', { artistId, artistName, artworkUrl }),
@@ -558,6 +515,12 @@ export const bridge = {
       return () => {};
     }
     return listenChannel<boolean>('playback-buffering', cb);
+  },
+  onPlaybackStateChanged: (cb: (isPlaying: boolean) => void) => {
+    if (!isTauriAvailable()) {
+      return () => {};
+    }
+    return listenChannel<boolean>('playback-state-changed', cb);
   },
 
   audioPlay: (
@@ -654,7 +617,21 @@ export const bridge = {
     rawInvoke<any>('integrations:spotify-fetch-playlist-tracks', { accessToken, playlistId, offset, limit }),
   parsePlaylistUrl: (url: string) => rawInvoke<any>('integrations:parse-playlist-url', { url }),
   dbImportPlaylist: (id: string, name: string, description: string, tracks: { id: string; title: string; artist: string; durationMs: number }[]) =>
-    rawInvoke<void>('db_import_playlist', { id, name, description, tracks })
+    rawInvoke<void>('db_import_playlist', { id, name, description, tracks }),
+
+  launchPerformanceWindow: () => rawInvoke<string>('launch_performance_window'),
+  launchDynamicIsland: () => rawInvoke<string>('launch_dynamic_island'),
+  updatePlaybackTelemetry: (params: {
+    isPlaying: boolean;
+    track: string;
+    artist: string;
+    duration: number;
+    position: number;
+    lyric?: string;
+  }) => rawInvoke<void>('update_playback_telemetry', params),
+  triggerVisualPulse: (intensity: number, colorHex: number) =>
+    rawInvoke<void>('trigger_visual_pulse', { intensity, colorHex }),
+  getCanvasTelemetry: () => rawInvoke<any>('get_canvas_telemetry')
 };
 
 export type Bridge = typeof bridge;

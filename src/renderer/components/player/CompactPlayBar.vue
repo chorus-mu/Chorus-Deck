@@ -3,7 +3,6 @@
     ref="playBarRef"
     class="compact-play-bar"
     :class="[
-      setAnimationClass('animate__fadeInUp'),
       playerStore.musicFull ? 'play-bar-expanded' : 'play-bar-mini',
       shouldShowCompactMenu ? 'is-menu-show' : 'is-menu-hide'
     ]"
@@ -34,6 +33,9 @@
         <div class="mini-song-text">
           <n-ellipsis line-clamp="1">
             <span class="mini-song-title">{{ playMusic.name }}</span>
+            <span v-if="(playMusic as any)?.qualityBadge" class="lossless-quality-badge">
+              {{ (playMusic as any).qualityBadge }}
+            </span>
             <span class="mx-2 text-gray-500 dark:text-gray-400">-</span>
             <span
               class="mini-song-artist"
@@ -85,6 +87,7 @@
 import { useSwipe } from '@vueuse/core';
 import { computed, inject, onMounted, ref, watch } from 'vue';
 
+import logoImg from '@/assets/logo.png';
 import MusicFullWrapper from '@/components/lyric/MusicFullWrapper.vue';
 import AnimatedPlayPause from '@/components/player/AnimatedPlayPause.vue';
 import { artistList, playMusic, textColors } from '@/hooks/MusicHook';
@@ -93,7 +96,6 @@ import { audioService } from '@/services/audioService';
 import { usePlayerStore } from '@/store/modules/player';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl, setAnimationClass } from '@/utils';
-import logoImg from '@/assets/logo.png';
 
 const fallbackCover = computed(() => {
   const sid = playMusic?.value?.id ? String(playMusic.value.id) : '';
@@ -111,7 +113,10 @@ const settingsStore = useSettingsStore();
 const { isPlaying: play, playMusicEvent, handleNext, handlePrev } = usePlaybackControl();
 
 const isBuffering = computed(() => {
-  return audioService.isBuffering() || Boolean(playMusic.value?.playLoading);
+  if (audioService.isActuallyPlaying()) {
+    return audioService.isBuffering();
+  }
+  return Boolean(playMusic.value?.playLoading) || audioService.isLoading() || audioService.isBuffering();
 });
 
 const background = ref('#000');
@@ -357,5 +362,15 @@ watch(
   .compact-play-list-item {
     @apply px-3 py-1;
   }
+}
+
+.lossless-quality-badge {
+  @apply ml-1.5 px-1 py-0.5 text-[9px] font-bold rounded tracking-wider uppercase border border-current;
+  color: var(--primary-color, #f43f5e);
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(4px);
+  line-height: 1;
+  display: inline-block;
+  vertical-align: middle;
 }
 </style>

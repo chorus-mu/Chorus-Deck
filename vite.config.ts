@@ -191,7 +191,7 @@ function audioStreamProxyPlugin() {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   base: './',
   root: resolve('src/renderer'),
   resolve: {
@@ -201,10 +201,34 @@ export default defineConfig({
       '@i18n': resolve('src/i18n')
     }
   },
+  optimizeDeps: {
+    include: [
+      'vue',
+      'vue-router',
+      'pinia',
+      'pinia-plugin-persistedstate',
+      'naive-ui',
+      '@vueuse/core',
+      'axios',
+      'howler',
+      'tunajs',
+      'marked',
+      'lodash',
+      '@material/material-color-utilities',
+      '@applemusic-like-lyrics/lyric',
+      'pinyin-match',
+      'pinyin-pro',
+      'crypto-js',
+      'jsencrypt'
+    ],
+    esbuildOptions: {
+      target: 'es2022'
+    }
+  },
   plugins: [
     vue(),
-    viteCompression(),
-    VueDevTools(),
+    command === 'build' ? viteCompression() : null,
+    process.env.VUE_DEVTOOLS === 'true' ? VueDevTools() : null,
     audioStreamProxyPlugin(),
     AutoImport({
       imports: [
@@ -212,23 +236,28 @@ export default defineConfig({
         {
           'naive-ui': ['useDialog', 'useMessage', 'useNotification', 'useLoadingBar']
         }
-      ]
+      ],
+      dts: resolve('src/renderer/auto-imports.d.ts')
     }),
     Components({
-      resolvers: [NaiveUiResolver()]
+      resolvers: [NaiveUiResolver()],
+      dts: resolve('src/renderer/components.d.ts')
     })
-  ],
+  ].filter(Boolean),
   publicDir: resolve('resources'),
   build: {
     target: 'es2022'
   },
   server: {
-    host: '0.0.0.0',
+    host: '127.0.0.1',
     port: 1420,
     strictPort: true,
     hmr: {
-      host: 'localhost',
+      host: '127.0.0.1',
       port: 1420
+    },
+    watch: {
+      ignored: ['**/src-tauri/**', '**/resources/**']
     },
     proxy: {
       '/__ytm_proxy': {
@@ -251,4 +280,5 @@ export default defineConfig({
       }
     }
   }
-});
+}));
+

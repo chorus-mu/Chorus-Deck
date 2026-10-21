@@ -1,5 +1,6 @@
 import { getYTMSuggestions, searchYTM, type YTMPlaylist, type YTMSong } from '@/api/ytmusic';
 import type { SongResult } from '@/types/music';
+import { parseDurationToSeconds } from '@/utils';
 
 import type { PlaylistResult, SearchFilter, SearchProvider, SearchResults } from '../provider';
 
@@ -19,13 +20,15 @@ export const toSongResult = (s: YTMSong): SongResult => {
     (s.id && String(s.id).length === 11 && !String(s.id).includes('/')
       ? `https://i.ytimg.com/vi/${s.id}/hqdefault.jpg`
       : '');
+  const durSec = parseDurationToSeconds(s.duration);
   return {
     id: s.id,
     name: s.title,
     artists: s.artists.map((a) => ({ name: a.name, id: a.id })),
     album: s.album,
     picUrl: thumb,
-    dt: parseDurationToMs(s.duration),
+    duration: durSec,
+    dt: durSec ? durSec * 1000 : parseDurationToMs(s.duration),
     source: 'ytmusic'
   };
 };

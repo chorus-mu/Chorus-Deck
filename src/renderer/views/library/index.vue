@@ -27,7 +27,7 @@
                   Your Library
                 </h1>
                 <p class="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                  Manage your offline cache, downloads, and playlists
+                  Manage your library and playlists
                 </p>
               </div>
             </div>
@@ -46,13 +46,6 @@
                   >
                     <i class="ri-heart-3-fill text-2xl text-red-400"></i>
                     <span class="font-medium text-neutral-900 dark:text-white">Liked</span>
-                  </button>
-                  <button
-                    class="flex items-center gap-3 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 hover:border-primary/50 transition-colors"
-                    @click="handleAutoPlaylist('downloaded')"
-                  >
-                    <i class="ri-checkbox-circle-line text-2xl text-purple-500"></i>
-                    <span class="font-medium text-neutral-900 dark:text-white">Downloaded</span>
                   </button>
                   <button
                     class="flex items-center gap-3 p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 hover:border-primary/50 transition-colors"
@@ -188,40 +181,8 @@
                   </div>
                 </div>
 
-                <div v-if="downloadedTracks.length > 0">
-                  <h2 class="text-xl font-bold mb-4 text-neutral-900 dark:text-white">
-                    Downloaded Tracks
-                  </h2>
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div
-                      v-for="(track, index) in downloadedTracks"
-                      :key="track.id || index"
-                      class="p-3 bg-neutral-50 dark:bg-neutral-900/50 rounded-xl flex items-center gap-3"
-                    >
-                      <div
-                        class="w-10 h-10 rounded bg-neutral-200 dark:bg-neutral-800 flex items-center justify-center overflow-hidden shrink-0"
-                      >
-                        <img
-                          v-if="track.thumbnail || track.artwork"
-                          :src="track.thumbnail || track.artwork"
-                          class="w-full h-full object-cover"
-                        />
-                        <i v-else class="ri-music-2-line text-neutral-400"></i>
-                      </div>
-                      <div class="min-w-0 flex-1">
-                        <h4 class="font-medium text-neutral-900 dark:text-white truncate">
-                          {{ track.title || track.name || 'Unknown Track' }}
-                        </h4>
-                        <p class="text-xs text-neutral-500 truncate">
-                          {{ track.artist || track.artists || 'Unknown Artist' }}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 <div
-                  v-if="top50Tracks.length === 0 && downloadedTracks.length === 0"
+                  v-if="top50Tracks.length === 0"
                   class="py-12 text-center text-neutral-500"
                 >
                   <i class="ri-music-2-line text-4xl mb-2"></i>
@@ -666,7 +627,6 @@ async function handlePlayAll(): Promise<void> {
 const playlists = ref<any[]>([]);
 const followedArtists = ref<any[]>([]);
 const top50Tracks = ref<any[]>([]);
-const downloadedTracks = ref<any[]>([]);
 
 async function loadPlaylists() {
   try {
@@ -678,15 +638,13 @@ async function loadPlaylists() {
 
 async function loadLibraryData() {
   try {
-    const [artists, top50, downloaded] = await Promise.all([
+    const [artists, top50] = await Promise.all([
       window.api.dbGetFollowedArtists().catch(() => []),
-      window.api.dbGetTop50Tracks().catch(() => []),
-      window.api.dbGetDownloadedTracksFull().catch(() => [])
+      window.api.dbGetTop50Tracks().catch(() => [])
     ]);
 
     followedArtists.value = artists || [];
     top50Tracks.value = top50 || [];
-    downloadedTracks.value = downloaded || [];
   } catch (error) {
     console.error('Failed to load library data:', error);
   }

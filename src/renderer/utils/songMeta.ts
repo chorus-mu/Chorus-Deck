@@ -28,7 +28,7 @@ export const extractCleanSongMeta = (song: any): CleanSongMeta => {
 
   const rawArtistList = (song.ar || song.artists || []) as any[];
   const normalized = normalizeArtistList(rawArtistList, album);
-  let artist = normalized.map((a) => a.name).filter(Boolean).join(', ');
+  const artist = normalized.map((a) => a.name).filter(Boolean).join(', ');
   if (!album) {
     for (const item of rawArtistList) {
       const name = typeof item === 'string' ? item : item?.name;

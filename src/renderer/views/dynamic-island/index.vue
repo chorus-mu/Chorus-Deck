@@ -14,66 +14,87 @@
 
         <div v-show="currentState === 'playing'" class="notch-container w-full h-full">
           <KeepAlive>
-            <playing-state v-if="isActuallyPlaying" key="ps" :currentTrack="currentTrack" :progressPercent="progressPercent" :isDark="isDark" :accentColor="accentColor" />
+            <playing-state
+              v-if="isActuallyPlaying"
+              key="ps"
+              :currentTrack="currentTrack"
+              :progressPercent="progressPercent"
+              :isDark="isDark"
+              :accentColor="accentColor"
+            />
             <idle-state v-else key="is" :isDark="isDark" />
           </KeepAlive>
         </div>
 
         <div v-show="currentState === 'expanded'" class="island expanded-island">
-            <div class="expanded-top">
-              <div class="artwork-ring-wrap" v-if="currentTrack.cover && !coverFailed">
-                <svg class="artwork-ring" viewBox="0 0 76 76">
-                  <path class="ring-bg" :d="bigRing" :stroke="accentColor" />
-                </svg>
-                <div class="artwork-medium" :style="{ clipPath: bigArtClip }">
-                  <img :src="currentTrack.cover" referrerpolicy="no-referrer" @error="coverFailed = true" />
-                </div>
+          <div class="expanded-top">
+            <div class="artwork-ring-wrap" v-if="currentTrack.cover && !coverFailed">
+              <svg class="artwork-ring" viewBox="0 0 76 76">
+                <path class="ring-bg" :d="bigRing" :stroke="accentColor" />
+              </svg>
+              <div class="artwork-medium" :style="{ clipPath: bigArtClip }">
+                <img
+                  :src="currentTrack.cover"
+                  referrerpolicy="no-referrer"
+                  @error="coverFailed = true"
+                />
               </div>
-              <div class="artwork-ring-wrap" v-else>
-                <svg class="artwork-ring" viewBox="0 0 76 76">
-                  <path class="ring-bg" :d="bigRing" :stroke="accentColor" />
-                </svg>
-                <div class="artwork-medium" :style="{ clipPath: bigArtClip, background: 'transparent' }">
-                  <img src="@/assets/logo.png" style="width: 100%; height: 100%; object-fit: contain" />
-                </div>
-              </div>
-
-              <div class="track-info">
-                <div class="title">
-                  {{ currentTrack.title || 'Chorus Deck' }}
-                </div>
-                <div class="artist">{{ currentTrack.artist || 'Ready to play' }}</div>
-              </div>
-
-              <div class="controls ml-auto">
-                <button class="scalloped-btn scalloped" @click.stop="previous">
-                  <i class="ri-skip-back-fill"></i>
-                </button>
-                <div class="scalloped-btn play-pause-btn" style="background: transparent; padding: 0; transform: scale(1.15);" @click.stop>
-                  <animated-play-pause
-                    :is-playing="isActuallyPlaying"
-                    @click="togglePlay"
-                    :bg-color="btnBg"
-                    :icon-color="btnFg"
-                  />
-                </div>
-                <button class="scalloped-btn scalloped" @click.stop="next">
-                  <i class="ri-skip-forward-fill"></i>
-                </button>
+            </div>
+            <div class="artwork-ring-wrap" v-else>
+              <svg class="artwork-ring" viewBox="0 0 76 76">
+                <path class="ring-bg" :d="bigRing" :stroke="accentColor" />
+              </svg>
+              <div
+                class="artwork-medium"
+                :style="{ clipPath: bigArtClip, background: 'transparent' }"
+              >
+                <img
+                  src="@/assets/logo.png"
+                  style="width: 100%; height: 100%; object-fit: contain"
+                />
               </div>
             </div>
 
-            <div class="expanded-middle">
-              <span class="time">{{ formatTime(currentTime) }}</span>
-              <div class="progress-container" @click.stop="seek">
-                <svg class="wavy-progress" viewBox="0 0 300 16" preserveAspectRatio="none">
-                  <line class="wave-rest" :x1="progressX" y1="8" x2="300" y2="8" />
-                  <path class="wave-path" :d="dynamicWavePath" :stroke="accentColor" />
-                </svg>
+            <div class="track-info">
+              <div class="title">
+                {{ currentTrack.title || 'Chorus Deck' }}
               </div>
-              <span class="time">{{ formatTime(duration) }}</span>
+              <div class="artist">{{ currentTrack.artist || 'Ready to play' }}</div>
+            </div>
+
+            <div class="controls ml-auto">
+              <button class="scalloped-btn scalloped" @click.stop="previous">
+                <i class="ri-skip-back-fill"></i>
+              </button>
+              <div
+                class="scalloped-btn play-pause-btn"
+                style="background: transparent; padding: 0; transform: scale(1.15)"
+                @click.stop
+              >
+                <animated-play-pause
+                  :is-playing="isActuallyPlaying"
+                  @click="togglePlay"
+                  :bg-color="btnBg"
+                  :icon-color="btnFg"
+                />
+              </div>
+              <button class="scalloped-btn scalloped" @click.stop="next">
+                <i class="ri-skip-forward-fill"></i>
+              </button>
             </div>
           </div>
+
+          <div class="expanded-middle">
+            <span class="time">{{ formatTime(currentTime) }}</span>
+            <div class="progress-container" @click.stop="seek">
+              <svg class="wavy-progress" viewBox="0 0 300 16" preserveAspectRatio="none">
+                <line class="wave-rest" :x1="progressX" y1="8" x2="300" y2="8" />
+                <path class="wave-path" :d="dynamicWavePath" :stroke="accentColor" />
+              </svg>
+            </div>
+            <span class="time">{{ formatTime(duration) }}</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -82,15 +103,15 @@
 <script setup lang="ts">
 import { emit, listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { computed, onMounted, ref, watch, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 
+import AnimatedPlayPause from '@/components/player/AnimatedPlayPause.vue';
 import { useSettingsStore } from '@/store/modules/settings';
 import { getImgUrl } from '@/utils';
 import { extractCleanSongMeta } from '@/utils/songMeta';
 
 import IdleState from './components/IdleState.vue';
 import PlayingState from './components/PlayingState.vue';
-import AnimatedPlayPause from '@/components/player/AnimatedPlayPause.vue';
 
 type IslandState = 'hidden' | 'playing' | 'expanded';
 const currentState = ref<IslandState>('hidden');
@@ -102,8 +123,7 @@ const dynamicIslandVisibility = computed(
 const dynamicIslandEnabled = computed(() => settingsStore.setData.dynamicIslandEnabled ?? true);
 const isPermanent = computed(
   () =>
-    dynamicIslandVisibility.value === 'permanent' ||
-    dynamicIslandVisibility.value === 'always-show'
+    dynamicIslandVisibility.value === 'permanent' || dynamicIslandVisibility.value === 'always-show'
 );
 
 const isPlaying = ref(false);
@@ -114,7 +134,11 @@ const currentTrack = ref({
   backgroundColor: ''
 });
 const hasTrack = computed(() => {
-  return Boolean(currentTrack.value.title && currentTrack.value.title.trim() && currentTrack.value.title !== 'Chorus Deck');
+  return Boolean(
+    currentTrack.value.title &&
+    currentTrack.value.title.trim() &&
+    currentTrack.value.title !== 'Chorus Deck'
+  );
 });
 const isActuallyPlaying = computed(() => {
   return Boolean(hasTrack.value && isPlaying.value);
@@ -132,13 +156,21 @@ const coverFailed = ref(false);
 const progressX = computed(() => Math.min(Math.max(progressPercent.value, 0), 100) * 3);
 
 const wavePhase = ref(0);
-let waveRaf: number;
+let waveRaf = 0;
 const updateWave = (time: number) => {
   if (isPlaying.value) {
     wavePhase.value = time * 0.005;
+    waveRaf = requestAnimationFrame(updateWave);
+  } else {
+    waveRaf = 0;
   }
-  waveRaf = requestAnimationFrame(updateWave);
 };
+
+watch(isPlaying, (playing) => {
+  if (playing && !waveRaf) {
+    waveRaf = requestAnimationFrame(updateWave);
+  }
+});
 
 const dynamicWavePath = computed(() => {
   const px = progressX.value;
@@ -157,7 +189,7 @@ const dynamicWavePath = computed(() => {
 });
 
 const LOBES = 10;
-const AMP = 2.5; 
+const AMP = 2.5;
 const wavyPoints = (cx: number, cy: number, R: number, steps = 180) => {
   const pts: [number, number][] = [];
   for (let i = 0; i <= steps; i++) {
@@ -190,9 +222,13 @@ const syncThemeClass = () => {
 // ---------- Color helpers ----------
 type RGB = [number, number, number];
 const rgbToHsl = ([r, g, b]: RGB): RGB => {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0;
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b);
+  let h = 0,
+    s = 0;
   const l = (max + min) / 2;
   if (max !== min) {
     const d = max - min;
@@ -225,11 +261,17 @@ const extractCoverColor = (url: string): Promise<string> =>
         if (!ctx) return resolve('');
         ctx.drawImage(img, 0, 0, size, size);
         const data = ctx.getImageData(0, 0, size, size).data;
-        let r = 0, g = 0, b = 0, w = 0;
+        let r = 0,
+          g = 0,
+          b = 0,
+          w = 0;
         for (let i = 0; i < data.length; i += 4) {
           const [, s, l] = rgbToHsl([data[i], data[i + 1], data[i + 2]]);
           const weight = 0.1 + (s / 100) * (1 - Math.abs(l - 50) / 50);
-          r += data[i] * weight; g += data[i + 1] * weight; b += data[i + 2] * weight; w += weight;
+          r += data[i] * weight;
+          g += data[i + 1] * weight;
+          b += data[i + 2] * weight;
+          w += weight;
         }
         resolve(`rgb(${Math.round(r / w)}, ${Math.round(g / w)}, ${Math.round(b / w)})`);
       } catch {
@@ -274,7 +316,9 @@ const islandBackground = computed(() => {
   const rgb = rgbStringToTuple(currentTrack.value.backgroundColor || '');
   if (!rgb) return baseBg.value;
   const [h, s] = rgbToHsl(rgb);
-  const tint = isDark.value ? `hsla(${h.toFixed(0)}, ${Math.max(s, 40).toFixed(0)}%, 30%, 0.95)` : `hsla(${h.toFixed(0)}, ${Math.max(s, 40).toFixed(0)}%, 82%, 0.95)`;
+  const tint = isDark.value
+    ? `hsla(${h.toFixed(0)}, ${Math.max(s, 40).toFixed(0)}%, 30%, 0.95)`
+    : `hsla(${h.toFixed(0)}, ${Math.max(s, 40).toFixed(0)}%, 82%, 0.95)`;
   return `linear-gradient(110deg, ${tint} 0%, ${baseBg.value} 85%)`;
 });
 
@@ -305,7 +349,7 @@ const showConfirmation = (durationMs = 3500) => {
     clearTimeout(hideTimeout);
     hideTimeout = null;
   }
-  
+
   if (!dynamicIslandEnabled.value) {
     currentState.value = 'hidden';
     return;
@@ -427,7 +471,12 @@ const formatTime = (seconds: number) => {
 
 const syncFromStore = (parsed: any) => {
   if (!parsed) return;
-  const hasValidSong = parsed.playMusic && (parsed.playMusic.id !== undefined && parsed.playMusic.id !== null && parsed.playMusic.id !== '') && (parsed.playMusic.name || parsed.playMusic.title);
+  const hasValidSong =
+    parsed.playMusic &&
+    parsed.playMusic.id !== undefined &&
+    parsed.playMusic.id !== null &&
+    parsed.playMusic.id !== '' &&
+    (parsed.playMusic.name || parsed.playMusic.title);
   if (hasValidSong) {
     if (parsed.isPlay !== undefined) {
       isPlaying.value = !!parsed.isPlay;
@@ -462,7 +511,9 @@ const syncFromStore = (parsed: any) => {
 };
 
 onMounted(async () => {
-  waveRaf = requestAnimationFrame(updateWave);
+  if (isPlaying.value) {
+    waveRaf = requestAnimationFrame(updateWave);
+  }
   syncThemeClass();
 
   try {
@@ -840,7 +891,6 @@ onUnmounted(() => {
   vector-effect: non-scaling-stroke;
 }
 
-
 .progress-track {
   position: absolute;
   top: 0;
@@ -961,8 +1011,14 @@ onUnmounted(() => {
 }
 
 @keyframes popIn {
-  0% { transform: scale(0.5); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .visualizer {
@@ -1045,7 +1101,9 @@ onUnmounted(() => {
 /* ---- Island content transitions ---- */
 .island-content-enter-active,
 .island-content-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
   will-change: opacity, transform;
 }
 .island-content-enter-from {
@@ -1065,7 +1123,9 @@ onUnmounted(() => {
 /* ---- Playing <-> Idle swap inside notch ---- */
 .notch-swap-enter-active,
 .notch-swap-leave-active {
-  transition: opacity 0.14s ease, transform 0.14s ease;
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
   will-change: opacity, transform;
 }
 .notch-swap-enter-from {

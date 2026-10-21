@@ -24,7 +24,6 @@
       @update:show="showDropdown = $event"
       @play="handlePlay(item)"
       @play-next="handlePlayNext"
-      @download="downloadMusic(item)"
       @toggle-favorite="toggleFavorite"
       @toggle-dislike="toggleDislike"
       @remove="$emit('remove-song', $event)"
@@ -70,7 +69,6 @@ const {
   handleArtistClick,
   handleMouseEnter,
   handleMouseLeave,
-  downloadMusic,
   albumName
 } = useSongItem(props);
 

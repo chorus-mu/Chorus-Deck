@@ -1,81 +1,83 @@
 <template>
   <div class="flex flex-col gap-6">
     <setting-section title="About">
-    <!-- App Card -->
-    <div
-      class="flex flex-col items-center justify-center p-6 bg-neutral-100 dark:bg-neutral-900 rounded-2xl mb-6 shadow-sm"
-    >
+      <!-- App Card -->
       <div
-        class="w-24 h-24 rounded-full bg-surface-container flex items-center justify-center cursor-pointer transition-transform duration-500"
-        :class="{ 'rotate-y-180': isEasterEggActive }"
-        @click="isEasterEggActive = !isEasterEggActive"
+        class="flex flex-col items-center justify-center p-6 bg-neutral-100 dark:bg-neutral-900 rounded-2xl mb-6 shadow-sm"
       >
-        <img v-if="!isEasterEggActive" src="@/assets/logo.png" alt="Logo" class="w-16 h-16" />
-        <img
-          v-else
-          src="https://github.com/pushkarverse.png"
-          alt="Developer"
-          class="w-full h-full rounded-full object-cover"
-        />
-      </div>
-      <div class="mt-4 text-xl font-bold">
-        {{ !isEasterEggActive ? 'Chorus Deck' : 'Developed by pushkar' }}
-      </div>
-      <div class="flex items-center gap-2 mt-2">
-        <div class="px-2 py-1 text-xs font-medium text-primary bg-primary/10 rounded-md">
-          {{ updateInfo.currentVersion }}
+        <div
+          class="w-24 h-24 rounded-full bg-surface-container flex items-center justify-center cursor-pointer transition-transform duration-500"
+          :class="{ 'rotate-y-180': isEasterEggActive }"
+          @click="isEasterEggActive = !isEasterEggActive"
+        >
+          <img v-if="!isEasterEggActive" src="@/assets/logo.png" alt="Logo" class="w-16 h-16" />
+          <img
+            v-else
+            src="https://github.com/pushkarverse.png"
+            alt="Developer"
+            class="w-full h-full rounded-full object-cover"
+          />
+        </div>
+        <div class="mt-4 text-xl font-bold">
+          {{ !isEasterEggActive ? 'Chorus Deck' : 'Developed by pushkar' }}
+        </div>
+        <div class="flex items-center gap-2 mt-2">
+          <div class="px-2 py-1 text-xs font-medium text-primary bg-primary/10 rounded-md">
+            {{ updateInfo.currentVersion }}
+          </div>
         </div>
       </div>
-    </div>
 
-    <setting-item icon="ri-information-line" title="Version">
-      <template #description>
-        <div class="flex flex-wrap items-center gap-2">
-          <span>{{ updateInfo.currentVersion }}</span>
-          <n-tag v-if="updateInfo.hasUpdate" type="success">
-            New version available {{ updateInfo.latestVersion }}
-          </n-tag>
-        </div>
-        <div v-if="hasManualUpdateFallback" class="mt-2 text-xs text-amber-600">
-          <i class="ri-information-line mr-1"></i>
-          {{ appUpdateState.errorMessage || 'Failed to check for updates, please try again later' }}
-        </div>
-      </template>
-      <template #action>
-        <div class="flex items-center gap-2 flex-wrap">
-          <s-btn :loading="checking" @click="checkForUpdates(true)">
-            {{ checking ? 'Checking...' : 'Check for Updates' }}
-          </s-btn>
-          <s-btn v-if="updateInfo.hasUpdate" variant="primary" @click="openReleasePage">
-            Go to Update
-          </s-btn>
-          <s-btn v-if="hasManualUpdateFallback" variant="ghost" @click="openManualUpdatePage">
-            Manual Update
-          </s-btn>
-        </div>
-      </template>
-    </setting-item>
+      <setting-item icon="ri-information-line" title="Version">
+        <template #description>
+          <div class="flex flex-wrap items-center gap-2">
+            <span>{{ updateInfo.currentVersion }}</span>
+            <n-tag v-if="updateInfo.hasUpdate" type="success">
+              New version available {{ updateInfo.latestVersion }}
+            </n-tag>
+          </div>
+          <div v-if="hasManualUpdateFallback" class="mt-2 text-xs text-amber-600">
+            <i class="ri-information-line mr-1"></i>
+            {{
+              appUpdateState.errorMessage || 'Failed to check for updates, please try again later'
+            }}
+          </div>
+        </template>
+        <template #action>
+          <div class="flex items-center gap-2 flex-wrap">
+            <s-btn :loading="checking" @click="checkForUpdates(true)">
+              {{ checking ? 'Checking...' : 'Check for Updates' }}
+            </s-btn>
+            <s-btn v-if="updateInfo.hasUpdate" variant="primary" @click="openReleasePage">
+              Go to Update
+            </s-btn>
+            <s-btn v-if="hasManualUpdateFallback" variant="ghost" @click="openManualUpdatePage">
+              Manual Update
+            </s-btn>
+          </div>
+        </template>
+      </setting-item>
 
-    <setting-item
-      icon="ri-user-line"
-      title="Developer"
-      description="pushkar"
-      clickable
-      @click="openDeveloper"
-    >
-      <s-btn @click.stop="openDeveloper"> <i class="ri-github-line mr-1"></i>GitHub </s-btn>
-    </setting-item>
+      <setting-item
+        icon="ri-user-line"
+        title="Developer"
+        description="pushkar"
+        clickable
+        @click="openDeveloper"
+      >
+        <s-btn @click.stop="openDeveloper"> <i class="ri-github-line mr-1"></i>GitHub </s-btn>
+      </setting-item>
 
-    <setting-item
-      icon="ri-github-line"
-      title="App"
-      description="chorus-mu/Chorus-Deck"
-      clickable
-      @click="openAppRepo"
-    >
-      <s-btn @click.stop="openAppRepo"> <i class="ri-github-line mr-1"></i>GitHub </s-btn>
-    </setting-item>
-  </setting-section>
+      <setting-item
+        icon="ri-github-line"
+        title="App"
+        description="chorus-mu/Chorus-Deck"
+        clickable
+        @click="openAppRepo"
+      >
+        <s-btn @click.stop="openAppRepo"> <i class="ri-github-line mr-1"></i>GitHub </s-btn>
+      </setting-item>
+    </setting-section>
   </div>
 </template>
 

@@ -118,37 +118,19 @@
               <input
                 type="radio"
                 v-model="config.lyricGranularity"
-                value="auto"
+                value="karaoke"
                 class="radio-input"
               />
-              <span>Auto</span>
+              <span>Karaoke</span>
             </label>
             <label class="radio-item-compact">
               <input
                 type="radio"
                 v-model="config.lyricGranularity"
-                value="sentence"
+                value="phrase"
                 class="radio-input"
               />
-              <span>Sentence</span>
-            </label>
-            <label class="radio-item-compact">
-              <input
-                type="radio"
-                v-model="config.lyricGranularity"
-                value="word"
-                class="radio-input"
-              />
-              <span>Word</span>
-            </label>
-            <label class="radio-item-compact">
-              <input
-                type="radio"
-                v-model="config.lyricGranularity"
-                value="syllable"
-                class="radio-input"
-              />
-              <span>Syllable</span>
+              <span>Phrase</span>
             </label>
           </div>
         </div>
@@ -156,11 +138,7 @@
         <div class="select-group">
           <label class="select-label">Transition Animation</label>
           <select v-model="config.lyricsAnimationStyle" class="select-input">
-            <option
-              v-for="opt in animationStyleOptions"
-              :key="opt.value"
-              :value="opt.value"
-            >
+            <option v-for="opt in animationStyleOptions" :key="opt.value" :value="opt.value">
               {{ opt.label }}
             </option>
           </select>
@@ -169,11 +147,7 @@
         <div class="select-group">
           <label class="select-label">Preferred Lyric Provider</label>
           <select v-model="config.preferredLyricProvider" class="select-input">
-            <option
-              v-for="opt in providerOptions"
-              :key="opt.value"
-              :value="opt.value"
-            >
+            <option v-for="opt in providerOptions" :key="opt.value" :value="opt.value">
               {{ opt.label }}
             </option>
           </select>
@@ -477,13 +451,8 @@ const gradientDirectionOptions = [
 ];
 
 const animationStyleOptions = [
-  { label: 'Apple Spring (Jump from Top)', value: 'apple_spring' },
-  { label: 'AMLL Fluid (Smooth Glide)', value: 'smooth_fluid' },
-  { label: 'Funky Bounce (Pop Overshoot)', value: 'bouncy_pop' },
-  { label: '3D Carousel (Perspective Cylinder)', value: 'carousel_3d' },
-  { label: 'Cyberpunk Glow (Neon Aura Snap)', value: 'cyberpunk_glow' },
-  { label: 'Kinetic Slant (Directional Skew)', value: 'kinetic_slant' },
-  { label: 'Minimal Fade (Pure Crossfade)', value: 'minimal_fade' }
+  { label: 'Fluid Motion', value: 'fluid_motion' },
+  { label: 'Chorus-Bouncy', value: 'chorus_bouncy' }
 ];
 
 const providerOptions = [

@@ -1,110 +1,110 @@
 <template>
   <div class="flex flex-col gap-6">
     <setting-section v-if="isDesktop()" title="System Management">
-    <setting-item
-      icon="ri-hard-drive-2-line"
-      title="Disk Cache"
-      description="Cache played music and lyrics on local disk to speed up repeated playback"
-    >
-      <n-switch v-model:value="setData.enableDiskCache">
-        <template #checked>On</template>
-        <template #unchecked>Off</template>
-      </n-switch>
-    </setting-item>
+      <setting-item
+        icon="ri-hard-drive-2-line"
+        title="Disk Cache"
+        description="Cache played music and lyrics on local disk to speed up repeated playback"
+      >
+        <n-switch v-model:value="setData.enableDiskCache">
+          <template #checked>On</template>
+          <template #unchecked>Off</template>
+        </n-switch>
+      </setting-item>
 
-    <setting-item
-      icon="ri-folder-2-line"
-      title="Cache Directory"
-      :description="
-        setData.diskCacheDir ||
-        diskCacheStats.path ||
-        'Custom directory for music and lyric cache files'
-      "
-    >
-      <template #action>
-        <div class="flex items-center gap-2 max-md:flex-wrap">
-          <s-btn @click="selectCacheDirectory"> Select Directory </s-btn>
-          <s-btn @click="openCacheDirectory"> Open Directory </s-btn>
-        </div>
-      </template>
-    </setting-item>
-
-    <setting-item
-      icon="ri-database-2-line"
-      title="Cache Size Limit"
-      description="Older cache items are cleaned automatically when limit is reached"
-    >
-      <template #action>
-        <s-input
-          v-model="setData.diskCacheMaxSizeMB"
-          type="number"
-          :min="256"
-          :max="102400"
-          :step="256"
-          suffix="MB"
-          width="w-[160px] max-md:w-32"
-        />
-      </template>
-    </setting-item>
-
-    <setting-item
-      icon="ri-delete-bin-6-line"
-      title="Cleanup Policy"
-      description="Auto cleanup rule when cache reaches the size limit"
-    >
-      <s-select
-        v-model="setData.diskCacheCleanupPolicy"
-        :options="cleanupPolicyOptions"
-        width="w-40"
-      />
-    </setting-item>
-
-    <setting-item
-      icon="ri-pie-chart-line"
-      title="Cache Status"
-      :description="
-        t('settings.system.cacheStatusDesc', {
-          used: formatBytes(diskCacheStats.totalSizeBytes),
-          limit: `${setData.diskCacheMaxSizeMB || (diskCacheStats.maxSize ? diskCacheStats.maxSize / 1024 / 1024 : 0)} MB`
-        })
-      "
-    >
-      <template #action>
-        <div class="flex items-center gap-3 max-md:flex-wrap">
-          <div class="w-40 max-md:w-32">
-            <n-progress type="line" :percentage="diskCacheUsagePercent" />
+      <setting-item
+        icon="ri-folder-2-line"
+        title="Cache Directory"
+        :description="
+          setData.diskCacheDir ||
+          diskCacheStats.path ||
+          'Custom directory for music and lyric cache files'
+        "
+      >
+        <template #action>
+          <div class="flex items-center gap-2 max-md:flex-wrap">
+            <s-btn @click="selectCacheDirectory"> Select Directory </s-btn>
+            <s-btn @click="openCacheDirectory"> Open Directory </s-btn>
           </div>
-          <span class="text-xs text-neutral-500">
-            {{
-              t('settings.system.cacheStatusDetail', {
-                musicCount: diskCacheStats.musicFiles,
-                lyricCount: diskCacheStats.lyricFiles
-              })
-            }}
-          </span>
-          <s-btn @click="refreshDiskCacheStats()">Refresh</s-btn>
-        </div>
-      </template>
-    </setting-item>
+        </template>
+      </setting-item>
 
-    <setting-item
-      icon="ri-broom-line"
-      title="Manual Disk Cache Cleanup"
-      description="Clean cache by category"
-    >
-      <template #action>
-        <div class="flex items-center gap-2 max-md:flex-wrap">
-          <s-btn @click="clearDiskCacheByScope('music')"> Clear Music Cache </s-btn>
-          <s-btn @click="clearDiskCacheByScope('lyrics')"> Clear Lyric Cache </s-btn>
-          <s-btn variant="danger" @click="clearDiskCacheByScope('all')"> Clear All Cache </s-btn>
-        </div>
-      </template>
-    </setting-item>
+      <setting-item
+        icon="ri-database-2-line"
+        title="Cache Size Limit"
+        description="Older cache items are cleaned automatically when limit is reached"
+      >
+        <template #action>
+          <s-input
+            v-model="setData.diskCacheMaxSizeMB"
+            type="number"
+            :min="256"
+            :max="102400"
+            :step="256"
+            suffix="MB"
+            width="w-[160px] max-md:w-32"
+          />
+        </template>
+      </setting-item>
 
-    <setting-item icon="ri-restart-line" title="Restart" description="Restart application">
-      <s-btn @click="restartApp">Restart</s-btn>
-    </setting-item>
-  </setting-section>
+      <setting-item
+        icon="ri-delete-bin-6-line"
+        title="Cleanup Policy"
+        description="Auto cleanup rule when cache reaches the size limit"
+      >
+        <s-select
+          v-model="setData.diskCacheCleanupPolicy"
+          :options="cleanupPolicyOptions"
+          width="w-40"
+        />
+      </setting-item>
+
+      <setting-item
+        icon="ri-pie-chart-line"
+        title="Cache Status"
+        :description="
+          t('settings.system.cacheStatusDesc', {
+            used: formatBytes(diskCacheStats.totalSizeBytes),
+            limit: `${setData.diskCacheMaxSizeMB || (diskCacheStats.maxSize ? diskCacheStats.maxSize / 1024 / 1024 : 0)} MB`
+          })
+        "
+      >
+        <template #action>
+          <div class="flex items-center gap-3 max-md:flex-wrap">
+            <div class="w-40 max-md:w-32">
+              <n-progress type="line" :percentage="diskCacheUsagePercent" />
+            </div>
+            <span class="text-xs text-neutral-500">
+              {{
+                t('settings.system.cacheStatusDetail', {
+                  musicCount: diskCacheStats.musicFiles,
+                  lyricCount: diskCacheStats.lyricFiles
+                })
+              }}
+            </span>
+            <s-btn @click="refreshDiskCacheStats()">Refresh</s-btn>
+          </div>
+        </template>
+      </setting-item>
+
+      <setting-item
+        icon="ri-broom-line"
+        title="Manual Disk Cache Cleanup"
+        description="Clean cache by category"
+      >
+        <template #action>
+          <div class="flex items-center gap-2 max-md:flex-wrap">
+            <s-btn @click="clearDiskCacheByScope('music')"> Clear Music Cache </s-btn>
+            <s-btn @click="clearDiskCacheByScope('lyrics')"> Clear Lyric Cache </s-btn>
+            <s-btn variant="danger" @click="clearDiskCacheByScope('all')"> Clear All Cache </s-btn>
+          </div>
+        </template>
+      </setting-item>
+
+      <setting-item icon="ri-restart-line" title="Restart" description="Restart application">
+        <s-btn @click="restartApp">Restart</s-btn>
+      </setting-item>
+    </setting-section>
   </div>
 </template>
 
